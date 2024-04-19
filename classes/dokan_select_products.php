@@ -1,4 +1,15 @@
 <?php
+/*
+ * La classe Dokan_Select_Products è una classe personalizzata utilizzata nel plugin Dokan per gestire la selezione dei prodotti da parte dei venditori . Ecco una descrizione dettagliata dei suoi metodi:
+ * __construct(): Questo è il costruttore della classe . Viene chiamato automaticamente quando si crea un'istanza della classe. Aggiunge diverse azioni e filtri di WordPress, tra cui l'aggiunta di un menu alla dashboard, l'aggiunta di regole di riscrittura, l'aggiunta di variabili di query, il caricamento del template e la gestione dell'invio del modulo.
+ * enqueue_styles(): Questo metodo viene utilizzato per mettere in coda gli stili necessari quando la variabile di query 'seleziona - prodotti' è impostata.
+ * add_dashboard_menu($urls): Questo metodo aggiunge un nuovo elemento al menu della dashboard di Dokan.
+ * add_rewrite_rules(): Questo metodo aggiunge una nuova regola di riscrittura per gestire le richieste alla pagina 'seleziona - prodotti'.
+ * add_query_vars($vars): Questo metodo aggiunge la variabile 'seleziona - prodotti' alle variabili di query di WordPress.
+ * load_template($template): Questo metodo carica il template per la pagina 'seleziona - prodotti' se la variabile di query corrispondente è impostata.
+ * handle_form_submission(): Questo metodo gestisce l'invio del modulo per la selezione dei prodotti . Crea una copia di ciascun prodotto selezionato e lo assegna al venditore corrente .*/
+
+
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
@@ -9,12 +20,12 @@ if (!class_exists('Dokan_Select_Products')) {
 
         public function __construct()
         {
-            add_action('dokan_get_dashboard_nav', array($this, 'add_dashboard_menu'));
-            add_action('init', array($this, 'add_rewrite_rules'));
-            add_filter('query_vars', array($this, 'add_query_vars'));
-            add_filter('template_include', array($this, 'load_template'));
-            add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'), 9999);
-            add_action('init', array($this, 'handle_form_submission'));
+            add_action('dokan_get_dashboard_nav', array($this, 'add_dashboard_menu')); // Aggiunge il menu alla dashboard di Dokan
+            add_action('init', array($this, 'add_rewrite_rules')); // Aggiunge le regole di riscrittura all'inizializzazione
+            add_filter('query_vars', array($this, 'add_query_vars')); // Aggiunge le variabili di query
+            add_filter('template_include', array($this, 'load_template')); // Include il template
+            add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'), 9999); // Mette in coda gli stili
+            add_action('init', array($this, 'handle_form_submission')); // Gestisce l'invio del modulo all'inizializzazione
 
         }
 
