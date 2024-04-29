@@ -8,12 +8,14 @@
  * add_query_vars($vars): Questo metodo aggiunge la variabile 'seleziona - prodotti' alle variabili di query di WordPress.
  * load_template($template): Questo metodo carica il template per la pagina 'seleziona - prodotti' se la variabile di query corrispondente è impostata.
  * handle_form_submission(): Questo metodo gestisce l'invio del modulo per la selezione dei prodotti . Crea una copia di ciascun prodotto selezionato e lo assegna al venditore corrente .*/
+namespace Dokan_Mods;
 
+use WC_Admin_Duplicate_Product;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
-if (!class_exists('Dokan_Select_Products')) {
+if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
     class Dokan_Select_Products
     {
         // Constructor
@@ -53,9 +55,9 @@ if (!class_exists('Dokan_Select_Products')) {
 
         public function add_dashboard_menu($urls)
         {
-            //unset($urls['products']);
+            unset($urls['products']);
             $urls['seleziona-prodotti'] = array(
-                'title' => __('Seleziona Prodotti', 'dokan'),
+                'title' => __('Aggiungi Servizi', 'dokan'),
                 'icon' => '<i class="fas fa-briefcase"></i>',
                 'url' => site_url('/dashboard/seleziona-prodotti'), // Aggiungi qui l'URL del tuo template
                 'pos' => 30,

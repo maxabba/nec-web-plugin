@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="4f5868fa-c9cb-435c-80de-d3686067a40c" name="Necrologi" url="https://necrologi.abbattista.pw">
+        <fileTransfer rootFolder="/public_html/wp-content/plugins/dokan-mod" host="necrologi.abbattista.pw" port="21">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

@@ -5,6 +5,7 @@
  * Version: 1.0
  * Author: Marco Abbattista
  */
+namespace Dokan_Mods;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
@@ -18,9 +19,11 @@ define( 'DOKAN_SELECT_PRODUCTS_PLUGIN_PATH', plugin_dir_path( __FILE__ ) );
 define( 'DOKAN_SELECT_PRODUCTS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 include DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/dokan_select_products.php';
-
+include DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/Miscellaneous.php';
+include DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/RegistrationForm.php';
 // Initialize the plugin
 new Dokan_Select_Products();
-
+new Miscellaneous();
+new RegistrationForm();
 
 
