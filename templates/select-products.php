@@ -8,7 +8,10 @@ if ( ! current_user_can( 'dokan_view_product_menu' ) ) {
     wp_die( __( 'Non hai i permessi per visualizzare questa pagina', 'dokan' ) );
 }
 
-//get the list of all the products wc fitering it by user creator admin and both category default-products and sub category editable-price
+$user_id = get_current_user_id();
+$store_info = dokan_get_store_info($user_id);
+$user_city = $store_info['address']['city'] ?? '';
+
 $args = array(
     'post_type' => 'product',
     'post_status' => 'publish',
@@ -25,6 +28,28 @@ $args = array(
             'field' => 'slug',
             'terms' => 'editable-price',
             'operator' => 'IN'
+        )
+    ),
+    'meta_query' => array(
+        'relation' => 'OR',
+        array(
+            'key' => 'citta',
+            'value' => $user_city,
+            'compare' => '='
+        ),
+        array(
+            'key' => 'citta',
+            'value' => 'Tutte',
+            'compare' => '='
+        ),
+        array(
+            'key' => 'citta',
+            'compare' => 'NOT EXISTS' // Questa condizione seleziona i post che non hanno il campo 'city'
+        ),
+        array(
+            'key' => 'citta',
+            'value' => '', // Questa condizione verifica i post con il campo 'city' vuoto
+            'compare' => '='
         )
     )
 );
@@ -132,6 +157,10 @@ $active_menu = 'seleziona-prodotti';
                                 $check = '';
                                 $disabled = '';
                                 if ($product_exist) {
+                                    //get the price of the product
+                                    $product_wc = wc_get_product($product_exist[0]->ID);
+                                    $price = $product_wc->get_price();
+
                                     if ($product_exist[0]->post_status == 'pending') {
                                         $product_name .= __(' (Pending)', 'dokan');
                                         $disabled = 'disabled';
@@ -176,7 +205,7 @@ $active_menu = 'seleziona-prodotti';
                                     ?>
                                     <div class="dokan-form-group dokan-product-type-container">
                                         <label for="product-<?php echo $product_id; ?>-price">Prezzo: <?php echo $currency_symbol; ?></label>
-                                        <input type="number" id="product-<?php echo $product_id; ?>-price" name="product_price[<?php echo $product_id; ?>]" step="0.01" min="0" required value="<?php echo $price ?>">
+                                        <input type="number" id="product-<?php echo $product_id; ?>-price" name="product_price[<?php echo $product_id; ?>]" step="0.01" min="0" required value="<?php echo $price ?>" <?php echo $disabled?> >
                                     </div>
 
                                     <!-- add separator line -->
@@ -186,6 +215,7 @@ $active_menu = 'seleziona-prodotti';
                                     // print the price of the product
                                     ?>
                                     <p><strong><?php  _e('Prezzo del servizio:','dokan'); ?></strong><?php echo $currency_symbol; ?> <?php echo $price; ?></p>
+                                    <p>Per questo servizio non è prevista la modificha del prezzo, per richiedere informazioni o modifiche utilizza l'apposito modulo di contatto</p>
                                     <?php
                                 }
 

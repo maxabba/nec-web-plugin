@@ -97,10 +97,21 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
         {
             // Check if the form is submitted
             if (isset($_POST['selected_product_for_vendor'])) {
-                echo 'Form submitted';
+                //echo 'Form submitted';
                 // Sanitize and process the form data
-                $selected_products = isset($_POST['product']) ? array_map('intval', $_POST['product']) : array();
+                $data = filter_input_array(INPUT_POST, [
+                    'product' => [
+                        'filter' => FILTER_VALIDATE_INT,
+                        'flags' => FILTER_REQUIRE_ARRAY,
+                    ],
+                    'product_price' => [
+                        'filter' => FILTER_VALIDATE_FLOAT,
+                        'flags' => FILTER_REQUIRE_ARRAY,
+                    ]
+                ]);
 
+                $selected_products = $data['product'] ?? array();
+                $price = $data['product_price'] ?? array();
                 // Get the current user
                 $user_id = get_current_user_id();
                 foreach ($selected_products as $product_id) {
@@ -126,6 +137,11 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                         if (version_compare(WC_VERSION, '2.7', '>')) {
                             $product = wc_get_product($product_id);
                             $clone_product = $wo_dup->product_duplicate($product);
+                            //get the price form product_price field if exists and set it as price
+                            if (isset($price[$product_id])) {
+                                $clone_product->set_regular_price($price[$product_id]);
+                                $clone_product->save(); // Save the product data
+                            }
                             $clone_product_id = $clone_product->get_id();
                         } else {
 
