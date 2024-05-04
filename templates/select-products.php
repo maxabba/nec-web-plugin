@@ -12,47 +12,7 @@ $user_id = get_current_user_id();
 $store_info = dokan_get_store_info($user_id);
 $user_city = $store_info['address']['city'] ?? '';
 
-$args = array(
-    'post_type' => 'product',
-    'post_status' => 'publish',
-    'posts_per_page' => -1,
-    'tax_query' => array(
-        'relation' => 'OR',
-        array(
-            'taxonomy' => 'product_cat',
-            'field' => 'slug',
-            'terms' => 'default-products'
-        ),
-        array(
-            'taxonomy' => 'product_cat',
-            'field' => 'slug',
-            'terms' => 'editable-price',
-            'operator' => 'IN'
-        )
-    ),
-    'meta_query' => array(
-        'relation' => 'OR',
-        array(
-            'key' => 'citta',
-            'value' => $user_city,
-            'compare' => '='
-        ),
-        array(
-            'key' => 'citta',
-            'value' => 'Tutte',
-            'compare' => '='
-        ),
-        array(
-            'key' => 'citta',
-            'compare' => 'NOT EXISTS' // Questa condizione seleziona i post che non hanno il campo 'city'
-        ),
-        array(
-            'key' => 'citta',
-            'value' => '', // Questa condizione verifica i post con il campo 'city' vuoto
-            'compare' => '='
-        )
-    )
-);
+$args = (new Dokan_Mods\FiltersClass($user_city))->get_arg_query_Select_product_form();
 $products = get_posts($args);
 
 $user_id = get_current_user_id();
