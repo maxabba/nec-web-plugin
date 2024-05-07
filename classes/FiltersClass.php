@@ -14,28 +14,87 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
         public function __construct($city = null, $province = null)
         {
             $this->city = $city;
-            global $dbClassInstance;
-
-            $this->province = $dbClassInstance->get_comuni_by_provincia($province);
-
+            $this->province = $province;
+            if ($this->city == 'Tutte') {
+                global $dbClassInstance;
+                $this->city = $dbClassInstance->get_comuni_by_provincia($province);
+            }
         }
 
 
         public function get_city_filter_meta_query()
         {
             $city_filter = $this->city;
+            $province_filter = $this->province;
+
+
+            // If $this->province is set and is an array, add a new condition
+            if (is_array($city_filter)) {
+                $meta_query = array(
+                    'relation' => 'OR',
+                    array(
+                        'key' => 'citta',
+                        'value' => $city_filter,
+                        'compare' => 'IN'
+                    ),
+                    array(
+                        'relation' => 'AND',
+                        array(
+                            'key' => 'provincia',
+                            'value' => $province_filter,
+                            'compare' => '='
+                        ),
+                        array(
+                            'key' => 'citta',
+                            'value' => 'Tutte',
+                            'compare' => '='
+                        ),
+                    ),
+                    array(
+                        'relation' => 'AND',
+                        array(
+                            'key' => 'provincia',
+                            'value' => "Tutte",
+                            'compare' => '='
+                        ),
+                        array(
+                            'key' => 'citta',
+                            'value' => 'Tutte',
+                            'compare' => '='
+                        ),
+                    ),
+                    array(
+                        'key' => 'citta',
+                        'compare' => 'NOT EXISTS' // Questa condizione seleziona i post che non hanno il campo 'city'
+                    ),
+                    array(
+                        'key' => 'citta',
+                        'value' => '', // Questa condizione verifica i post con il campo 'city' vuoto
+                        'compare' => '='
+                    )
+                );
+                return $meta_query;
+            }
 
             $meta_query = array(
-                'relation' => 'AND',
+                'relation' => 'OR',
                 array(
                     'key' => 'citta',
                     'value' => $city_filter,
                     'compare' => '='
                 ),
                 array(
-                    'key' => 'citta',
-                    'value' => 'Tutte',
-                    'compare' => '='
+                    'relation' => 'AND',
+                    array(
+                        'key' => 'provincia',
+                        'value' => "Tutte",
+                        'compare' => '='
+                    ),
+                    array(
+                        'key' => 'citta',
+                        'value' => 'Tutte',
+                        'compare' => '='
+                    ),
                 ),
                 array(
                     'key' => 'citta',
@@ -47,16 +106,8 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
                     'compare' => '='
                 )
             );
-
-            // If $this->province is set and is an array, add a new condition
-            if (isset($this->province) && is_array($this->province)) {
-                $meta_query[] = array(
-                    'key' => 'citta',
-                    'value' => $this->province,
-                    'compare' => 'IN'
-                );
-            }
             return $meta_query;
+
         }
 
         public function get_arg_query_Select_product_form()

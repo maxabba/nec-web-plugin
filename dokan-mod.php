@@ -35,12 +35,14 @@ if (!class_exists(__NAMESPACE__ .'Miscellaneous')) {
     new Miscellaneous();
 }
 
-if (!class_exists(__NAMESPACE__ .'Miscellaneous')) {
+if (!class_exists(__NAMESPACE__ .'RegistrationForm')) {
     include_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/RegistrationForm.php';
     new RegistrationForm();
 }
 
-
+if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
+    include_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/FiltersClass.php';
+}
 // Initialize the plugin
 
 

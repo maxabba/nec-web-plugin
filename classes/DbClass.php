@@ -95,6 +95,12 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
             global $wpdb;
             $sql = $wpdb->prepare("SELECT nome FROM $this->table_name WHERE provincia_nome = %s ORDER BY nome ASC", $provincia);
             $result = $wpdb->get_results($sql, ARRAY_A);
+
+            //map the result to get only the name of the comune
+            $result = array_map(function ($comune) {
+                return $comune['nome'];
+            }, $result);
+
             return $result;
         }
 
