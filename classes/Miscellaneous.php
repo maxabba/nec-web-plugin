@@ -12,6 +12,8 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
         //define constructor
         public function __construct()
         {
+
+
             add_filter('acf/load_value/key=citta', array($this, 'auto_fill_acf_field_based_on_user'), 10, 3);
             add_filter('acf/load_field/name=provincia', array($this, 'load_province_choices'));
             //add_filter('acf/load_field/name=city', array($this, 'load_city_choices'));
