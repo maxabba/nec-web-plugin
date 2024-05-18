@@ -1,10 +1,12 @@
 <?php
 
 namespace Dokan_Mods;
+
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
-if (!class_exists(__NAMESPACE__ . 'AnnuncioMorteClass')) {
+
+if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
     class AnnuncioMorteClass
     {
         private $pages;
@@ -13,7 +15,7 @@ if (!class_exists(__NAMESPACE__ . 'AnnuncioMorteClass')) {
         public function __construct()
         {
             $this->pages = [
-                'pensierini' => DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/pensierini.php',
+                'pensierini' => 334, // Sostituisci 123 con l'ID del tuo template di Elementor
             ];
             $this->pages_slug = array_keys($this->pages);
             $links = array_map(function ($slug) {
@@ -21,8 +23,6 @@ if (!class_exists(__NAMESPACE__ . 'AnnuncioMorteClass')) {
             }, $this->pages_slug);
 
             $this->pages_slug = call_user_func_array('array_merge', $links);
-
-
 
             add_action('init', array($this, 'dynamic_page_init'));
             add_action('init', array($this, 'register_shortcodes'));
@@ -40,15 +40,11 @@ if (!class_exists(__NAMESPACE__ . 'AnnuncioMorteClass')) {
 
         public function check_and_create_product()
         {
-            // Get all pages
             $pages = $this->get_pages();
 
-            // Loop through each page
-            foreach ($pages as $slug => $template_path) {
-                // Get the current page slug via the key
+            foreach ($pages as $slug => $template_id) {
                 $current_page_slug = $slug;
 
-                // Check if a product with the same slug exists
                 $args = array(
                     'name' => $current_page_slug,
                     'post_type' => 'product',
@@ -56,13 +52,10 @@ if (!class_exists(__NAMESPACE__ . 'AnnuncioMorteClass')) {
                     'numberposts' => 1
                 );
                 $products = get_posts($args);
-                //check if exist the product category with the same sulg, if not create
                 $term = term_exists($current_page_slug, 'product_cat');
                 if (!$term) {
-                    //create the category with name uppercase of the slug and the slug as slug
                     wp_insert_term(ucfirst($current_page_slug), 'product_cat', array('slug' => $current_page_slug));
                 }
-                // If the product doesn't exist, create it
                 if (empty($products)) {
                     $product_data = array(
                         'post_title' => ucfirst($current_page_slug),
@@ -72,13 +65,9 @@ if (!class_exists(__NAMESPACE__ . 'AnnuncioMorteClass')) {
                         'post_type' => 'product',
                     );
 
-                    // Insert the product post
                     $product_id = wp_insert_post($product_data);
 
-                    // Get the term id of the product category
                     $term = get_term_by('slug', $current_page_slug, 'product_cat');
-
-                    // Assign the product to the category
                     if ($term !== false) {
                         wp_set_object_terms($product_id, $term->term_id, 'product_cat');
                     }
@@ -96,17 +85,16 @@ if (!class_exists(__NAMESPACE__ . 'AnnuncioMorteClass')) {
             add_shortcode('place_order_for', array($this, 'generate_custom_button'));
         }
 
-
         public function dynamic_page_init()
         {
-            foreach ($this->pages as $query_var => $template_path) {
+            foreach ($this->pages as $query_var => $template_id) {
                 add_rewrite_rule('^' . $query_var . '/?$', 'index.php?' . $query_var . '=1', 'top');
             }
         }
 
         public function query_vars($vars)
         {
-            foreach ($this->pages as $query_var => $template_path) {
+            foreach ($this->pages as $query_var => $template_id) {
                 $vars[] = $query_var;
             }
             return $vars;
@@ -114,33 +102,56 @@ if (!class_exists(__NAMESPACE__ . 'AnnuncioMorteClass')) {
 
         public function custom_dynamic_page_template($template)
         {
-            foreach ($this->pages as $query_var => $template_path) {
+            foreach ($this->pages as $query_var => $template_id) {
                 $is_custom_page = intval(get_query_var($query_var, 0));
-                if ($is_custom_page === 1 && file_exists($template_path)) {
-                    return $template_path;
+                if ($is_custom_page === 1) {
+                    // Verifica che Elementor sia attivo e la classe disponibile
+                    if (class_exists('\Elementor\Plugin')) {
+                        // Ottieni l'ID del post passato come parametro GET
+                        $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 0;
+
+                        // Imposta l'ID del post come variabile globale per Elementor
+                        if ($post_id) {
+                            global $post;
+                            $post = get_post($post_id);
+                            setup_postdata($post);
+                        }
+
+                        // Usa il contenuto del template di Elementor
+                        echo \Elementor\Plugin::instance()->frontend->get_builder_content_for_display($template_id);
+
+                        // Reimposta i dati del post globale
+                        if ($post_id) {
+                            wp_reset_postdata();
+                        }
+
+                        exit; // Termina l'esecuzione per evitare il caricamento del template predefinito
+                    } else {
+                        // Elementor non è attivo
+                        wp_die('Elementor is not activated. Please activate Elementor plugin to use this feature.');
+                    }
                 }
             }
             return $template;
         }
 
-
-       public function generate_custom_button($atts)
+        public function generate_custom_button($atts)
         {
             $atts = shortcode_atts(
                 array(
-                    'path' => '', // Default value
-                    'text' => 'Ordina', // Default value
+                    'path' => '', // Valore predefinito
+                    'text' => 'Ordina', // Valore predefinito
                 ),
                 $atts,
                 'place_order_for'
             );
 
-            $path = $atts['path']; // Get the path from the shortcode attributes
-            $text = $atts['text']; // Get the text from the shortcode attributes
-            $post_id = get_the_ID(); // Get the current post ID
-            $url = home_url($path . '?post_id=' . $post_id); // Construct the URL
+            $path = $atts['path']; // Ottieni il path dagli attributi dello shortcode
+            $text = $atts['text']; // Ottieni il testo dagli attributi dello shortcode
+            $post_id = get_the_ID(); // Ottieni l'ID del post corrente
+            $url = home_url($path . '?post_id=' . $post_id); // Costruisci l'URL
 
-            // Create the button with inline styles
+            // Crea il pulsante con stili inline
             $output = '<div class="elementor-button-wrapper" style="text-align: right;">';
             $output .= '<a class="elementor-button elementor-button-link elementor-size-sm" href="' . esc_url($url) . '" style="
                 color: var(--e-global-color-secondary);
@@ -157,7 +168,7 @@ if (!class_exists(__NAMESPACE__ . 'AnnuncioMorteClass')) {
                 letter-spacing: var(--e-global-typography-secondary-letter-spacing);
             ">';
             $output .= '<span class="elementor-button-content-wrapper">';
-            $output .= '<span class="elementor-button-text">'.$text.'</span>';
+            $output .= '<span class="elementor-button-text">' . $text . '</span>';
             $output .= '</span>';
             $output .= '</a>';
             $output .= '</div>';
@@ -165,10 +176,16 @@ if (!class_exists(__NAMESPACE__ . 'AnnuncioMorteClass')) {
             return $output;
         }
 
+        public function dynamic_page_activate()
+        {
+            $this->dynamic_page_init();
+            flush_rewrite_rules();
+        }
 
+        public function dynamic_page_deactivate()
+        {
+            flush_rewrite_rules();
+        }
     }
 }
-
-
-
 
