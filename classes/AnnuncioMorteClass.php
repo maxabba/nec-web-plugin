@@ -2,6 +2,8 @@
 
 namespace Dokan_Mods;
 
+use WC_Cart;
+
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
@@ -15,7 +17,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
         public function __construct()
         {
             $this->pages = [
-                'pensierini' => 334, // Sostituisci 123 con l'ID del tuo template di Elementor
+                'pensierini' => [334 , DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/pensierini.php'], // Sostituisci 123 con l'ID del tuo template di Elementor
             ];
             $this->pages_slug = array_keys($this->pages);
             $links = array_map(function ($slug) {
@@ -31,6 +33,10 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             add_filter('template_include', array($this, 'custom_dynamic_page_template'));
             register_activation_hook(DOKAN_MOD_MAIN_FILE, array($this, 'dynamic_page_activate'));
             register_deactivation_hook(DOKAN_MOD_MAIN_FILE, array($this, 'dynamic_page_deactivate'));
+
+            add_action('wp_loaded', array($this, 'handle_form_submission'));
+            add_action('woocommerce_payment_complete', array($this, 'handle_payment_complete'));
+
         }
 
         public function get_pages()
@@ -82,7 +88,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
 
         public function register_shortcodes()
         {
-            add_shortcode('place_order_for', array($this, 'generate_custom_button'));
+            add_shortcode('pensierino_form', array($this, 'generate_pensierino_form'));
         }
 
         public function dynamic_page_init()
@@ -110,13 +116,10 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                         // Ottieni l'ID del post passato come parametro GET
                         $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 0;
 
-                        // Debug: Mostra l'ID del post
-                        error_log("Post ID: " . $post_id);
-
-
-
                         //check if the template id is set and the template exists
-                        if (isset($template_id) && \Elementor\Plugin::instance()->templates_manager->is_exist($template_id)) {
+
+
+                        if (isset($template_id[0]) && get_post($template_id[0])) {
                             // Imposta l'ID del post come variabile globale per Elementor
                             if ($post_id) {
                                 global $post;
@@ -127,13 +130,10 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                             get_header();
 
                             // Usa il contenuto del template di Elementor
-                            echo \Elementor\Plugin::instance()->frontend->get_builder_content_for_display($template_id);
+                            echo \Elementor\Plugin::instance()->frontend->get_builder_content_for_display($template_id[0]);
 
                             // Includi il footer del tema
                             get_footer();
-
-                            // Debug: Messaggio di successo
-                            error_log("Elementor template loaded successfully.");
 
                             // Reimposta i dati del post globale
                             if ($post_id) {
@@ -143,7 +143,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                             exit; // Termina l'esecuzione per evitare il caricamento del template predefinito
                         } else {
                             // Elementor non è attivo
-
+                            return $template_id[1];
                         }
 
 
@@ -157,46 +157,152 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             return $template;
         }
 
-        public function generate_custom_button($atts)
+        public function generate_pensierino_form()
         {
-            $atts = shortcode_atts(
-                array(
-                    'path' => '', // Valore predefinito
-                    'text' => 'Ordina', // Valore predefinito
-                ),
-                $atts,
-                'place_order_for'
-            );
+            ob_start(); // Start output buffering
 
-            $path = $atts['path']; // Ottieni il path dagli attributi dello shortcode
-            $text = $atts['text']; // Ottieni il testo dagli attributi dello shortcode
-            $post_id = get_the_ID(); // Ottieni l'ID del post corrente
-            $url = home_url($path . '?post_id=' . $post_id); // Costruisci l'URL
+            ?>
+            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" class="full-width-form">
+                <input type="hidden" name="action" value="pensierino_form">
+                <input type="hidden" name="post_id" value="<?php echo get_the_ID(); ?>">
+                <textarea name="pensierino" id="pensierino_comment_id" maxlength="200" required class="styled-textarea"></textarea>
+                <input type="submit" value="Continua">
+            </form>
+            <style>
+                .full-width-form input[type="submit"] {
+                    display: block;
+                    margin: 0 auto;
+                }
 
-            // Crea il pulsante con stili inline
-            $output = '<div class="elementor-button-wrapper" style="text-align: right;">';
-            $output .= '<a class="elementor-button elementor-button-link elementor-size-sm" href="' . esc_url($url) . '" style="
-                color: var(--e-global-color-secondary);
-                background-color: #FFFFFF;
-                border: 1px solid var(--e-global-color-secondary);
-                border-radius: 5px;
-                font-family: var(--e-global-typography-secondary-font-family);
-                font-size: var(--e-global-typography-secondary-font-size);
-                font-weight: var(--e-global-typography-secondary-font-weight);
-                text-transform: var(--e-global-typography-secondary-text-transform);
-                font-style: var(--e-global-typography-secondary-font-style);
-                text-decoration: var(--e-global-typography-secondary-text-decoration);
-                line-height: var(--e-global-typography-secondary-line-height);
-                letter-spacing: var(--e-global-typography-secondary-letter-spacing);
-            ">';
-            $output .= '<span class="elementor-button-content-wrapper">';
-            $output .= '<span class="elementor-button-text">' . $text . '</span>';
-            $output .= '</span>';
-            $output .= '</a>';
-            $output .= '</div>';
+                .full-width-form {
+                    width: 100%;
+                }
+                .styled-textarea {
+                    width: 100%;
+                    margin-bottom: 10px;
+                    resize: none;
+                    height: 150px;
+                    border: none; /* Remove all borders */
+                    border-bottom: 1px solid #000; /* Add only bottom border */
+                    border-radius: 0; /* Remove border radius */
+                    font-family: var(--e-global-typography-text-font-family), Sans-serif;
+                    font-weight: var(--e-global-typography-text-font-weight);
+                }
+            </style>
+            <?php
 
-            return $output;
+            return ob_get_clean(); // End output buffering and return the form HTML
         }
+
+
+        public function handle_form_submission()
+        {
+            // Check if the form is submitted and the textarea text is set
+            if (isset($_POST['pensierino'])) {
+                // Get the textarea text
+                $comment_text = sanitize_text_field($_POST['pensierino']);
+
+                // Get the post ID
+                $post_id = intval($_POST['post_id']);
+
+                // Get the product ID of Pensierini
+                $product_id = $this->get_product_id_by_slug('pensierini');
+                if (class_exists('WooCommerce')) {
+                    $product = wc_get_product($product_id);
+                    if (!WC()->cart) {
+                        wc_load_cart();
+                    }
+                    if ($product) {
+                        if ($product->is_purchasable()) {
+                            $cart_item_data = array(
+                                'pensierino_comment_text' => $comment_text,
+                                'pensierino_comment_post_id' => $post_id,
+                            );
+
+                            WC()->cart->add_to_cart($product_id, 1, 0, array(), $cart_item_data);
+                            wp_redirect(wc_get_cart_url());
+                            exit;
+                        } else {
+                            wp_die('Product not purchasable');
+                        }
+                    }else{
+                        wp_die('Product not found');
+                    }
+                }else {
+                   //redirect back to the page whit error message
+                    wp_redirect(get_permalink($post_id));
+                    exit;
+
+                }
+            }
+        }
+
+        private function wc_load_cart()
+        {
+            if (!WC()->cart) {
+                WC()->cart = new WC_Cart();
+                WC()->session->set('cart', WC()->cart->get_cart());
+            }
+        }
+
+        public function handle_payment_complete($order_id)
+        {
+            // Get the order
+            $order = wc_get_order($order_id);
+
+            // Loop through the order items
+            foreach ($order->get_items() as $item_id => $item) {
+                // Get the product ID
+                $product_id = $item->get_product_id();
+
+                // Check if the product is Pensierini
+                if ($product_id == $this->get_product_id_by_slug('pensierini')) {
+                    // Get the comment text and post ID from the cart item data
+                    $comment_text = $item->get_meta('pensierino_comment_text');
+                    $post_id = $item->get_meta('pensierino_comment_post_id');
+
+                    // Get the order
+                    $order = wc_get_order($order_id);
+
+                    // Get the billing first name and last name
+                    $first_name = $order->get_billing_first_name();
+                    $last_name = $order->get_billing_last_name();
+
+                    // Check if the comment text and post ID are set
+                    if ($comment_text && $post_id) {
+                        // Prepare the comment data
+                        $comment_data = array(
+                            'comment_post_ID' => $post_id,
+                            'comment_author' => $first_name . ' ' . $last_name,
+                            'comment_content' => $comment_text,
+                            'comment_type' => 'comment',
+                            'comment_approved' => 0, // Set to 0 to make the comment unapproved
+                        );
+
+                        // Insert the comment
+                        wp_insert_comment($comment_data);
+                    }
+                }
+            }
+        }
+
+        private function get_product_id_by_slug($slug)
+        {
+            $args = array(
+                'name' => $slug,
+                'post_type' => 'product',
+                'post_status' => 'publish',
+                'numberposts' => 1
+            );
+            $products = get_posts($args);
+
+            if (!empty($products)) {
+                return $products[0]->ID;
+            }
+
+            return false;
+        }
+
 
         public function dynamic_page_activate()
         {

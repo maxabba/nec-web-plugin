@@ -58,6 +58,7 @@ dokan_mods_load_and_instantiate_class('Dokan_Select_Products', 'classes/dokan_se
 dokan_mods_load_and_instantiate_class('Miscellaneous', 'classes/Miscellaneous.php');
 dokan_mods_load_and_instantiate_class('RegistrationForm', 'classes/RegistrationForm.php');
 dokan_mods_load_and_instantiate_class('AnnuncioMorteClass', 'classes/AnnuncioMorteClass.php');
+dokan_mods_load_and_instantiate_class('ElementorWidgetInit', 'includes/ElementorWidgetInit.php');
 
 // Includi FiltersClass senza istanziarla
 if (!class_exists(__NAMESPACE__ . '\FiltersClass')) {
@@ -65,15 +66,3 @@ if (!class_exists(__NAMESPACE__ . '\FiltersClass')) {
 }
 
 
-//register the incluses widget to elementor
-add_action('elementor/widgets/widgets_registered', function () {
-    require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'includes/WidgetBuyElementor/widget_buy.php';
-    \Elementor\Plugin::instance()->widgets_manager->register(new \Dokan_Mods\Annunci_Widget());
-});
-function my_elementor_annunci_Widget_scripts()
-{
-    wp_enqueue_style('my-elementor-annunci-widget-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'includes/WidgetBuyElementor/css/style.css');
-    wp_enqueue_script('my-elementor-annunci-widget-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL. 'includes/WidgetBuyElementor/js/script.js', ['jquery'], null, true);
-}
-
-add_action('wp_enqueue_scripts', 'Dokan_Mods\my_elementor_annunci_Widget_scripts');
