@@ -110,24 +110,46 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                         // Ottieni l'ID del post passato come parametro GET
                         $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 0;
 
-                        // Imposta l'ID del post come variabile globale per Elementor
-                        if ($post_id) {
-                            global $post;
-                            $post = get_post($post_id);
-                            setup_postdata($post);
+                        // Debug: Mostra l'ID del post
+                        error_log("Post ID: " . $post_id);
+
+
+
+                        //check if the template id is set and the template exists
+                        if (isset($template_id) && \Elementor\Plugin::instance()->templates_manager->is_exist($template_id)) {
+                            // Imposta l'ID del post come variabile globale per Elementor
+                            if ($post_id) {
+                                global $post;
+                                $post = get_post($post_id);
+                                setup_postdata($post);
+                            }
+                            // Includi l'header del tema
+                            get_header();
+
+                            // Usa il contenuto del template di Elementor
+                            echo \Elementor\Plugin::instance()->frontend->get_builder_content_for_display($template_id);
+
+                            // Includi il footer del tema
+                            get_footer();
+
+                            // Debug: Messaggio di successo
+                            error_log("Elementor template loaded successfully.");
+
+                            // Reimposta i dati del post globale
+                            if ($post_id) {
+                                wp_reset_postdata();
+                            }
+
+                            exit; // Termina l'esecuzione per evitare il caricamento del template predefinito
+                        } else {
+                            // Elementor non è attivo
+
                         }
 
-                        // Usa il contenuto del template di Elementor
-                        echo \Elementor\Plugin::instance()->frontend->get_builder_content_for_display($template_id);
 
-                        // Reimposta i dati del post globale
-                        if ($post_id) {
-                            wp_reset_postdata();
-                        }
-
-                        exit; // Termina l'esecuzione per evitare il caricamento del template predefinito
                     } else {
                         // Elementor non è attivo
+                        error_log('Elementor is not activated. Please activate Elementor plugin to use this feature.');
                         wp_die('Elementor is not activated. Please activate Elementor plugin to use this feature.');
                     }
                 }
