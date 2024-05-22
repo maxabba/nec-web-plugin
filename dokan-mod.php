@@ -37,6 +37,10 @@ if (!class_exists(__NAMESPACE__ . '\DbClass')) {
     $dbClassInstance = new DbClass($main_file);
 }
 
+if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
+    require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/UtilsAMClass.php';
+}
+
 // Funzione per caricare e istanziare le classi
 function dokan_mods_load_and_instantiate_class($class_name, $file_path)
 {

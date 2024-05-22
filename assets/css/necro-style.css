@@ -1,0 +1,809 @@
+/*!* VARIABILI *!*/
+:root {
+    --my-primary: #486173;
+    --my-secondary: #b7aa79;
+    --my-gold: #dcbe52;
+    --my-gray: #e9efee;
+
+    --rad: .7rem;
+    --dur: .3s;
+    --color-dark: #2f2f2f;
+    --color-light: #fff;
+    /* --color-brand: #57bd84; */
+    --font-fam: 'Lato', sans-serif;
+    --height: 5rem;
+    --btn-width: 6rem;
+    --bez: cubic-bezier(0, 0, 0.43, 1.49);
+}
+
+
+/*!*!* GENERALS*/
+/*i {*/
+/*    color: var(--my-gold);*/
+/*}*/
+
+/*a {*/
+/*    text-decoration: none;*/
+/*    color: black;*/
+/*}*/
+
+/*a:hover {*/
+/*    color: black;*/
+/*}*/
+
+/*.form-check-input:checked {*/
+/*    background-color: var(--my-gold);*/
+/*    border-color: var(--my-gold);*/
+/*    border-radius: none;*/
+/*}*/
+
+/*!* HR----------------------------------- *!*/
+/*.nrc-hr-gradient {*/
+/*    background: rgb(255, 255, 255);*/
+/*    background: linear-gradient(90deg, rgba(255, 255, 255, 1) 0%, rgba(166, 166, 166, 1) 50%, rgba(255, 255, 255, 1) 100%);*/
+/*    height: 5px;*/
+/*    margin: 10px 0;*/
+/*    border: none;*/
+/*}*/
+
+/*.nrc-hr-gradient-gold {*/
+/*    background: rgb(255, 255, 255);*/
+/*    background: linear-gradient(90deg, rgba(255, 255, 255, 1) 0%, rgba(227, 182, 19, 1) 48%, rgba(255, 255, 255, 1) 100%);*/
+/*    height: 5px;*/
+/*    margin: 10px 0;*/
+/*    border: none;*/
+/*}*/
+
+/*!* LINE PER ICONA AL CENTRO *!*/
+/*.nrc-line {*/
+/*    width: 100%;*/
+/*    height: 1px;*/
+/*    background: linear-gradient(90deg, rgba(255, 255, 255, 1) 0%, rgba(166, 166, 166, 1) 50%, rgba(255, 255, 255, 1) 100%);*/
+/*    margin-bottom: 10px;*/
+/*}*/
+
+/*.nrc-line-gold {*/
+/*    width: 100%;*/
+/*    height: 1px;*/
+/*    background: linear-gradient(90deg, rgba(255, 255, 255, 1) 0%, rgba(227, 182, 19, 1) 50%, rgba(255, 255, 255, 1) 100%);*/
+/*    margin-bottom: 10px;*/
+/*}*/
+
+/*!*! HEADER *!*/
+/*!*? TOP-NAVBAR *!*/
+/*#top-navbar {*/
+/*    min-height: 40px;*/
+/*    background-color: var(--my-primary);*/
+/*}*/
+
+/*!*? NAVBAR *!*/
+/*#logo-navbar {*/
+/*    min-height: 130px;*/
+/*    padding: 25px;*/
+/*}*/
+
+/*#logo-navbar img {*/
+/*    height: 80px;*/
+/*}*/
+
+/*#logo-navbar h1 {*/
+/*    text-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px;*/
+/*    font-weight: 600;*/
+/*}*/
+
+/*#navbar a {*/
+/*    font-family: 'Montserrat', sans-serif;*/
+/*    font-size: 16px;*/
+/*    font-weight: 400;*/
+/*    line-height: 24px;*/
+
+/*    position: relative;*/
+/*    display: block;*/
+/*    padding: 4px 0;*/
+/*    color: #6c7f8e;*/
+/*    text-decoration: none;*/
+/*    transition: 0.5s;*/
+/*    margin-right: 2rem;*/
+/*}*/
+
+/*#navbar a::after {*/
+/*    position: absolute;*/
+/*    content: "";*/
+/*    top: 100%;*/
+/*    left: 0;*/
+/*    width: 100%;*/
+/*    height: 3px;*/
+/*    background: #b7aa79;*/
+/*    transform: scaleX(0);*/
+/*    transform-origin: right;*/
+/*    transition: transform 0.5s;*/
+/*}*/
+
+/*#navbar a:hover {*/
+/*    color: #b7aa79;*/
+/*}*/
+
+/*#navbar a:hover::after {*/
+/*    transform: scaleX(1);*/
+/*    transform-origin: left;*/
+/*}*/
+
+/*!*! JUMBOTRON *!*/
+/*#jumbotron {*/
+/*    height: 220px;*/
+/*    background-image: url(./img/slide01.jpg);*/
+/*    background-size: cover;*/
+/*    background-repeat: no-repeat;*/
+/*    background-position: top;*/
+/*}*/
+
+/*#jumbotron .over {*/
+/*    width: 100%;*/
+/*    min-height: 100%;*/
+/*    background-color: #00000037;*/
+/*    text-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px;*/
+/*    font-family: 'Playfair Display', serif;*/
+/*    font-weight: 800;*/
+/*    font-style: italic;*/
+/*}*/
+
+/*#jumbotron h2 {*/
+/*    color: var(--my-gold);*/
+/*    font-size: 50px;*/
+/*}*/
+
+/*!*! NECROLOGIO-SHOW *!*/
+/*.nrc-my-col {*/
+/*    background-color: #e9efee;*/
+/*}*/
+
+/*!* TENDINE FUNERALI *!*/
+/*#funerali .card-body {*/
+/*    border: 1px solid #e9efee;*/
+/*}*/
+
+/*#cura-agenzia .card-body {*/
+/*    border: 1px solid #e9efee;*/
+/*}*/
+
+/*#cura-agenzia img {*/
+/*    max-height: 74px;*/
+/*    max-width: 310px;*/
+/*}*/
+
+
+/*.nrc-service p {*/
+/*    font-size: 14px;*/
+/*}*/
+
+/*!* DETAILS COLLAPSE *!*/
+/*.price {*/
+/*    color: var(--my-gold);*/
+/*}*/
+
+
+/*!* ICONS *!*/
+/*.fa-silver {*/
+/*    color: gray;*/
+/*}*/
+
+
+/*.fa-red {*/
+/*    color: var(--my-primary);*/
+/*}*/
+
+
+/*!** COLS LEFT CENTER RIGHT *!*/
+/*#necrologio-show .img-person {*/
+/*    max-height: 400px;*/
+/*    width: 300px;*/
+/*    border: 3px solid rgba(0, 0, 0, 0.185);*/
+/*}*/
+
+/*.nrc-center h1 {*/
+/*    font-family: 'Playfair Display', serif;*/
+/*}*/
+
+/*h2 {*/
+/*    font-family: 'Playfair Display', serif;*/
+/*}*/
+
+/*h4 {*/
+/*    font-family: 'Playfair Display', serif;*/
+/*}*/
+
+/*.nrc-right {*/
+/*    background-color: #e9efee;*/
+/*}*/
+
+/*.nrc-right h3 {*/
+/*    font-family: 'Playfair Display', serif;*/
+/*    font-weight: 800;*/
+/*    font-style: italic;*/
+/*}*/
+
+/*!*------------------------------- PENSIERI ------------------------*!*/
+
+/*#ricordo h3 {*/
+/*    font-family: 'Playfair Display', serif;*/
+/*    font-weight: 800;*/
+/*    font-style: italic;*/
+/*}*!*/
+
+
+.card {
+    background-color: #e9efee;
+    height: 100%;
+}
+
+/*!* FUMETTO *!*/
+/*.speech-bubble-card::before {*/
+/*    content: "";*/
+/*    position: absolute;*/
+/*    top: -14px;*/
+/*    left: 15%;*/
+/*    transform: translateX(-50%);*/
+/*    width: 0;*/
+/*    height: 0;*/
+/*    border-left: 15px solid transparent;*/
+/*    border-right: 15px solid transparent;*/
+/*    border-bottom: 20px solid #e9efee;*/
+/*}*/
+
+/*!* CHI HA SCRITTO *!*/
+.nrc-user {
+   font-size: 12px;
+}
+
+.nrc-user p {
+    color: var(--my-gold);
+    font-weight: 700;
+}
+
+.nrc-user span {
+    color: #565656;
+}
+
+.card-body p {
+    font-size: 15px;
+    font-style: italic;
+}
+
+/*!*! FORM SEARCH BUTTON e CHECK *!*/
+/*#background_search {*/
+/*    position: relative;*/
+/*    !* width: 30rem; *!*/
+/*    background: var(--my-gold);*/
+/*    border-radius: var(--rad);*/
+/*}*/
+
+/*#background_search input,*/
+/*button {*/
+/*    height: 40px;*/
+/*    font-family: var(--font-fam);*/
+/*    border: 0;*/
+/*    color: var(--color-dark);*/
+/*    !* font-size: 1.8rem; *!*/
+/*}*/
+
+/*#background_search input[type="search"] {*/
+/*    outline: 0;*/
+/*    width: 100%;*/
+/*    background: #f8f9fa;*/
+/*    padding: 0 1.6rem;*/
+/*    border-radius: var(--rad);*/
+/*    appearance: none;*/
+/*    transition: all var(--dur) var(--bez);*/
+/*    transition-property: width, border-radius;*/
+/*    z-index: 1;*/
+/*    position: relative;*/
+/*}*/
+
+/*#background_search button {*/
+/*    display: none;*/
+/*    position: absolute;*/
+/*    top: 0;*/
+/*    right: 0;*/
+/*    width: var(--btn-width);*/
+/*    font-weight: bold;*/
+/*    background: var(--color-brand);*/
+/*    border-radius: 0 var(--rad) var(--rad) 0;*/
+/*}*/
+
+/*#background_search input:not(:placeholder-shown) {*/
+/*    border-radius: var(--rad) 0 0 var(--rad);*/
+/*    width: calc(100% - var(--btn-width));*/
+
+/*    +button {*/
+/*        display: block;*/
+/*    }*/
+/*}*/
+
+/*#background_search label {*/
+/*    position: absolute;*/
+/*    clip: rect(1px, 1px, 1px, 1px);*/
+/*    padding: 0;*/
+/*    border: 0;*/
+/*    height: 1px;*/
+/*    width: 1px;*/
+/*    overflow: hidden;*/
+/*}*/
+
+/*!*! SEARCH BUTTON FINE *!*/
+
+/*!* BUTTON *!*/
+/*.nrc-button-funerali {*/
+/*    background-color: #e9efee;*/
+/*    border: 0px;*/
+/*    font-size: 15px;*/
+/*    padding: 7px;*/
+/*    border: 1px solid var(--my-primary);*/
+/*    border-radius: 3px;*/
+/*}*/
+
+/*.nrc-button-funerali:hover {*/
+/*    background-color: var(--my-gold);*/
+/*    transition: background-color 0.3s ease;*/
+/*    color: white;*/
+/*}*/
+
+/*!* BUTTON SM *!*/
+/*.nrc-button-funerali-sm {*/
+/*    background-color: #e9efee;*/
+/*    border: 0px;*/
+/*    font-size: 13px;*/
+/*    padding: 0.35rem;*/
+/*    border-radius: 3px;*/
+/*    border: 1px solid var(--my-primary);*/
+
+/*}*/
+
+/*.nrc-button-funerali-sm:hover {*/
+/*    background-color: var(--my-gold);*/
+/*    transition: background-color 0.3s ease;*/
+/*    color: white;*/
+/*}*/
+
+
+/*!* FOOTER *!*/
+
+/*#nrc-footer {*/
+/*    background-color: #252A33;*/
+/*    min-height: 200px;*/
+/*}*/
+
+/*.foot-links {*/
+/*    color: white;*/
+/*}*/
+
+/*.foot-links:hover {*/
+/*    text-decoration: underline;*/
+/*    color: #b7aa79;*/
+/*}*/
+
+/*#nrc-footer a h2 {*/
+/*    color: white;*/
+/*}*/
+
+/*#nrc-footer .unclickable {*/
+/*    cursor: default;*/
+/*    pointer-events: none;*/
+/*    color: rgba(255, 255, 255, 0.7);*/
+/*}*/
+
+/*!* altezza colonne *!*/
+/*.small-col {*/
+/*    height: 100%;*/
+/*    background-color: #323844;*/
+/*}*/
+
+/*.copyright {*/
+/*    color: #979797;*/
+/*}*/
+
+
+/*!* SERVIZI *!*/
+
+/*.nrc-card-servizi {*/
+/*    background-color: #486173;*/
+/*    min-height: 280px;*/
+/*    display: flex;*/
+/*    justify-content: center;*/
+/*    align-items: center;*/
+/*    flex-direction: column;*/
+/*    height: 200px;*/
+/*    !* font-weight: 700; *!*/
+/*    border-radius: 20px;*/
+/*    transition: transform 0.3s ease;*/
+/*}*/
+
+/*.nrc-card-servizi h2 {*/
+/*    color: white;*/
+/*    font-weight: 700;*/
+/*    font-style: italic;*/
+/*}*/
+
+/*.nrc-card-servizi p {*/
+/*    color: white;*/
+/*}*/
+
+/*.nrc-card-servizi:hover {*/
+/*    transform: scale(1.05);*/
+/*}*/
+
+
+
+/*!* FORM ORDER *!*/
+
+/*#form-order {*/
+/*    !* background-color: #e9efee; *!*/
+/*    !* border: gray 1px solid; *!*/
+/*    !* border-radius: 20px; *!*/
+/*}*/
+
+/*!****************** MESSAGGIO INIZIO c'è anche sullo style css di CKEDITOR*!*/
+
+/*.cke_chrome {*/
+/*    border: none !important;*/
+/*}*/
+
+/*.cke_editable p {*/
+/*    text-align: center;*/
+/*}*/
+
+/*#complete-message {*/
+/*    display: none;*/
+/*}*/
+
+
+
+/*!****************** MESSAGGIO FINE*!*/
+
+/*.nrc-tongue {*/
+/*    width: 100%;*/
+/*    !* padding: 0.5rem; *!*/
+/*    background-color: var(--my-gray);*/
+/*    font-weight: 600;*/
+/*}*/
+
+
+/*.nrc-number {*/
+/*    width: 40px;*/
+/*    height: 40px;*/
+/*    display: flex;*/
+/*    align-items: center;*/
+/*    justify-content: center;*/
+/*    background-color: var(--my-gold);*/
+/*    font-size: 20px;*/
+/*    margin-right: 1rem;*/
+/*}*/
+
+
+/*.nrc-cursive {*/
+/*    font-family: 'Playfair Display', serif;*/
+/*    font-style: italic;*/
+/*    font-weight: 700;*/
+/*}*/
+
+
+/*.nrc-price {*/
+/*    color: var(--my-gold);*/
+/*    font-weight: 700;*/
+/*}*/
+
+
+/*.nrc-bg-gray {*/
+/*    background-color: var(--my-gray);*/
+/*}*/
+
+
+/*!****************** ANIMATION CHECK *!*/
+
+/*#checkmarkContainer {*/
+/*    display: none;*/
+/*}*/
+
+/*#checkmarkContainer2 {*/
+/*    display: none;*/
+/*}*/
+
+/*.checkmark__circle {*/
+/*    stroke-dasharray: 166;*/
+/*    stroke-dashoffset: 166;*/
+/*    stroke-width: 2;*/
+/*    stroke-miterlimit: 10;*/
+/*    stroke: #7ac142;*/
+/*    fill: none;*/
+/*    animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards*/
+/*}*/
+
+/*.checkmark {*/
+/*    width: 30px;*/
+/*    height: 30px;*/
+/*    border-radius: 50%;*/
+/*    display: block;*/
+/*    stroke-width: 2;*/
+/*    stroke: #fff;*/
+/*    stroke-miterlimit: 10;*/
+/*    !* margin: 10% auto; *!*/
+/*    box-shadow: inset 0px 0px 0px #7ac142;*/
+/*    animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both*/
+/*}*/
+
+/*.checkmark__check {*/
+/*    transform-origin: 50% 50%;*/
+/*    stroke-dasharray: 48;*/
+/*    stroke-dashoffset: 48;*/
+/*    animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards*/
+/*}*/
+
+/*@keyframes stroke {*/
+/*    100% {*/
+/*        stroke-dashoffset: 0*/
+/*    }*/
+/*}*/
+
+/*@keyframes scale {*/
+
+/*    0%,*/
+/*    100% {*/
+/*        transform: none*/
+/*    }*/
+
+/*    50% {*/
+/*        transform: scale3d(1.1, 1.1, 1)*/
+/*    }*/
+/*}*/
+
+/*@keyframes fill {*/
+/*    100% {*/
+/*        box-shadow: inset 0px 0px 0px 30px #7ac142*/
+/*    }*/
+/*}*/
+
+
+/*.checkmark.active {*/
+/*    display: block;*/
+/*}*/
+
+
+
+/*!****************** SLIDER ******************!*/
+/*.mySwiper {*/
+/*    !* max-height: 400px; *!*/
+/*}*/
+
+/*.slider {*/
+/*    position: relative;*/
+/*    width: 100%;*/
+/*    overflow: hidden;*/
+/*}*/
+
+/*.slider-container {*/
+/*    display: flex;*/
+/*    !* Aggiunto per centrare il contenuto *!*/
+/*    transition: transform 0.5s ease-in-out;*/
+/*}*/
+
+/*.slide {*/
+/*    flex: 0 0 100%;*/
+/*    width: 100%;*/
+/*    display: flex;*/
+/*    align-items: center;*/
+/*    flex-direction: column;*/
+/*    justify-content: space-between;*/
+/*    width: 280px;*/
+/*    height: 380px;*/
+/*    padding: 10px;*/
+/*    background-color: #f8f8f8;*/
+/*    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);*/
+/*}*/
+
+
+
+/*.swiper-slide .logo {*/
+/*    height: 30px;*/
+/*    width: 100px;*/
+/*    margin-top: 10px;*/
+/*}*/
+
+
+/*.slide p {*/
+/*    !* padding: 20px; *!*/
+/*    width: 100%;*/
+/*    height: 100%;*/
+/*}*/
+
+/*.prev,*/
+/*.next {*/
+/*    position: absolute;*/
+/*    top: 50%;*/
+/*    transform: translateY(-50%);*/
+/*    width: 60px;*/
+/*    height: 60px;*/
+/*    background-color: #cccccc00;*/
+/*    border: none;*/
+/*    color: #fff;*/
+/*    font-size: 20px;*/
+/*    text-align: center;*/
+/*    cursor: pointer;*/
+/*}*/
+
+/*.prev {*/
+/*    left: 0;*/
+/*}*/
+
+/*.next {*/
+/*    right: 0;*/
+/*}*/
+
+
+
+/*!* FINE SLIDER   *!*/
+
+
+
+/*!* ALL NECROLOGI *!*/
+
+/*!* CARD DEFUNTO PER INDEX e RICORRENZE  *!*/
+/*.nrc-card-defunto {*/
+/*    background-color: var(--my-gray);*/
+/*    border-radius: 10px;*/
+/*    transition: box-shadow 0.5s;*/
+/*    min-height: 300px;*/
+/*}*/
+
+/*.nrc-card-defunto:hover {*/
+/*    box-shadow: 0px 0px 10px 5px rgba(0, 0, 0, 0.3);*/
+/*}*/
+
+/*.nrc-card-defunto .defunto {*/
+/*    height: 180px;*/
+/*    border: 3px solid rgba(0, 0, 0, 0.185);*/
+/*}*/
+
+/*.nrc-card-defunto .logo {*/
+/*    min-height: 30px;*/
+/*    max-width: 150px;*/
+/*    max-height: 30px;*/
+/*}*/
+
+
+/*.nrc-card-defunto h5 {*/
+/*    font-family: 'Playfair Display', serif;*/
+/*    !* font-style: italic; *!*/
+/*}*/
+
+/*.nrc-card-defunto p {*/
+/*    font-size: 13px;*/
+/*    color: #6c7f8e;*/
+/*}*/
+
+/*.nrc-card-defunto .text-person {*/
+/*    font-weight: 600;*/
+/*    font-style: italic;*/
+/*    text-transform: uppercase;*/
+/*    font-size: 16px;*/
+/*    color: black;*/
+/*}*/
+
+/*!* CARD AGENZIE *!*/
+
+/*.nrc-card-agenzia {*/
+/*    background-color: var(--my-gray);*/
+/*    border-radius: 10px;*/
+/*    transition: box-shadow 0.5s;*/
+/*    min-height: 300px;*/
+/*}*/
+
+/*.nrc-card-agenzia:hover {*/
+/*    box-shadow: 0px 0px 10px 5px rgba(0, 0, 0, 0.3);*/
+/*}*/
+
+/*.nrc-card-agenzia .agenzia {*/
+/*    height: 180px;*/
+/*    border: 3px solid rgba(0, 0, 0, 0.185);*/
+/*}*/
+
+/*.nrc-card-agenzia .logo {*/
+/*    min-height: 50px;*/
+/*    max-width: 150px;*/
+/*    max-height: 30px;*/
+/*}*/
+
+
+/*.nrc-card-agenzia h5 {*/
+/*    font-family: 'Playfair Display', serif;*/
+/*    !* font-style: italic; *!*/
+/*}*/
+
+/*.nrc-card-agenzia p {*/
+/*    font-size: 13px;*/
+/*    color: #6c7f8e;*/
+/*}*/
+
+
+
+/*!* PAGINATION *!*/
+
+/*.pagination-outer {*/
+/*    text-align: center;*/
+/*}*/
+
+/*.pagination {*/
+/*    font-family: 'Ubuntu', sans-serif;*/
+/*    display: inline-flex;*/
+/*    position: relative;*/
+/*}*/
+
+/*.pagination li a.page-link {*/
+/*    color: #333;*/
+/*    background-color: #e9e9e9;*/
+/*    font-size: 20px;*/
+/*    font-weight: 500;*/
+/*    line-height: 40px;*/
+/*    height: 40px;*/
+/*    width: 35px;*/
+/*    padding: 0;*/
+/*    margin: 0 7px 6px;*/
+/*    border: none;*/
+/*    border-radius: 0;*/
+/*    position: relative;*/
+/*    z-index: 1;*/
+/*    transition: all 0.5s ease 0s;*/
+/*}*/
+
+/*.pagination li a.page-link:hover,*/
+/*.pagination li a.page-link:focus,*/
+/*.pagination li.active a.page-link:hover,*/
+/*.pagination li.active a.page-link {*/
+/*    color: #fff;*/
+/*    background: #e9e9e9;*/
+/*}*/
+
+/*.pagination li a.page-link:before,*/
+/*.pagination li a.page-link:after {*/
+/*    content: '';*/
+/*    background-color: #333;*/
+/*    height: 3px;*/
+/*    width: 100%;*/
+/*    position: absolute;*/
+/*    left: 0;*/
+/*    bottom: 0;*/
+/*    z-index: -1;*/
+/*    transition: all 0.3s ease 0s;*/
+/*}*/
+
+/*.pagination li a.page-link:after {*/
+/*    background: var(--my-gold);*/
+/*    height: 12px;*/
+/*    transform: scaleX(0);*/
+/*    bottom: -6px;*/
+/*}*/
+
+/*.pagination li a.page-link:hover:before,*/
+/*.pagination li a.page-link:focus:before,*/
+/*.pagination li.active a.page-link:hover:before,*/
+/*.pagination li.active a.page-link:before {*/
+/*    height: 100%;*/
+/*}*/
+
+/*.pagination li a.page-link:hover:after,*/
+/*.pagination li a.page-link:focus:after,*/
+/*.pagination li.active a.page-link:hover:after,*/
+/*.pagination li.active a.page-link:after {*/
+/*    transform: scaleX(0.25);*/
+/*}*/
+
+/*@media only screen and (max-width: 480px) {*/
+/*    .pagination {*/
+/*        font-size: 0;*/
+/*        display: inline-block;*/
+/*    }*/
+
+/*    .pagination li {*/
+/*        display: inline-block;*/
+/*        vertical-align: top;*/
+/*        margin: 0 0 10px;*/
+/*    }*/
+/*}*/

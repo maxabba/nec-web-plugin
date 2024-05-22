@@ -1,9 +1,13 @@
 <?php
+
+use Dokan_Mods\UtilsAMClass;
+
 $settings = $this->get_settings_for_display();
 $post_id = get_the_ID(); // Get the current post ID
 //get the settings button_disable_time
 $button_disable_time = $settings['button_disable_time'];
-$url = home_url($settings['button_link'] . '?post_id=' . $post_id); // Construct the URL
+$product_id = is_numeric($settings['product_id']) ? $settings['product_id'] : 0;
+$url = home_url($settings['button_link'] . '?post_id=' . $post_id . '&product_id=' . $product_id ); // Construct the URL
 
 $disabled = '';
 if ($button_disable_time != 'null') {
@@ -16,6 +20,14 @@ if ($button_disable_time != 'null') {
         $url = '';
     }}
 
+//if $settings['product_id'] is a number
+if (is_numeric($settings['product_id'])) {
+    $text_before = "Costo: ";
+    $product_price = (new UtilsAMClass())->get_product_price($settings['product_id']);
+} else {
+    $text_before = '';
+    $product_price = '';
+}
 
 
 
@@ -42,7 +54,7 @@ if ($button_disable_time != 'null') {
         <?php endif; ?>
     </div>
     <span class="custom-widget-price">
-
+    <?php echo esc_html($text_before); ?><span class="price-text"><?php echo $product_price; ?></span>
     </span>
     <span class="custom-widget-tooltip">
         <?php echo esc_html($settings['tooltip']); ?>

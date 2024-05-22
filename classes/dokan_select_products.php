@@ -31,6 +31,9 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
 
         }
 
+        //get all products id with class default-products
+
+
         public function enqueue_styles()
         {
             if (get_query_var('seleziona-prodotti')) {

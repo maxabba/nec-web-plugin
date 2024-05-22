@@ -79,7 +79,7 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
                     'relation' => 'AND',
                     array(
                         'key' => 'provincia',
-                        'value' => "Tutte",
+                        'value' => $province_filter,
                         'compare' => '='
                     ),
                     array(

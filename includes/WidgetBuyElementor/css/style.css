@@ -3,11 +3,7 @@
     align-items: center;
 }
 
-.custom-widget i,
-.custom-widget p,
-.custom-widget button {
-    margin-right: 10px;
-}
+
 
 
 .custom-widget {
@@ -18,14 +14,15 @@
 .display-flex-custom-widget {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: baseline;
     width: 100%;
 }
 
 .left-content {
     display: flex;
-    align-items: center;
-
+    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: nowrap;
 }
 
 
@@ -60,7 +57,11 @@
 
 .custom-widget-info-icon {
     cursor: pointer;
-    margin-left: 10px;
+    margin-left: 5px;
     color: black !important;
 }
 
+.custom-widget-price{
+    width: 100%;
+
+}

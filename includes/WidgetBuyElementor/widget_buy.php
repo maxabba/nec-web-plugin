@@ -10,6 +10,15 @@ if (!defined('ABSPATH')) {
 
 class Annunci_Widget extends Widget_Base
 {
+
+    private UtilsAMClass $UtilsAMClass;
+
+    public function __construct($data = [], $args = null)
+    {
+        parent::__construct($data, $args);
+        $this->UtilsAMClass = new UtilsAMClass();
+
+    }
     public function get_name()
     {
         return 'annunci_widget';
@@ -29,6 +38,7 @@ class Annunci_Widget extends Widget_Base
     {
         return ['dokan-mods-category'];
     }
+
 
     protected function _register_controls()
     {
@@ -97,7 +107,7 @@ class Annunci_Widget extends Widget_Base
                 'default' => [
                     'top' => '0',
                     'right' => '10',
-                    'bottom' => '0',
+                    'bottom' => '15',
                     'left' => '0',
                     'unit' => 'px',
                 ],
@@ -156,12 +166,33 @@ class Annunci_Widget extends Widget_Base
             [
                 'label' => __('Button Link', 'Dokan_mod'),
                 'type' => Controls_Manager::SELECT,
-                'options' => (new AnnuncioMorteClass)->get_pages_slug(),
+                'options' => $this->UtilsAMClass->get_pages_slug(),
                 'default' => 'link1',
             ]
         );
 
         $this->end_controls_section();
+
+        $this->start_controls_section(
+            'product_section',
+            [
+                'label' => __('Product', 'Dokan_mod'),
+                'tab' => Controls_Manager::TAB_CONTENT,
+            ]
+        );
+
+        $this->add_control(
+            'product_id',
+            [
+                'label' => __('Correlated Product', 'Dokan_mod'),
+                'type' => Controls_Manager::SELECT,
+                'options' => $this->UtilsAMClass->get_products_name($this->UtilsAMClass->get_default_products()),
+                'default' => esc_html__('Select Product', 'Dokan_mod'),
+            ]
+        );
+
+        $this->end_controls_section();
+
         // Sezione stile icona
         $this->start_controls_section(
             'icon_style_section',
@@ -192,7 +223,7 @@ class Annunci_Widget extends Widget_Base
         $this->start_controls_section(
             'button_disable_section',
             [
-                'label' => __('Button Disable', 'Dokan_mod'),
+                'label' => __('Time to Disable', 'Dokan_mod'),
                 'tab' => Controls_Manager::TAB_CONTENT,
             ]
         );
@@ -211,10 +242,10 @@ class Annunci_Widget extends Widget_Base
         $this->add_control(
             'button_disable_time',
             [
-                'label' => __('Button Disable Time', 'Dokan_mod'),
+                'label' => __('Disable after', 'Dokan_mod'),
                 'type' => Controls_Manager::SELECT,
                 'options' => [
-                        'null' => 'Select Time',
+                        'null' => 'Non disabilitare',
                         '1h' => '1h',
                         '3h' => '3h',
                         '5h' => '5h',
@@ -361,7 +392,58 @@ class Annunci_Widget extends Widget_Base
             ]
         );
 
+
         $this->end_controls_section();
+        $this->start_controls_section(
+            'custom_widget_price_style_section',
+            [
+                'label' => __('Custom Widget Price Style', 'Dokan_mod'),
+                'tab' => \Elementor\Controls_Manager::TAB_STYLE,
+            ]
+        );
+
+        $this->add_control(
+            'custom_widget_price_style',
+            [
+                'label' => __('Color', 'Dokan_mod'),
+                'type' => \Elementor\Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .custom-widget-price' => 'color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_group_control(
+            \Elementor\Group_Control_Typography::get_type(),
+            [
+                'name' => 'custom_widget_price_typography',
+                'label' => __('Typography', 'Dokan_mod'),
+                'selector' => '{{WRAPPER}} .custom-widget-price',
+            ]
+        );
+
+        $this->add_control(
+            'price_text_style',
+            [
+                'label' => __('Price Text Color', 'Dokan_mod'),
+                'type' => \Elementor\Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .custom-widget-price .price-text' => 'color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_group_control(
+            \Elementor\Group_Control_Typography::get_type(),
+            [
+                'name' => 'price_text_typography',
+                'label' => __('Price Text Typography', 'Dokan_mod'),
+                'selector' => '{{WRAPPER}} .custom-widget-price .price-text',
+            ]
+        );
+
+        $this->end_controls_section();
+
     }
 
     protected function render()
