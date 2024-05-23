@@ -91,6 +91,16 @@ $active_menu = 'seleziona-prodotti';
                             //foreach product in the list generate a checkbox with the product title only
                             foreach ($products as $product) {
                                 $product_id = $product->ID;
+                                $citta = get_field('citta', $product_id);
+                                $provincia = get_field('provincia', $product_id);
+
+                                if (isset($provincia) && $provincia != 'Tutte' && $provincia != $store_info['address']['state']) {
+                                    continue;
+                                }
+                                if( isset($citta) && $citta != 'Tutte' && $citta != $user_city){
+                                    continue;
+                                }
+
                                 $product_name = $product->post_title;
                                 $product_wc = wc_get_product($product_id);
 

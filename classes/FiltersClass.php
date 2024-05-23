@@ -103,7 +103,7 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
             $args = array(
                 'post_type' => 'product',
                 'post_status' => 'publish',
-                'posts_per_page' => 20,
+                'posts_per_page' => -1,
                 'tax_query' => array(
                     'relation' => 'OR',
                     array(
@@ -112,7 +112,7 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
                         'terms' => array('default-products', 'editable-price'), // Combined terms for better performance
                     )
                 ),
-                'meta_query' => array(
+/*                'meta_query' => array(
                     'relation' => 'OR',
                     array(
                         'key' => 'citta',
@@ -146,7 +146,7 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
                         )
                     )
 
-                )
+                )*/
             );
             return $args;
         }
