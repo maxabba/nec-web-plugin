@@ -10,15 +10,10 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
     {
         private $table_name;
 
-        private $main_file;
-
-        public function __construct($main_file)
+        public function __construct()
         {
             global $wpdb;
             $this->table_name = $wpdb->prefix . 'dkm_comuni';
-            $this->main_file = $main_file;
-
-            register_activation_hook($this->main_file, [$this, 'create_table']);
         }
 
         public function create_table()
@@ -113,6 +108,16 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
 
             return $result;
         }
+
+        //get provincia by comune
+        public function get_provincia_by_comune($comune)
+        {
+            global $wpdb;
+            $sql = $wpdb->prepare("SELECT provincia_nome FROM $this->table_name WHERE nome = %s", $comune);
+            $result = $wpdb->get_var($sql);
+            return $result;
+        }
+
 
     }
 }

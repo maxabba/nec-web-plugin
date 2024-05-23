@@ -1,6 +1,8 @@
 <?php
 
 namespace Dokan_Mods;
+use WP_Query;
+
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
@@ -98,6 +100,70 @@ class UtilsAMClass
     {
         $product = wc_get_product($product_id);
         return $product->get_price_html();
+    }
+
+
+    public function check_and_create_product()
+    {
+        $pages = $this->get_pages();
+
+        // Otteniamo i termini esistenti per evitare ripetute chiamate al database
+        $existing_terms = get_terms(array(
+            'taxonomy' => 'product_cat',
+            'hide_empty' => false,
+            'fields' => 'slugs'
+        ));
+
+        foreach ($pages as $slug => $template_id) {
+            $current_page_slug = $slug;
+            // Split by - and take the first element
+            $current_page_slug = explode('-', $current_page_slug)[0];
+
+            $args = array(
+                'name' => $current_page_slug,
+                'post_type' => 'product',
+                'post_status' => 'publish',
+                'numberposts' => 1
+            );
+
+            // Utilizziamo WP_Query invece di get_posts per un'operazione più efficiente
+            $query = new WP_Query($args);
+            if (!$query->have_posts()) {
+                // Verifica se il termine esiste nella lista ottenuta
+                if (!in_array($current_page_slug, $existing_terms)) {
+                    wp_insert_term(ucfirst($current_page_slug), 'product_cat', array('slug' => $current_page_slug));
+                    // Aggiorna la lista dei termini esistenti
+                    $existing_terms[] = $current_page_slug;
+                }
+
+                $product_data = array(
+                    'post_title' => ucfirst($current_page_slug),
+                    'post_content' => '',
+                    'post_status' => 'publish',
+                    'post_author' => 1,
+                    'post_type' => 'product',
+                );
+
+                $product_id = wp_insert_post($product_data);
+
+                // Otteniamo il termine appena creato per associarlo al prodotto
+                $term = get_term_by('slug', $current_page_slug, 'product_cat');
+                if ($term !== false) {
+                    wp_set_object_terms($product_id, $term->term_id, 'product_cat');
+                }
+            }
+        }
+
+        // Ripuliamo la query per evitare conflitti
+        wp_reset_postdata();
+    }
+
+
+    public function dynamic_page_init()
+    {
+        foreach ($this->pages as $query_var => $template_id) {
+            add_rewrite_rule('^' . $query_var . '/?$', 'index.php?' . $query_var . '=1', 'top');
+        }
     }
 
 

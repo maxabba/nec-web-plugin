@@ -14,7 +14,12 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
         public function __construct($city = null, $province = null)
         {
             $this->city = $city;
-            $this->province = $province;
+            if ($province == null) {
+                global $dbClassInstance;
+                $this->province = $dbClassInstance->get_provincia_by_comune($city);
+            }else{
+                $this->province = $province;
+            }
             if ($this->city == 'Tutte') {
                 global $dbClassInstance;
                 $this->city = $dbClassInstance->get_comuni_by_provincia($province);
@@ -79,7 +84,7 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
                     'relation' => 'AND',
                     array(
                         'key' => 'provincia',
-                        'value' => $province_filter,
+                        'value' => 'Tutte',
                         'compare' => '='
                     ),
                     array(
@@ -98,42 +103,49 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
             $args = array(
                 'post_type' => 'product',
                 'post_status' => 'publish',
-                'posts_per_page' => -1,
+                'posts_per_page' => 20,
                 'tax_query' => array(
                     'relation' => 'OR',
                     array(
                         'taxonomy' => 'product_cat',
                         'field' => 'slug',
-                        'terms' => 'default-products'
-                    ),
-                    array(
-                        'taxonomy' => 'product_cat',
-                        'field' => 'slug',
-                        'terms' => 'editable-price',
-                        'operator' => 'IN'
+                        'terms' => array('default-products', 'editable-price'), // Combined terms for better performance
                     )
                 ),
                 'meta_query' => array(
                     'relation' => 'OR',
                     array(
                         'key' => 'citta',
-                        'value' => $user_city,
+                        'value' => $this->city,
                         'compare' => '='
                     ),
                     array(
-                        'key' => 'citta',
-                        'value' => 'Tutte',
-                        'compare' => '='
+                        'relation' => 'AND',
+                        array(
+                            'key' => 'provincia',
+                            'value' => $this->province,
+                            'compare' => '='
+                        ),
+                        array(
+                            'key' => 'citta',
+                            'value' => 'Tutte',
+                            'compare' => '='
+                        )
                     ),
                     array(
-                        'key' => 'citta',
-                        'compare' => 'NOT EXISTS' // Questa condizione seleziona i post che non hanno il campo 'city'
-                    ),
-                    array(
-                        'key' => 'citta',
-                        'value' => '', // Questa condizione verifica i post con il campo 'city' vuoto
-                        'compare' => '='
+                        'relation' => 'AND',
+                        array(
+                            'key' => 'provincia',
+                            'value' => 'Tutte',
+                            'compare' => '='
+                        ),
+                        array(
+                            'key' => 'citta',
+                            'value' => 'Tutte',
+                            'compare' => '='
+                        )
                     )
+
                 )
             );
             return $args;

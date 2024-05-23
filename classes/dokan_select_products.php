@@ -23,12 +23,13 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
         public function __construct()
         {
             add_action('dokan_get_dashboard_nav', array($this, 'add_dashboard_menu')); // Aggiunge il menu alla dashboard di Dokan
-            add_action('init', array($this, 'add_rewrite_rules')); // Aggiunge le regole di riscrittura all'inizializzazione
+            //add_action('init', array($this, 'add_rewrite_rules')); // Aggiunge le regole di riscrittura all'inizializzazione
             add_filter('query_vars', array($this, 'add_query_vars')); // Aggiunge le variabili di query
             add_filter('template_include', array($this, 'load_template')); // Include il template
             add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'), 9999); // Mette in coda gli stili
-            add_action('init', array($this, 'handle_form_submission')); // Gestisce l'invio del modulo all'inizializzazione
-
+            //add_action('init', array($this, 'handle_form_submission')); // Gestisce l'invio del modulo all'inizializzazione
+            add_action('admin_post_pensierino_form', array($this, 'handle_form_submission'));
+            add_action('admin_post_nopriv_pensierino_form', array($this, 'handle_form_submission'));
         }
 
         //get all products id with class default-products
@@ -96,7 +97,7 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
 
         ///form subbmition function to save the selected products as product of the current vendor
         /// this function will be called when the form is submitted
-        public function handle_form_submission()
+        /*public function handle_form_submission()
         {
             // Check if the form is submitted
             if (isset($_POST['selected_product_for_vendor'])) {
@@ -186,6 +187,106 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                 }
             }
 
+        }*/
+        public function handle_form_submission()
+        {
+            // Check if the form is submitted
+            if (isset($_POST['selected_product_for_vendor'])) {
+                // Sanitize and process the form data
+                $data = filter_input_array(INPUT_POST, [
+                    'product' => [
+                        'filter' => FILTER_VALIDATE_INT,
+                        'flags' => FILTER_REQUIRE_ARRAY,
+                    ],
+                    'product_price' => [
+                        'filter' => FILTER_VALIDATE_FLOAT,
+                        'flags' => FILTER_REQUIRE_ARRAY,
+                    ]
+                ]);
+
+                $selected_products = $data['product'] ?? array();
+                $price = $data['product_price'] ?? array();
+
+                // Get the current user
+                $user_id = get_current_user_id();
+                $vendor_store_name = get_user_meta($user_id, 'dokan_store_name', true);
+
+                foreach ($selected_products as $product_id) {
+                    $product_title = get_the_title($product_id);
+
+                    // Use a transient to cache the result of this query for a short period
+                    $transient_key = 'vendor_product_check_' . $user_id . '_' . $product_id;
+                    $product_exists = get_transient($transient_key);
+
+                    if ($product_exists === false) {
+                        // Check if there is a product with the same title and the same vendor
+                        $args = array(
+                            'post_type' => 'product',
+                            'post_status' => 'publish',
+                            'posts_per_page' => 1,
+                            'meta_query' => array(
+                                array(
+                                    'key' => '_vendor_id',
+                                    'value' => $user_id
+                                )
+                            ),
+                            'title' => $product_title
+                        );
+
+                        $existing_product = get_posts($args);
+                        $product_exists = !empty($existing_product);
+                        // Cache the result for 5 minutes
+                        set_transient($transient_key, $product_exists, 5 * MINUTE_IN_SECONDS);
+                    }
+
+                    if (!$product_exists) {
+                        // Create a copy of the product and assign it to the vendor with the category as title
+                        $wo_dup = new WC_Admin_Duplicate_Product();
+
+                        // Compatibility for WC 3.0.0+
+                        $product = wc_get_product($product_id);
+                        $clone_product = $wo_dup->product_duplicate($product);
+
+                        // Get the price form product_price field if exists and set it as price
+                        if (isset($price[$product_id])) {
+                            $clone_product->set_regular_price($price[$product_id]);
+                            $clone_product->save(); // Save the product data
+                        }
+
+                        $clone_product_id = $clone_product->get_id();
+                        $product_status = dokan_get_default_product_status();
+
+                        // Update the post status and title
+                        $new_product_title = $product_title . ' - ' . $vendor_store_name . ' - ' . $user_id;
+                        wp_update_post(array(
+                            'ID' => intval($clone_product_id),
+                            'post_status' => $product_status,
+                            'post_title' => $new_product_title
+                        ));
+
+                        // Update meta fields
+                        update_post_meta($clone_product_id, '_sku', $product_id . '-' . $user_id);
+                        update_post_meta($clone_product_id, '_vendor_id', $user_id);
+
+                        // Set the category
+                        $categoria_finale = get_field('categoria_finale', $product_id);
+                        wp_set_object_terms($clone_product_id, $categoria_finale, 'product_cat', true);
+                        wp_remove_object_terms($clone_product_id, 'default-products', 'product_cat');
+
+                        $operation_successful = true;
+                    } else {
+                        $operation_successful = false;
+                    }
+
+                    // Redirect to prevent form resubmission
+                    if ($operation_successful) {
+                        wp_redirect(add_query_arg(array('operation_result' => 'success'), $_SERVER['REQUEST_URI']));
+                    } else {
+                        wp_redirect(add_query_arg(array('operation_result' => 'error'), $_SERVER['REQUEST_URI']));
+                    }
+                    exit;
+                }
+            }
         }
 
     }

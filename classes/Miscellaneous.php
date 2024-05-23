@@ -23,7 +23,7 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
             add_action('pre_get_posts', array($this, 'apply_city_filter'));
             add_action('acf/init', array($this, 'add_acf_options_page'));
 
-            add_action('admin_init', array($this, 'register_ajax_script'));
+            //add_action('admin_init', array($this, 'register_ajax_script'));
             add_action('admin_enqueue_scripts', array($this, 'enqueue_ajax_script'));
             add_action('wp_enqueue_scripts', array($this, 'enqueue_ajax_script'));
 

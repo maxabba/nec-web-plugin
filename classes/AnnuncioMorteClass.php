@@ -2,8 +2,6 @@
 
 namespace Dokan_Mods;
 
-use WC_Cart;
-
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
@@ -21,19 +19,20 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             $this->pages = $UtilsAMClass->get_pages();
             $this->pages_slug = $UtilsAMClass->get_pages_slug();
 
-            add_action('init', array($this, 'dynamic_page_init'));
+            //add_action('init', array($this, 'dynamic_page_init'));
             add_action('init', array($this, 'register_shortcodes'));
-            add_action('init', array($this, 'check_and_create_product'));
+            //add_action('init', array($this, 'check_and_create_product'));
 
             add_action('elementor/editor/before_enqueue_scripts', array($this, 'enqueue_bootstrap'));
             add_action('wp_enqueue_scripts', array($this, 'enqueue_bootstrap'));
 
             add_filter('query_vars', array($this, 'query_vars'));
             add_filter('template_include', array($this, 'custom_dynamic_page_template'));
-            register_activation_hook(DOKAN_MOD_MAIN_FILE, array($this, 'dynamic_page_activate'));
-            register_deactivation_hook(DOKAN_MOD_MAIN_FILE, array($this, 'dynamic_page_deactivate'));
 
-            add_action('wp_loaded', array($this, 'handle_form_submission'));
+            //add_action('wp_loaded', array($this, 'handle_form_submission'));
+            add_action('admin_post_pensierino_form', array($this, 'handle_form_submission'));
+            add_action('admin_post_nopriv_pensierino_form', array($this, 'handle_form_submission'));
+
             add_action('woocommerce_payment_complete', array($this, 'handle_payment_complete'));
 
         }
@@ -65,42 +64,8 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             return $this->pages;
         }
 
-        public function check_and_create_product()
-        {
-            $pages = $this->get_pages();
 
-            foreach ($pages as $slug => $template_id) {
-                $current_page_slug = $slug;
 
-                $args = array(
-                    'name' => $current_page_slug,
-                    'post_type' => 'product',
-                    'post_status' => 'publish',
-                    'numberposts' => 1
-                );
-                $products = get_posts($args);
-                $term = term_exists($current_page_slug, 'product_cat');
-                if (!$term) {
-                    wp_insert_term(ucfirst($current_page_slug), 'product_cat', array('slug' => $current_page_slug));
-                }
-                if (empty($products)) {
-                    $product_data = array(
-                        'post_title' => ucfirst($current_page_slug),
-                        'post_content' => '',
-                        'post_status' => 'publish',
-                        'post_author' => 1,
-                        'post_type' => 'product',
-                    );
-
-                    $product_id = wp_insert_post($product_data);
-
-                    $term = get_term_by('slug', $current_page_slug, 'product_cat');
-                    if ($term !== false) {
-                        wp_set_object_terms($product_id, $term->term_id, 'product_cat');
-                    }
-                }
-            }
-        }
 
         public function get_pages_slug()
         {
@@ -114,12 +79,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             add_shortcode('product_price', array($this, 'get_product_price'));
         }
 
-        public function dynamic_page_init()
-        {
-            foreach ($this->pages as $query_var => $template_id) {
-                add_rewrite_rule('^' . $query_var . '/?$', 'index.php?' . $query_var . '=1', 'top');
-            }
-        }
+
 
         public function query_vars($vars)
         {
@@ -218,7 +178,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
         }
 
 
-        public function handle_form_submission()
+        /*public function handle_form_submission()
         {
             // Check if the form is submitted and the textarea text is set
             if (isset($_POST['pensierino'])) {
@@ -258,15 +218,60 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
 
                 }
             }
-        }
-
-        private function wc_load_cart()
+        }*/
+        public function handle_form_submission()
         {
-            if (!WC()->cart) {
-                WC()->cart = new WC_Cart();
-                WC()->session->set('cart', WC()->cart->get_cart());
+            // Check if the form is submitted and the textarea text is set
+            if (isset($_POST['pensierino'])) {
+                // Get the textarea text and sanitize it
+                $comment_text = sanitize_text_field($_POST['pensierino']);
+
+                // Get the post ID and validate it
+                $post_id = intval($_POST['post_id']);
+                if (!$post_id) {
+                    wp_die('Invalid post ID');
+                }
+
+                // Get the product ID of Pensierini
+                $product_id = $this->get_product_id_by_slug('pensierini');
+                if (!$product_id) {
+                    wp_die('Product not found');
+                }
+
+                // Check if WooCommerce is available
+                if (!class_exists('WooCommerce')) {
+                    // Redirect back to the page with error message
+                    wp_redirect(get_permalink($post_id));
+                    exit;
+                }
+
+                $product = wc_get_product($product_id);
+                if (!$product) {
+                    wp_die('Product not found');
+                }
+
+                // Ensure WooCommerce cart is loaded
+                if (!WC()->cart) {
+                    wc_load_cart();
+                }
+
+                if ($product->is_purchasable()) {
+                    $cart_item_data = array(
+                        'pensierino_comment_text' => $comment_text,
+                        'pensierino_comment_post_id' => $post_id,
+                    );
+
+                    WC()->cart->add_to_cart($product_id, 1, 0, array(), $cart_item_data);
+                    wp_redirect(wc_get_cart_url());
+                    exit;
+                } else {
+                    wp_die('Product not purchasable');
+                }
+            } else {
+                wp_die('Form submission error');
             }
         }
+
 
         public function handle_payment_complete($order_id)
         {
@@ -432,16 +437,6 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
 
         }
 
-        public function dynamic_page_activate()
-        {
-            $this->dynamic_page_init();
-            flush_rewrite_rules();
-        }
-
-        public function dynamic_page_deactivate()
-        {
-            flush_rewrite_rules();
-        }
     }
 }
 

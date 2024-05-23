@@ -34,7 +34,7 @@ if (!class_exists(__NAMESPACE__ . '\DbClass')) {
     require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/DbClass.php';
     $main_file = DOKAN_MOD_MAIN_FILE; // Sostituisci con il percorso del file principale del plugin
     global $dbClassInstance;
-    $dbClassInstance = new DbClass($main_file);
+    $dbClassInstance = new DbClass();
 }
 
 if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
@@ -62,6 +62,8 @@ dokan_mods_load_and_instantiate_class('Dokan_Select_Products', 'classes/dokan_se
 dokan_mods_load_and_instantiate_class('Miscellaneous', 'classes/Miscellaneous.php');
 dokan_mods_load_and_instantiate_class('RegistrationForm', 'classes/RegistrationForm.php');
 dokan_mods_load_and_instantiate_class('AnnuncioMorteClass', 'classes/AnnuncioMorteClass.php');
+dokan_mods_load_and_instantiate_class('registerActivationClass', 'classes/registerActivationClass.php');
+
 dokan_mods_load_and_instantiate_class('ElementorWidgetInit', 'includes/ElementorWidgetInit.php');
 
 // Includi FiltersClass senza istanziarla
