@@ -85,7 +85,9 @@ $active_menu = 'seleziona-prodotti';
 
                     <!-- if the vendor status is enabled show the form -->
                     <?php if (!$disable_form) { ?>
-                        <form class="dokan-product-edit-form" role="form" method="post" id="post">
+                        <form class="dokan-product-edit-form" role="form" method="post"
+                              action="<?php echo admin_url('admin-post.php'); ?>" id="post">
+                            <input type="hidden" name="action" value="add_product_dokan_vendor">
                             <input type="hidden" name="selected_product_for_vendor" value="1">
                         <?php
                             //foreach product in the list generate a checkbox with the product title only

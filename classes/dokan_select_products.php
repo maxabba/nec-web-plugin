@@ -28,8 +28,11 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
             add_filter('template_include', array($this, 'load_template')); // Include il template
             add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'), 9999); // Mette in coda gli stili
             //add_action('init', array($this, 'handle_form_submission')); // Gestisce l'invio del modulo all'inizializzazione
-            add_action('admin_post_pensierino_form', array($this, 'handle_form_submission'));
-            add_action('admin_post_nopriv_pensierino_form', array($this, 'handle_form_submission'));
+            add_action('admin_post_add_product_dokan_vendor', array($this, 'handle_form_submission'));
+            add_action('admin_post_nopriv_add_product_dokan_vendor', array($this, 'handle_form_submission'));
+
+            add_action('acf/save_post', array($this, 'annuncio_save_post'), 20);
+
         }
 
         //get all products id with class default-products
@@ -37,14 +40,13 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
 
         public function enqueue_styles()
         {
-            if (get_query_var('seleziona-prodotti')) {
+            $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'annunci'];
+            if (array_filter($query_vars, 'get_query_var')) {
                 // Debugging: stampa tutti gli stili registrati
                 global $wp_styles;
-
                 // Prova a mettere in coda 'dokan-style'
                 if (wp_style_is('dokan-style', 'registered')) {
                     wp_enqueue_style('dokan-style');
-
                     //set dokan-dashboard dokan-theme-hello-elementor class on body
                     add_filter('body_class', function ($classes) {
                         $classes[] = 'dokan-dashboard dokan-theme-hello-elementor';
@@ -53,9 +55,33 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                 } else {
                     echo 'The "dokan-style" is not registered.';
                 }
+                //check if acf is active and load the acf form css
+                if (function_exists('acf_form_head')) {
+                    acf_form_head();
+                }
+
             }
         }
 
+        function annuncio_save_post($post_id)
+        {
+            // Controlla se il post è del tipo 'custom_type'
+            if (get_post_type($post_id) == 'annuncio-di-morte') {
+                // Recupera i valori dei campi ACF
+                $nome = get_field('nome', $post_id);
+                $cognome = get_field('cognome', $post_id);
+
+                // Combina i campi "Nome" e "Cognome" per creare il titolo del post
+                $post_title = $nome . ' ' . $cognome;
+
+                // Aggiorna il titolo del post
+                $post_data = array(
+                    'ID' => $post_id,
+                    'post_title' => $post_title,
+                );
+                wp_update_post($post_data);
+            }
+        }
 
         public function add_dashboard_menu($urls)
         {
@@ -67,21 +93,41 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                 'pos' => 30,
                 'permission' => 'dokan_view_product_menu'
             );
+
+            $urls['lista-annunci'] = array(
+                'title' => __('Lista Annunci', 'dokan'),
+                'icon' => '<i class="fas fa-list"></i>',
+                'url' => site_url('/dashboard/annunci'), // Aggiungi qui l'URL del tuo template
+                'pos' => 31,
+                'permission' => 'dokan_view_product_menu'
+            );
+
+            $urls['crea-annuncio'] = array(
+                'title' => __('Crea Annuncio', 'dokan'),
+                'icon' => '<i class="fas fa-plus"></i>',
+                'url' => site_url('/dashboard/crea-annuncio'), // Aggiungi qui l'URL del tuo template
+                'pos' => 32,
+                'permission' => 'dokan_view_product_menu'
+            );
             return $urls;
         }
 
-        //create a function to load the template
-
+        //spostato permanentemente in registerActivationClass.php
         //add rewrite rules
-        public function add_rewrite_rules()
+        /* public function add_rewrite_rules()
         {
             add_rewrite_rule('^dashboard/seleziona-prodotti/?', 'index.php?seleziona-prodotti=true', 'top');
-        }
+            add_rewrite_rule('^dashboard/crea-annuncio/?', 'index.php?crea-annuncio=true', 'top');
+        }*/
 
         //add query var
         public function add_query_vars($vars)
         {
             $vars[] = 'seleziona-prodotti';
+            //add another quey var for create-annuncio
+            $vars[] = 'crea-annuncio';
+
+            $vars[] = 'annunci';
             return $vars;
         }
         //show the template if the query var is set
@@ -90,6 +136,12 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
             global $wp_query;
             if (isset($wp_query->query_vars['seleziona-prodotti'])) {
                 return DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/select-products.php';
+            }
+            if (isset($wp_query->query_vars['crea-annuncio'])) {
+                return DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/annunci-create-frontpage.php';
+            }
+            if (isset($wp_query->query_vars['annunci'])) {
+                return DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/annunci-list-frontend.php';
             }
             return $template;
         }
@@ -257,7 +309,7 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                         $product_status = dokan_get_default_product_status();
 
                         // Update the post status and title
-                        $new_product_title = $product_title . ' - ' . $vendor_store_name . ' - ' . $user_id;
+                        $new_product_title = $product_title . ' - ' . $vendor_store_name;
                         wp_update_post(array(
                             'ID' => intval($clone_product_id),
                             'post_status' => $product_status,
@@ -277,15 +329,15 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                     } else {
                         $operation_successful = false;
                     }
-
+                }
                     // Redirect to prevent form resubmission
                     if ($operation_successful) {
-                        wp_redirect(add_query_arg(array('operation_result' => 'success'), $_SERVER['REQUEST_URI']));
+                        wp_redirect(add_query_arg(array('operation_result' => 'success'), wp_get_referer()));
                     } else {
-                        wp_redirect(add_query_arg(array('operation_result' => 'error'), $_SERVER['REQUEST_URI']));
+                        wp_redirect(add_query_arg(array('operation_result' => 'error'), wp_get_referer()));
                     }
                     exit;
-                }
+
             }
         }
 

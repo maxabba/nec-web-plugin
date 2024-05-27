@@ -17,6 +17,8 @@ class UtilsAMClass
         $this->pages = [
             'pensierini' => [334, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/pensierini.php'], // Sostituisci 123 con l'ID del tuo template di Elementor
             'manifesto-top' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
+            'manifesto-silver' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
+            'manifesto-online' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
         ];
         $this->pages_slug = array_keys($this->pages);
         $links = array_map(function ($slug) {
@@ -166,5 +168,25 @@ class UtilsAMClass
         }
     }
 
+    function get_dokan_store_info_by_product($product_id)
+    {
+        // Controlla se Dokan è attivo.
+        if (!function_exists('dokan_get_store_info')) {
+            return [];
+        }
 
+        // Ottieni l'ID del venditore associato al prodotto.
+        $vendor_id = get_post_field('post_author', $product_id);
+
+        // Ottieni le informazioni del negozio.
+        $store_info = dokan_get_store_info($vendor_id);
+
+        // Aggiungi l'URL dell'immagine del negozio se disponibile.
+        $store_banner = isset($store_info['banner']) ? wp_get_attachment_url($store_info['banner']) : '';
+
+        return [
+            'store_name' => isset($store_info['store_name']) ? $store_info['store_name'] : '',
+            'store_banner' => $store_banner,
+        ];
+    }
 }
