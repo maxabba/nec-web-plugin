@@ -1,7 +1,8 @@
-function loadCity($,element) {
+function loadCity($,element, city = null) {
 
-    console.log('change');
+    console.log('loadCity');
     var selectedValue = $(element).val();
+    console.log(selectedValue);
     $.ajax({
         url: ajax_object.ajax_url,
         type: 'POST',
@@ -26,16 +27,50 @@ function loadCity($,element) {
             //add the new options
             $('#acf-field_662ca58a35da3').append('<option value="Tutte">Tutte</option>');
             $.each(data, function (index, value) {
-                $('#acf-field_662ca58a35da3').append('<option value="' + value + '">' + value + '</option>');
+                console.log(city);
+                if (city === value) {
+                    $('#acf-field_662ca58a35da3').append('<option value="' + value + '" selected>' + value + '</option>');
+                } else
+                    $('#acf-field_662ca58a35da3').append('<option value="' + value + '">' + value + '</option>');
+
             });
         }
     });
 };
 
 
+function get_city_if_is_set($,element) {
+    console.log('get_city_if_is_set');
+    $.ajax({
+        url: ajax_object.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'get_current_citta_value_if_is_set',
+            post_id: ajax_object.post_id
+        },
+        beforeSend: function () {
+            //show the loader
+            $('#acf-field_662ca58a35da3').empty();
+            $('#acf-field_662ca58a35da3').append('<option value="">Caricando...</option>');
+        },
+        success: function (response) {
+            var data = JSON.parse(response);
+
+            //set city value as the data respose value
+            loadCity($, element, data);
+
+        }
+    });
+}
+
+jQuery('#acf-field_6638e3e77ffa0').ready(function ($) {
+
+    get_city_if_is_set($, jQuery('#acf-field_6638e3e77ffa0'));
+});
 
 jQuery(document).ready(function ($) {
-    $('#acf-field_6638e3e77ffa0').ready(loadCity($,this));
+
+
     $('#acf-field_6638e3e77ffa0').change(function () {
         loadCity($,this);
     });

@@ -22,6 +22,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             //add_action('init', array($this, 'dynamic_page_init'));
             add_action('init', array($this, 'register_shortcodes'));
             //add_action('init', array($this, 'check_and_create_product'));
+            add_action('acf/save_post', array($this, 'annuncio_save_post'), 20);
 
             add_action('elementor/editor/before_enqueue_scripts', array($this, 'enqueue_bootstrap'));
             add_action('wp_enqueue_scripts', array($this, 'enqueue_bootstrap'));
@@ -36,6 +37,10 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             add_action('woocommerce_payment_complete', array($this, 'handle_payment_complete'));
             add_filter('woocommerce_get_item_data', array($this, 'display_comment_and_post_title_in_cart'), 10, 2);
             add_action('woocommerce_checkout_create_order_line_item', array($this, 'display_comment_and_post_title_in_order_checkout'), 10, 4);
+
+            add_action('wp_set_comment_status', array($this, 'handle_comment_approval'), 10, 2);
+            add_action('delete_comment', array($this, 'handle_comment_deletion'));
+
         }
 
 
@@ -138,48 +143,26 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             return $template;
         }
 
-        /*public function handle_form_submission()
+        function annuncio_save_post($post_id)
         {
-            // Check if the form is submitted and the textarea text is set
-            if (isset($_POST['pensierino'])) {
-                // Get the textarea text
-                $comment_text = sanitize_text_field($_POST['pensierino']);
+            // Controlla se il post è del tipo 'custom_type'
+            if (get_post_type($post_id) == 'annuncio-di-morte') {
+                // Recupera i valori dei campi ACF
+                $nome = get_field('nome', $post_id);
+                $cognome = get_field('cognome', $post_id);
 
-                // Get the post ID
-                $post_id = intval($_POST['post_id']);
+                // Combina i campi "Nome" e "Cognome" per creare il titolo del post
+                $post_title = $nome . ' ' . $cognome;
 
-                // Get the product ID of Pensierini
-                $product_id = $this->get_product_id_by_slug('pensierini');
-                if (class_exists('WooCommerce')) {
-                    $product = wc_get_product($product_id);
-                    if (!WC()->cart) {
-                        wc_load_cart();
-                    }
-                    if ($product) {
-                        if ($product->is_purchasable()) {
-                            $cart_item_data = array(
-                                'pensierino_comment_text' => $comment_text,
-                                'pensierino_comment_post_id' => $post_id,
-                            );
+                // Aggiorna il titolo del post
+                $post_data = array(
+                    'ID' => $post_id,
+                    'post_title' => $post_title,
+                );
+                wp_update_post($post_data);
 
-                            WC()->cart->add_to_cart($product_id, 1, 0, array(), $cart_item_data);
-                            wp_redirect(wc_get_cart_url());
-                            exit;
-                        } else {
-                            wp_die('Product not purchasable');
-                        }
-                    }else{
-                        wp_die('Product not found');
-                    }
-                }else {
-                   //redirect back to the page whit error message
-                    wp_redirect(get_permalink($post_id));
-                    exit;
-
-                }
             }
-        }*/
-
+        }
         public function handle_form_submission()
         {
             // Check if the form is submitted and the textarea text is set
@@ -234,6 +217,47 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
         }
 
 
+        public function handle_comment_approval($comment_id, $comment_status)
+        {
+            if ($comment_status == 'approve') {
+                // Get the comment object
+                $comment = get_comment($comment_id);
+
+                // Get the order ID from the comment meta
+                $order_id = get_comment_meta($comment_id, 'order_id', true);
+
+                // Check if the order ID exists
+                if ($order_id) {
+                    // Get the order object
+                    $order = wc_get_order($order_id);
+
+                    // Check if the order exists and is not already completed
+                    if ($order && $order->get_status() != 'completed') {
+                        // Update the order status to completed
+                        $order->update_status('completed');
+                    }
+                }
+            }
+        }
+
+        public function handle_comment_deletion($comment_id)
+        {
+            // Get the order ID from the comment meta
+            $order_id = get_comment_meta($comment_id, 'order_id', true);
+
+            // Check if the order ID exists
+            if ($order_id) {
+                // Get the order object
+                $order = wc_get_order($order_id);
+
+                // Check if the order exists and is not already cancelled
+                if ($order && $order->get_status() != 'cancelled') {
+                    // Update the order status to cancelled
+                    $order->update_status('cancelled');
+                }
+            }
+        }
+
         public function handle_payment_complete($order_id)
         {
             // Get the order
@@ -245,7 +269,39 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                 $product_id = $item->get_product_id();
 
                 // Check if the product is Pensierini
-                $this->checkIfTheProductIsPensierini($product_id, $item, $order_id);
+                if ($product_id == $this->get_product_id_by_slug('pensierini')) {
+                    // Get the comment text and post ID from the cart item data
+                    $comment_text = $item->get_meta('_pensierino_comment_text');
+                    $post_id = $item->get_meta('_pensierino_comment_post_id');
+
+                    // Get the order
+                    $order = wc_get_order($order_id);
+
+                    // Get the billing first name and last name
+                    $first_name = $order->get_billing_first_name();
+                    $last_name = $order->get_billing_last_name();
+
+                    // Check if the comment text and post ID are set
+                    if ($comment_text && $post_id) {
+                        // Prepare the comment data
+                        $comment_data = array(
+                            'comment_post_ID' => $post_id,
+                            'comment_author' => $first_name . ' ' . $last_name,
+                            'comment_content' => $comment_text,
+                            'comment_type' => 'comment',
+                            'comment_approved' => 0, // Set to 0 to make the comment unapproved
+                        );
+
+                        // Insert the comment
+                        $comment_id =wp_insert_comment($comment_data);
+
+                        if ($comment_id) {
+                            add_comment_meta($comment_id, 'order_id', $order_id, true);
+                            add_comment_meta($comment_id, 'product_id', $product_id, true);
+                        }
+                    }
+
+                }
             }
         }
 
@@ -259,6 +315,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                 // Get the comment text and post ID from the cart item data
                 $comment_text = $cart_item['pensierino_comment_text'];
                 $post_id = $cart_item['pensierino_comment_post_id'];
+
 
                 // Get the post title
                 $post_title = get_the_title($post_id);
@@ -296,7 +353,8 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
 
                 // Get the post title
                 $post_title = get_the_title($post_id);
-
+                $item->add_meta_data('_pensierino_comment_text', $comment_text, true);
+                $item->add_meta_data('_pensierino_comment_post_id', $post_id, true);
                 // Append the comment and post title to the product name
                 $item->add_meta_data('Pensierino', $comment_text, true);
                 $item->add_meta_data('Dedicato a', $post_title, true);
@@ -460,7 +518,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             ?>
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" class="full-width-form">
                 <input type="hidden" name="action" value="pensierino_form">
-                <input type="hidden" name="post_id" value="<?php echo get_the_ID(); ?>">
+                <input type="hidden" name="post_id" value="<?php echo $_POST['post_id'] ?? get_the_ID(); ?>">
                 <textarea name="pensierino" id="pensierino_comment_id" maxlength="200" required
                           class="styled-textarea"></textarea>
                 <input type="submit" value="Continua">

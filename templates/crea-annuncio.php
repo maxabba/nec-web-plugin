@@ -3,16 +3,16 @@
  * Template per la selezione dei prodotti predefiniti in Dokan.
  */
 
-// Assicurati che l'utente sia un vendor e abbia i permessi necessari
-if (!current_user_can('dokan_view_product_menu')) {
-    wp_die(__('Non hai i permessi per visualizzare questa pagina', 'dokan'));
-}
+$template_class = (new \Dokan_Mods\Templates_MiscClass());
+$template_class->check_dokan_can_and_message_login();
+
 
 $user_id = get_current_user_id();
 $store_info = dokan_get_store_info($user_id);
 $user_city = $store_info['address']['city'] ?? '';
+$post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
+$form = $template_class->render_post_state_form_and_handle($post_id);
 
-$user_id = get_current_user_id();
 
 //check if vendor status is enabled
 $disable_form = false;
@@ -23,7 +23,7 @@ if (dokan_is_user_seller($user_id) && !dokan_is_seller_enabled($user_id)) {
 // Includi l'header
 get_header();
 
-$active_menu = 'add-annuncio';
+$active_menu = 'annunci/crea-annuncio';
 
 // Include the Dokan dashboard sidebar
 
@@ -74,27 +74,31 @@ $active_menu = 'add-annuncio';
                         ?>
                     </header>
 
-                    <div class="product-edit-new-container product-edit-container">
+                    <div class="product-edit-new-container product-edit-container" style="margin-bottom: 100px">
 
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
-
+                            <?php if ($post_id !== 'new_post') {
+                                echo $form;
+                            } ?>
                             <?php
                             // Check if the user is logged in
                             if (is_user_logged_in()) {
                                 // Parameters for the ACF form
+                                $add_edit_text = $post_id === 'new_post' ? 'Crea' : 'Modifica';
                                 $form_args = array(
-                                    'post_id' => 'new_post',
+                                    'post_id' => $post_id,
                                     'new_post' => array(
-                                        'post_type' => 'custom_type',
+                                        'post_type' => 'annuncio-di-morte',
                                         'post_status' => 'publish',
                                     ),
-                                    'field_groups' => array('group_6641d54c5f58d'), // Replace with your ACF field group ID
-                                    'submit_value' => __('Crea', 'your-text-domain'),
-                                    'return' => home_url('/dashboard/crea-annuncio'), // Replace with your thank you page
+                                    'field_groups' => array('group_662ca589c62f7', 'group_6641d54c5f58d'),
+                                    'submit_value' => __($add_edit_text, 'Dokan-mod'),
+                                    'return' => home_url('/dashboard/annunci'),
                                 );
 
                                 acf_form($form_args);
+
                             } else {
                                 echo '<p>' . __('Devi essere loggato per compilare questo form.', 'your-text-domain') . '</p>';
                                 wp_login_form();

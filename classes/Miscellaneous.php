@@ -1,12 +1,14 @@
 <?php
+
 namespace Dokan_Mods;
+
 use JetBrains\PhpStorm\NoReturn;
 use WP_User;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
-if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
+if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
     class Miscellaneous
     {
         //define constructor
@@ -14,8 +16,8 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
         {
 
 
-            add_filter('acf/load_value/key=citta', array($this, 'auto_fill_acf_field_based_on_user'), 10, 3);
-            add_filter('acf/load_field/name=provincia', array($this, 'load_province_choices'));
+            add_filter('acf/load_value/key=field_662ca58a35da3', array($this, 'auto_fill_acf_field_based_on_user'), 10, 3);
+            add_filter('acf/load_field/key=field_6638e3e77ffa0', array($this, 'load_province_choices'));
             //add_filter('acf/load_field/name=city', array($this, 'load_city_choices'));
 
 
@@ -23,16 +25,17 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
             add_action('pre_get_posts', array($this, 'apply_city_filter'));
             add_action('acf/init', array($this, 'add_acf_options_page'));
 
-            //add_action('admin_init', array($this, 'register_ajax_script'));
-            add_action('admin_enqueue_scripts', array($this, 'enqueue_ajax_script'));
+            add_action('acf/input/admin_enqueue_scripts', array($this, 'enqueue_ajax_script'));
             add_action('wp_enqueue_scripts', array($this, 'enqueue_ajax_script'));
 
-            add_action('wp_ajax_get_comuni_by_provincia', array($this,'get_comuni_by_provincia_callback'));
-            add_action('wp_ajax_nopriv_get_comuni_by_provincia', array($this,'get_comuni_by_provincia_callback'));
+            add_action('wp_ajax_get_comuni_by_provincia', array($this, 'get_comuni_by_provincia_callback'));
+            add_action('wp_ajax_nopriv_get_comuni_by_provincia', array($this, 'get_comuni_by_provincia_callback'));
 
-            add_action('wp_ajax_update_acf_field', array($this,'handle_acf_update_request'));
+            add_action('wp_ajax_update_acf_field', array($this, 'handle_acf_update_request'));
             add_action('wp_ajax_nopriv_update_acf_field', array($this, 'handle_acf_update_request'));
 
+            add_action('wp_ajax_get_current_citta_value_if_is_set', array($this, 'get_current_citta_value_if_is_set'));
+            add_action('wp_ajax_nopriv_get_current_citta_value_if_is_set', array($this, 'get_current_citta_value_if_is_set'));
 
             $this->register_shortcodes();
         }
@@ -47,18 +50,16 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
         }
 
 
-        public function register_ajax_script()
-        {
-            wp_register_script('ajax-script-dokan-mod', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . '/assets/js/ajax-script.js', array('jquery'), '1.0', true);
-        }
-
         function enqueue_ajax_script()
         {
             wp_register_script('ajax-script-dokan-mod', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . '/assets/js/ajax-script.js', array('jquery'), '1.0', true);
 
             // Then enqueue the script
             wp_enqueue_script('ajax-script-dokan-mod');
-            wp_localize_script('ajax-script-dokan-mod', 'ajax_object', array('ajax_url' => admin_url('admin-ajax.php')));
+            wp_localize_script('ajax-script-dokan-mod', 'ajax_object', array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'post_id' => get_the_ID(),
+            ));
         }
 
         public function add_acf_options_page()
@@ -83,7 +84,7 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
             if (!empty($_POST['province'])) {
                 // Imposta un transient per memorizzare la provincia scelta con una durata di 1 giorno
                 set_transient('province' . session_id(), sanitize_text_field($_POST['province']), DAY_IN_SECONDS);
-            }elseif (isset($_POST['province'])){
+            } elseif (isset($_POST['province'])) {
                 delete_transient('province' . session_id());
             }
 
@@ -91,7 +92,7 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
             if (!empty($_POST['city_filter'])) {
                 // Imposta un transient per memorizzare la città scelta con una durata di 1 giorno
                 set_transient('city_filter_' . session_id(), sanitize_text_field($_POST['city_filter']), DAY_IN_SECONDS);
-            }elseif (isset($_POST['province'])){
+            } elseif (isset($_POST['province'])) {
                 delete_transient('city_filter_' . session_id());
             }
 
@@ -124,9 +125,13 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
             return $field;
         }
 
-        function handle_acf_update_request()
+        public function handle_acf_update_request()
         {
             $value_received = $_POST['value'];
+            if (empty($value_received)) {
+                echo json_encode([]);
+                wp_die();
+            }
             // Supponendo che tu debba elaborare $value_received per ottenere il nuovo valore
             global $dbClassInstance;
 
@@ -136,8 +141,20 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
             wp_die(); // termina correttamente la richiesta AJAX
         }
 
+        public function get_current_citta_value_if_is_set()
+        {
 
-        private function auto_fill_acf_field_based_on_user($value, $post_id, $field)
+            $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : null;
+            if (empty($post_id)) {
+                echo json_encode([]);
+                wp_die();
+            }
+            $city_filter = get_field('citta', $post_id);
+            echo json_encode($city_filter);
+            wp_die();
+        }
+
+        public function auto_fill_acf_field_based_on_user($value, $post_id, $field)
         {
             // Assicurati che il campo sia vuoto prima di autocompilarlo
             if (empty($value)) {
@@ -157,56 +174,13 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
         private function get_all_acf_select_values($field_key, $post_id = null)
         {
 
-            $field = get_field_object($field_key, 'option',true);
+            $field = get_field_object($field_key, 'option', true);
             if ($field) {
                 return $field['choices'];
             }
             return [];
         }
 
-
-/*        public function show_acf_select_values($atts): string
-        {
-            $atts = shortcode_atts([
-                'field_key' => '',
-                'post_id' => ''
-            ], $atts);
-            //get transients if set
-            $city_filter = get_transient('city_filter_' . session_id());
-            $values = $this->get_all_acf_select_values($atts['field_key'], $atts['post_id']);
-            if (!empty($values)) {
-                //return select input with options
-                $random_id = uniqid();
-                $output = '<div id="'. $random_id .'" style="display: flex; flex-direction: column; align-items: center; width: 80%; margin: auto;">';
-                $output .= '<form action="" method="POST" style="width: 100%;">';
-                $output .= '<label for="city_filter" style="text-align: center;">Seleziona una città:</label>';
-                $output .= '<select name="city_filter" id="city_filter" class="select2" style="width: 100%;">';
-                $output .= '<option value="">Scegli una città...</option>';
-                foreach ($values as $value) {
-                    if ($city_filter == $value) {
-                        $output .= '<option value="' . $value . '" selected>' . $value . '</option>';
-                    } else {
-                        $output .= '<option value="' . $value . '">' . $value . '</option>';
-                    }
-                }
-                $output .= '</select>';
-                //add submit button
-                $output .= '<input type="submit" value="Cerca" style="width: 100%; margin-top: 10px;">';
-                $output .= '</form>';
-                $output .= '</div>';
-                $output .= '<script>
-                            jQuery(document).ready(function($) {
-                            //select the div with the random id and apply select2 to the select input
-                            if ($.fn.elementorSelect2) {
-                                $("#' . $random_id . ' .select2").elementorSelect2();
-                            }
-                            });
-                </script>';
-                return $output;
-
-            }
-            return 'No values found';
-        }*/
 
         public function show_acf_select_values($field)
         {
@@ -304,10 +278,13 @@ if (!class_exists(__NAMESPACE__.'Miscellaneous')) {
         }
 
 
-
         #[NoReturn] function get_comuni_by_provincia_callback(): void
         {
             $province_name = $_POST['province'];
+            if (empty($province_name)) {
+                echo json_encode([]);
+                wp_die();
+            }
             global $dbClassInstance;
             $result = $dbClassInstance->get_comuni_by_provincia($province_name);
             echo json_encode($result);

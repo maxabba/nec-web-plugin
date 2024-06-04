@@ -244,7 +244,7 @@ class Add_P_Default_Widget extends Widget_Base
         $settings = $this->get_settings_for_display();
         ?>
         <div class="add-p-default-widget" data-widget-id="<?php echo $this->get_id(); ?>">
-            <div class="editable-content" contenteditable="true">
+            <div class="editable-content" contenteditable="false">
                 <?php echo $settings['editor_content']; ?>
             </div>
             <button class="add-p-default-button"><?php echo $settings['button_text'] ?></button>

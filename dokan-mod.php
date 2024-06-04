@@ -40,6 +40,9 @@ if (!class_exists(__NAMESPACE__ . '\DbClass')) {
 if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
     require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/UtilsAMClass.php';
 }
+if (!class_exists(__NAMESPACE__ . '\Templates_MiscClass')) {
+    require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/Templates_MiscClass.php';
+}
 
 // Funzione per caricare e istanziare le classi
 function dokan_mods_load_and_instantiate_class($class_name, $file_path)
@@ -59,10 +62,13 @@ function dokan_mods_load_and_instantiate_class($class_name, $file_path)
 
 // Includi e istanzia le classi necessarie
 dokan_mods_load_and_instantiate_class('Dokan_Select_Products', 'classes/dokan_select_products.php');
+dokan_mods_load_and_instantiate_class('DashboardMenuClass', 'classes/DashboardMenuClass.php');
 dokan_mods_load_and_instantiate_class('Miscellaneous', 'classes/Miscellaneous.php');
 dokan_mods_load_and_instantiate_class('RegistrationForm', 'classes/RegistrationForm.php');
 dokan_mods_load_and_instantiate_class('AnnuncioMorteClass', 'classes/AnnuncioMorteClass.php');
 dokan_mods_load_and_instantiate_class('registerActivationClass', 'classes/registerActivationClass.php');
+dokan_mods_load_and_instantiate_class('TrigesimiClass', 'classes/TrigesimiClass.php');
+dokan_mods_load_and_instantiate_class('AnniversarioClass', 'classes/AnniversarioClass.php');
 
 dokan_mods_load_and_instantiate_class('ElementorWidgetInit', 'includes/ElementorWidgetInit.php');
 

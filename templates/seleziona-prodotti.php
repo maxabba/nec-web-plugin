@@ -3,10 +3,7 @@
  * Template per la selezione dei prodotti predefiniti in Dokan.
  */
 
-// Assicurati che l'utente sia un vendor e abbia i permessi necessari
-if ( ! current_user_can( 'dokan_view_product_menu' ) ) {
-    wp_die( __( 'Non hai i permessi per visualizzare questa pagina', 'dokan' ) );
-}
+(new \Dokan_Mods\Templates_MiscClass())->check_dokan_can_and_message_login();
 
 $user_id = get_current_user_id();
 $store_info = dokan_get_store_info($user_id);
@@ -81,7 +78,7 @@ $active_menu = 'seleziona-prodotti';
                         ?>
                     </header>
 
-                    <div class="product-edit-new-container product-edit-container">
+                    <div class="product-edit-new-container product-edit-container" style="margin-bottom: 100px">
 
                     <!-- if the vendor status is enabled show the form -->
                     <?php if (!$disable_form) { ?>
