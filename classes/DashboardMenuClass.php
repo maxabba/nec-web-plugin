@@ -9,7 +9,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
     {
         const PLUGIN_PATH = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/';
 
-        private array $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'annunci', 'customize', 'trigesimo-add','anniversari'];
+        private array $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'annunci', 'customize', 'trigesimo-add','anniversari','crea-anniversario'];
 
 
         public function __construct()

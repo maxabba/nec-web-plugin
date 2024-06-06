@@ -26,6 +26,25 @@ if (get_query_var('paged')) {
 } else {
     $paged = 1;
 }
+
+$highest_anniversario_query = new WP_Query(array(
+    'post_type' => 'anniversario',
+    'author' => $user_id,
+    'posts_per_page' => 1,
+    'meta_key' => 'anniversario_n_anniversario',
+    'orderby' => 'meta_value_num',
+    'order' => 'DESC'
+));
+
+// Get the 'anniversario_n_anniversario' field of the first post
+if ($highest_anniversario_query->have_posts()) {
+    $highest_anniversario_query->the_post();
+    $highest_anniversario = intval(get_field('anniversario_n_anniversario')) + 1;
+} else {
+    $highest_anniversario = '';
+}
+$url = home_url('dashboard/crea-anniversario?post_id_annuncio=' . $post_id_annuncio . '&n_anniversario=' . $highest_anniversario);
+
 $args = array(
     'post_type' => 'anniversario',
     'author' => $user_id,
@@ -38,7 +57,10 @@ $args = array(
             'value' => $post_id_annuncio,
             'compare' => '='
         )
-    )
+    ),
+    'meta_key' => 'anniversario_n_anniversario',
+    'orderby' => 'meta_value_num',
+    'order' => 'DESC'
 );
 
 // Execute the query
@@ -101,8 +123,7 @@ $active_menu = '';
 
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
-                            <a href="<?php echo home_url('dashboard/crea-anniversario/'); ?>" class="custom-widget-button"
-                               style="margin-bottom: 15px">
+                            <a href="<?php echo $url; ?>" class="custom-widget-button" style="margin-bottom: 15px">
                                 <i class="fas fa-plus"></i> <?php _e('Aggiungi Anniversario', 'your-text-domain'); ?>
                             </a>
                             <form method="get" action="<?php echo esc_url(home_url('/dashboard/anniversari')); ?>"
@@ -114,6 +135,7 @@ $active_menu = '';
                             <table>
                                 <thead>
                                 <tr>
+                                    <th><?php _e('Anniversario', 'your-text-domain'); ?></th>
                                     <th><?php _e('Titolo', 'your-text-domain'); ?></th>
                                     <th><?php _e('Data publicazione', 'your-text-domain'); ?></th>
                                     <th><?php _e('Città', 'your-text-domain'); ?></th>
@@ -128,11 +150,12 @@ $active_menu = '';
                                     while ($query->have_posts()) : $query->the_post();
                                         ?>
                                         <tr>
+                                            <td><?php echo get_field('anniversario_n_anniversario'); ?></td>
                                             <td><?php the_title(); ?></td>
                                             <td><?php the_date(); ?></td>
                                             <td><?php echo get_post_meta(get_the_ID(), 'citta', true); ?></td>
                                             <td>
-                                                <a href="<?php echo home_url('/dashboard/crea-anniversario?post_id=' . get_the_ID()); ?>"><?php _e('Modifica', 'your-text-domain'); ?></a>
+                                                <a href="<?php echo home_url('/dashboard/crea-anniversario?post_id=' . get_the_ID() . '&post_id_annuncio=' . $post_id_annuncio); ?>"><?php _e('Modifica', 'your-text-domain'); ?></a>
                                             </td>
                                         </tr>
                                     <?php
