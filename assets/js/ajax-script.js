@@ -1,8 +1,8 @@
 function loadCity($,element, city = null) {
 
-    console.log('loadCity');
+    //console.log('loadCity');
     var selectedValue = $(element).val();
-    console.log(selectedValue);
+    //console.log(selectedValue);
     $.ajax({
         url: ajax_object.ajax_url,
         type: 'POST',
@@ -40,7 +40,7 @@ function loadCity($,element, city = null) {
 
 
 function get_city_if_is_set($,element) {
-    console.log('get_city_if_is_set');
+    //console.log('get_city_if_is_set');
     $.ajax({
         url: ajax_object.ajax_url,
         type: 'POST',

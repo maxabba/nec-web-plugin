@@ -168,7 +168,7 @@ class UtilsAMClass
         }
     }
 
-    function get_dokan_store_info_by_product($product_id)
+    public function get_dokan_store_info_by_product($product_id)
     {
         // Controlla se Dokan è attivo.
         if (!function_exists('dokan_get_store_info')) {
@@ -188,5 +188,22 @@ class UtilsAMClass
             'store_name' => isset($store_info['store_name']) ? $store_info['store_name'] : '',
             'store_banner' => $store_banner,
         ];
+    }
+
+    public function get_product_id_by_slug($slug)
+    {
+        $args = array(
+            'name' => $slug,
+            'post_type' => 'product',
+            'post_status' => 'publish',
+            'numberposts' => 1
+        );
+        $products = get_posts($args);
+
+        if (!empty($products)) {
+            return $products[0]->ID;
+        }
+
+        return false;
     }
 }

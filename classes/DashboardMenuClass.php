@@ -27,9 +27,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
 
             foreach ($this->query_vars as $var) {
                 add_rewrite_rule('^dashboard/' . $var . '/page/([0-9]+)/?', 'index.php?' . $var . '=true&paged=$matches[1]', 'top');
-
                 add_rewrite_rule('^dashboard/' . $var . '/?', 'index.php?' . $var . '=true', 'top');
-
             }
         }
 
@@ -99,7 +97,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
                 $urls['settings']['submenu']['customize'] = array(
                     'title' => __('Personalizza', 'dokan'),
                     'icon' => '<i class="fas fa-wrench"></i>',
-                    'url' => site_url('/dashboard/settings/customize'),
+                    'url' => site_url('/dashboard/customize'),
                     'pos' => 100,
                     'permission' => 'dokan_view_product_menu'
                 );
@@ -117,6 +115,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
             global $wp_query;
             foreach ($this->query_vars as $var) {
                 if (isset($wp_query->query_vars[$var])) {
+                    $template = self::PLUGIN_PATH . $var . '.php';
                     return self::PLUGIN_PATH . $var . '.php';
                 }
             }

@@ -36,20 +36,6 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
             add_action('admin_post_nopriv_customize_poster', array($this, 'handle_customize_poster_form_submission'));
         }
 
-        //get all products id with class default-products
-
-
-
-
-
-
-
-
-        //add query var
-
-        //show the template if the query var is set
-
-
 
 
         public function handle_form_submission()
@@ -273,14 +259,35 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                 // Sanitize the manifesto_background
                 $manifesto_background = isset($_POST['manifesto_background']) ? sanitize_text_field($_POST['manifesto_background']) : '';
 
+                // Sanitize the manifesto_orientation
+                $manifesto_orientation = isset($_POST['manifesto_orientation']) ? sanitize_text_field($_POST['manifesto_orientation']) : '';
+
+
+                //$top = get_user_meta($user_id, 'manifesto_margin_top', true) ?:5;
+                //$right = get_user_meta($user_id, 'manifesto_margin_right', true) ?: 5;
+                //$bottom = get_user_meta($user_id, 'manifesto_margin_bottom', true) ?: 5;
+                //$left = get_user_meta($user_id, 'manifesto_margin_left', true) ?: 5;
+
+                $top = isset($_POST['manifesto_margin_top']) ? intval($_POST['manifesto_margin_top']) : 5;
+                $left = isset($_POST['manifesto_margin_left']) ? intval($_POST['manifesto_margin_left']) : 5;
+                $bottom = isset($_POST['manifesto_margin_bottom']) ? intval($_POST['manifesto_margin_bottom']) : 5;
+                $right = isset($_POST['manifesto_margin_right']) ? intval($_POST['manifesto_margin_right']) : 5;
+                $alignment = isset($_POST['manifesto_alignment']) ? sanitize_text_field($_POST['manifesto_alignment']) : 'center';
                 // Update the user meta
                 update_user_meta($user_id, 'manifesto_background', $manifesto_background);
+                update_user_meta($user_id, 'manifesto_orientation', $manifesto_orientation);
 
+                update_user_meta($user_id, 'manifesto_margin_top', $top);
+                update_user_meta($user_id, 'manifesto_margin_right', $right);
+                update_user_meta($user_id, 'manifesto_margin_bottom', $bottom);
+                update_user_meta($user_id, 'manifesto_margin_left', $left);
+                update_user_meta($user_id, 'manifesto_alignment', $alignment);
                 // Redirect back to the form page with a success message
                 wp_redirect(add_query_arg('operation_result', 'success', wp_get_referer()));
                 exit;
             }
         }
+
     }
 //END CLASS
 }//END ID

@@ -69,6 +69,8 @@ dokan_mods_load_and_instantiate_class('AnnuncioMorteClass', 'classes/AnnuncioMor
 dokan_mods_load_and_instantiate_class('registerActivationClass', 'classes/registerActivationClass.php');
 dokan_mods_load_and_instantiate_class('TrigesimiClass', 'classes/TrigesimiClass.php');
 dokan_mods_load_and_instantiate_class('AnniversarioClass', 'classes/AnniversarioClass.php');
+dokan_mods_load_and_instantiate_class('PensieriniClass', 'classes/PensieriniClass.php');
+dokan_mods_load_and_instantiate_class('ManifestoClass', 'classes/ManifestoClass.php');
 
 dokan_mods_load_and_instantiate_class('ElementorWidgetInit', 'includes/ElementorWidgetInit.php');
 

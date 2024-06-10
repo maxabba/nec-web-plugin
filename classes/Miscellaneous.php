@@ -127,7 +127,7 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
 
         public function handle_acf_update_request()
         {
-            $value_received = $_POST['value'];
+            $value_received = isset($_POST['value']) ? sanitize_text_field($_POST['value']) : null;
             if (empty($value_received)) {
                 echo json_encode([]);
                 wp_die();
