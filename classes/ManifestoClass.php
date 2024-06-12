@@ -215,27 +215,58 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             return ob_get_clean();
         }
 
+
         function create_custom_text_editor_shortcode($atts)
         {
             ob_start();
             ?>
             <div class="text-editor-container">
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
-                      id="custom-text-editor-form">
+                      id="custom-text-editor-form" class="full-width-form">
                     <input type="hidden" name="action" value="save_custom_text_editor">
                     <input type="hidden" name="product_id" id="product_id" value="">
                     <input type="hidden" name="user_id" value="<?php echo get_current_user_id(); ?>">
 
-                    <div style="width:70%;margin:auto;" class="manifesti-container hide">
+                    <div style="margin:auto;" class="manifesti-container hide">
                         <div id="text-editor-background" class="text-editor-background" style="background-image: none;">
-                            <textarea id="custom_text" name="custom_text" class="custom-text-editor"></textarea>
+                            <div id="text-editor" contenteditable="true" class="custom-text-editor"></div>
                         </div>
 
                         <input type="submit" value="Salva" class="button">
                     </div>
+                    <div class="loader" id="comments-loader"></div>
+
                 </form>
             </div>
             <style>
+
+                .loader {
+                    border: 8px solid #f3f3f3; /* Light grey */
+                    border-top: 8px solid #3498db; /* Blue */
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    animation: spin 2s linear infinite;
+                    display: none; /* Nascosto inizialmente */
+                    margin: 20px auto;
+                }
+
+                @keyframes spin {
+                    0% {
+                        transform: rotate(0deg);
+                    }
+                    100% {
+                        transform: rotate(360deg);
+                    }
+                }
+                .full-width-form input[type="submit"] {
+                    display: block;
+                    margin: 0 auto;
+                }
+
+                .full-width-form {
+                    width: 100%;
+                }
                 .text-editor-container {
                     position: relative;
                     padding: 20px;
@@ -247,8 +278,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 .text-editor-background {
                     background-size: contain;
                     background-position: center;
-                    height: 400px;
-                    width: auto;
+                    height: 50vh; /* Usare vh per altezza responsiva */
+                    width: 100%; /* Usare larghezza completa */
                     max-width: 100%;
                     position: relative;
                     margin: auto;
@@ -260,20 +291,64 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                     border: none;
                     background: transparent;
                     color: #000;
-                    font-size: 16px;
                     resize: none;
-                    padding: 20px;
                     box-sizing: border-box;
                     outline: none;
+                    overflow: visible;
+                    font-size: calc(0.6vw + 0.6vh ); /* Dimensione del font reattiva e leggermente più piccola di 16px */
                     font-family: var(--e-global-typography-text-font-family), Sans-serif;
                     font-weight: var(--e-global-typography-text-font-weight);
+                }
+
+                .editor-toolbar {
+                    position: absolute;
+                    background: #fff;
+                    border: 1px solid #ccc;
+                    padding: 5px;
+                    display: none;
+                    z-index: 1000;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+                }
+
+                .editor-toolbar button {
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    font-size: 16px;
+                    margin: 0 2px;
+                    padding: 2px 5px;
+                }
+
+                .editor-toolbar button:hover {
+                    background: #f0f0f0;
+                }
+
+                @media (max-width: 768px) {
+                    .text-editor-container {
+                        padding: 10px;
+                    }
+
+                    .editor-toolbar {
+                        font-size: 14px;
+                    }
+
+                    .custom-text-editor {
+                        font-size: calc(0.9vw + 0.9vh ); /* Dimensione del font reattiva per schermi piccoli */
+                    }
                 }
             </style>
             <script>
                 document.addEventListener('DOMContentLoaded', function () {
+                    var marginTopPx = 0;
+                    var marginRightPx = 0;
+                    var marginBottomPx = 0;
+                    var marginLeftPx = 0;
+
                     function updateEditorBackground(data) {
+
                         const backgroundDiv = document.getElementById('text-editor-background');
-                        const textarea = document.getElementById('custom_text');
+                        const textEditor = document.getElementById('text-editor');
 
                         if (data.manifesto_background) {
                             const img = new Image();
@@ -283,35 +358,39 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                                 backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
                                 if (aspectRatio > 1) {
                                     // Landscape
-                                    backgroundDiv.style.height = '400px';
-                                    backgroundDiv.style.width = `${400 * aspectRatio}px`;
+                                    backgroundDiv.style.width = '100%';
+                                    backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
                                 } else {
                                     // Portrait
-                                    backgroundDiv.style.height = `${400 / aspectRatio}px`;
-                                    backgroundDiv.style.width = '400px';
+                                    backgroundDiv.style.height = '400px';
+                                    backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
                                 }
+
+                                // Calcola i margini in pixel basati sulla percentuale
+                                marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
+                                marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
+                                marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
+                                marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
+
+                                // Applica i margini e l'allineamento
+                                textEditor.style.paddingTop = `${marginTopPx}px`;
+                                textEditor.style.paddingRight = `${marginRightPx}px`;
+                                textEditor.style.paddingBottom = `${marginBottomPx}px`;
+                                textEditor.style.paddingLeft = `${marginLeftPx}px`;
+                                textEditor.style.textAlign = data.alignment ? data.alignment : 'left';
+
                             }
+
                         } else {
                             backgroundDiv.style.backgroundImage = 'none';
                         }
 
-                        if (data.manifesto_orientation === 'vertical') {
-                            textarea.style.writingMode = 'vertical-lr';
-                        } else {
-                            textarea.style.writingMode = 'horizontal-tb';
-                        }
 
-                        // Applica i margini e l'allineamento
-                        textarea.style.marginTop = data.margin_top ? data.margin_top + 'px' : '0';
-                        textarea.style.marginRight = data.margin_right ? data.margin_right + 'px' : '0';
-                        textarea.style.marginBottom = data.margin_bottom ? data.margin_bottom + 'px' : '0';
-                        textarea.style.marginLeft = data.margin_left ? data.margin_left + 'px' : '0';
-                        textarea.style.textAlign = data.alignment ? data.alignment : 'left';
                     }
 
                     window.setProductID = function (productID) {
                         document.getElementById('product_id').value = productID;
-
+                        jQuery('#comments-loader').show();
                         jQuery.ajax({
                             url: '<?php echo admin_url('admin-ajax.php'); ?>',
                             type: 'POST',
@@ -321,6 +400,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                             },
                             success: function (response) {
                                 if (response.success) {
+                                    jQuery('#comments-loader').hide();
                                     updateEditorBackground(response.data);
                                     jQuery('.manifesti-container').removeClass('hide');
                                 } else {
@@ -333,19 +413,277 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                         });
                     }
 
+                    // Initialize contenteditable div with a <p> if it's empty
+                    const textEditor = document.getElementById('text-editor');
+                    const toolbar = document.createElement('div');
+                    toolbar.className = 'editor-toolbar';
+                    toolbar.innerHTML = `
+                <button type="button" data-command="bold"><b>B</b></button>
+                <button type="button" data-command="italic"><i>I</i></button>
+                <button type="button" data-command="underline"><u>U</u></button>
+            `;
+                    document.body.appendChild(toolbar);
+
+                    function showToolbar(event) {
+                        const selection = window.getSelection();
+                        if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                            const range = selection.getRangeAt(0).getBoundingClientRect();
+                            toolbar.style.display = 'block';
+                            toolbar.style.top = `${range.top + window.scrollY - toolbar.offsetHeight - 5}px`;
+                            toolbar.style.left = `${range.left + window.scrollX + range.width / 2 - toolbar.offsetWidth / 2}px`;
+
+                        } else {
+                            toolbar.style.display = 'none';
+
+                        }
+                    }
+
+                    function applyCommand(command) {
+                        document.execCommand(command, false, null);
+                    }
+
+                    document.addEventListener('mouseup', showToolbar);
+                    document.addEventListener('touchend', showToolbar);
+                    toolbar.addEventListener('mousedown', function (event) {
+                        event.preventDefault();
+                        applyCommand(event.target.closest('button').getAttribute('data-command'));
+                       // setTimeout(showToolbar, 50); // Aggiungi un ritardo per permettere alla selezione di stabilizzarsi
+                    });
+
+                    if (textEditor.innerHTML.trim() === '') {
+                        textEditor.innerHTML = '<p><br></p>';
+                    }
+
+                    // Handle Enter key to create new paragraphs
+                    textEditor.addEventListener('keypress', function (event) {
+                        const editorMaxHeight = textEditor.clientHeight;
+                        if (event.key === 'Enter') {
+
+                            //create a p element with a id
+                            const p = document.createElement('p');
+                            p.id = 'p' + Math.floor(Math.random() * 1000000);
+                            //add br to the p element
+                            p.innerHTML = '<br>';
+                            textEditor.appendChild(p);
+
+                            if (textEditor.scrollHeight > editorMaxHeight) { // 20px buffer for new paragraph
+                                event.preventDefault();
+                                textEditor.removeChild(p);
+                            } else {
+                                textEditor.removeChild(p);
+                                document.execCommand('formatBlock', false, 'p');
+                            }
+                        } else {
+                            if (textEditor.scrollHeight > editorMaxHeight) {
+                                alert('Il testo è troppo lungo per l\'editor.');
+                                textEditor.innerHTML = textEditor.innerHTML.substring(0, textEditor.innerHTML.length - 1);
+                            }
+                        }
+                    });
+
                     // Convert newlines to <p> tags when submitting the form
                     document.getElementById('custom-text-editor-form').addEventListener('submit', function (event) {
-                        const textarea = document.getElementById('custom_text');
-                        const text = textarea.value;
-                        textarea.value = text.split('\n').map(line => `<p>${line}</p>`).join('');
+                        const textEditor = document.getElementById('text-editor');
+                        const paragraphs = textEditor.innerHTML.split('\n').map(line => `<p>${line}</p>`).join('');
+                        const hiddenTextarea = document.createElement('textarea');
+                        hiddenTextarea.name = 'custom_text';
+                        hiddenTextarea.style.display = 'none';
+                        hiddenTextarea.value = paragraphs;
+                        document.getElementById('custom-text-editor-form').appendChild(hiddenTextarea);
                     });
                 });
             </script>
             <?php
-
             return ob_get_clean();
         }
 
+
+        /*
+                function create_custom_text_editor_shortcode($atts)
+                {
+                    ob_start();
+                    ?>
+                    <div class="text-editor-container">
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
+                              id="custom-text-editor-form">
+                            <input type="hidden" name="action" value="save_custom_text_editor">
+                            <input type="hidden" name="product_id" id="product_id" value="">
+                            <input type="hidden" name="user_id" value="<?php echo get_current_user_id(); ?>">
+
+
+                            <div style="width:70%;margin:auto;" class="manifesti-container hide">
+                                <div id="text-editor-background" class="text-editor-background" style="background-image: none;">
+                                    <div id="text-editor" contenteditable="true" class="custom-text-editor"></div>
+                                </div>
+
+                                <input type="submit" value="Salva" class="button">
+                            </div>
+                        </form>
+                    </div>
+                    <style>
+                        .text-editor-container {
+                            position: relative;
+                            padding: 20px;
+                            width: 100%;
+                            max-width: 800px;
+                            margin: auto;
+                        }
+
+                        .text-editor-background {
+                            background-size: contain;
+                            background-position: center;
+                            height: 400px;
+                            width: auto;
+                            max-width: 100%;
+                            position: relative;
+                            margin: auto;
+                        }
+
+                        .custom-text-editor {
+                            width: 100%;
+                            height: 100%;
+                            border: none;
+                            background: transparent;
+                            color: #000;
+                            font-size: 16px;
+                            resize: none;
+                            box-sizing: border-box;
+                            outline: none;
+                            font-family: var(--e-global-typography-text-font-family), Sans-serif;
+                            font-weight: var(--e-global-typography-text-font-weight);
+                            overflow: visible;
+                        }
+                    </style>
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function () {
+                            var marginTopPx = 0;
+                            var marginRightPx = 0;
+                            var marginBottomPx = 0;
+                            var marginLeftPx = 0;
+
+                            function updateEditorBackground(data) {
+                                const backgroundDiv = document.getElementById('text-editor-background');
+                                const textEditor = document.getElementById('text-editor');
+
+                                if (data.manifesto_background) {
+                                    const img = new Image();
+                                    img.src = data.manifesto_background;
+                                    img.onload = function () {
+                                        const aspectRatio = img.width / img.height;
+                                        backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
+                                        if (aspectRatio > 1) {
+                                            // Landscape
+                                            backgroundDiv.style.width = '100%';
+                                            backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
+                                        } else {
+                                            // Portrait
+                                            backgroundDiv.style.height = '400px';
+                                            backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
+                                        }
+
+                                        // Calcola i margini in pixel basati sulla percentuale
+                                        marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
+                                        marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
+                                        marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
+                                        marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
+
+                                        // Applica i margini e l'allineamento
+                                        textEditor.style.paddingTop = `${marginTopPx}px`;
+                                        textEditor.style.paddingRight = `${marginRightPx}px`;
+                                        textEditor.style.paddingBottom = `${marginBottomPx}px`;
+                                        textEditor.style.paddingLeft = `${marginLeftPx}px`;
+                                        textEditor.style.textAlign = data.alignment ? data.alignment : 'left';
+                                    }
+                                } else {
+                                    backgroundDiv.style.backgroundImage = 'none';
+                                }
+
+                                if (data.manifesto_orientation === 'vertical') {
+                                    textEditor.style.writingMode = 'vertical-lr';
+                                } else {
+                                    textEditor.style.writingMode = 'horizontal-tb';
+                                }
+                            }
+
+                            window.setProductID = function (productID) {
+                                document.getElementById('product_id').value = productID;
+
+                                jQuery.ajax({
+                                    url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                                    type: 'POST',
+                                    data: {
+                                        action: 'get_vendor_data',
+                                        product_id: productID,
+                                    },
+                                    success: function (response) {
+                                        if (response.success) {
+                                            updateEditorBackground(response.data);
+                                            jQuery('.manifesti-container').removeClass('hide');
+                                        } else {
+                                            alert('Errore nel caricamento dei dati del venditore: ' + response.data);
+                                        }
+                                    },
+                                    error: function () {
+                                        alert('Errore nella richiesta AJAX.');
+                                    }
+                                });
+                            }
+
+                            // Initialize contenteditable div with a <p> if it's empty
+                            const textEditor = document.getElementById('text-editor');
+
+                            if (textEditor.innerHTML.trim() === '') {
+                                textEditor.innerHTML = '<p><br></p>';
+                            }
+
+                            // Handle Enter key to create new paragraphs
+                            textEditor.addEventListener('keypress', function (event) {
+                                const editorMaxHeight = textEditor.clientHeight;
+                                if (event.key === 'Enter') {
+
+                                    //create a p element with a id
+                                    const p = document.createElement('p');
+                                    p.id = 'p' + Math.floor(Math.random() * 1000000);
+                                    //add br to the p element
+                                    p.innerHTML = '<br>';
+                                    textEditor.appendChild(p);
+
+                                    if (textEditor.scrollHeight  > editorMaxHeight ) { // 20px buffer for new paragraph
+                                        event.preventDefault();
+                                        textEditor.removeChild(p);
+                                    } else {
+                                        textEditor.removeChild(p);
+                                        document.execCommand('formatBlock', false, 'p');
+                                    }
+                                }else{
+                                    if (textEditor.scrollHeight > editorMaxHeight) {
+                                        alert('Il testo è troppo lungo per l\'editor.');
+                                        textEditor.innerHTML = textEditor.innerHTML.substring(0, textEditor.innerHTML.length - 1);
+                                    }
+                                }
+                            });
+
+                            // Convert newlines to <p> tags when submitting the form
+                            document.getElementById('custom-text-editor-form').addEventListener('submit', function (event) {
+                                const textEditor = document.getElementById('text-editor');
+                                const paragraphs = textEditor.innerHTML.split('\n').map(line => `<p>${line}</p>`).join('');
+                                const hiddenTextarea = document.createElement('textarea');
+                                hiddenTextarea.name = 'custom_text';
+                                hiddenTextarea.style.display = 'none';
+                                hiddenTextarea.value = paragraphs;
+                                document.getElementById('custom-text-editor-form').appendChild(hiddenTextarea);
+
+                                // Aggiorna i margini prima di inviare
+                            });
+
+
+                        });
+                    </script>
+                    <?php
+
+                    return ob_get_clean();
+                }
+        */
 
     }
 }

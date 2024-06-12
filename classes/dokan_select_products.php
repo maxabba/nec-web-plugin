@@ -262,31 +262,32 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                 // Sanitize the manifesto_orientation
                 $manifesto_orientation = isset($_POST['manifesto_orientation']) ? sanitize_text_field($_POST['manifesto_orientation']) : '';
 
+                // Recupera i margini in percentuale dal form
+                $top_percent = isset($_POST['margin_top_percent']) ? floatval($_POST['margin_top_percent']) : 5;
+                $right_percent = isset($_POST['margin_right_percent']) ? floatval($_POST['margin_right_percent']) : 5;
+                $bottom_percent = isset($_POST['margin_bottom_percent']) ? floatval($_POST['margin_bottom_percent']) : 5;
+                $left_percent = isset($_POST['margin_left_percent']) ? floatval($_POST['margin_left_percent']) : 5;
 
-                //$top = get_user_meta($user_id, 'manifesto_margin_top', true) ?:5;
-                //$right = get_user_meta($user_id, 'manifesto_margin_right', true) ?: 5;
-                //$bottom = get_user_meta($user_id, 'manifesto_margin_bottom', true) ?: 5;
-                //$left = get_user_meta($user_id, 'manifesto_margin_left', true) ?: 5;
-
-                $top = isset($_POST['manifesto_margin_top']) ? intval($_POST['manifesto_margin_top']) : 5;
-                $left = isset($_POST['manifesto_margin_left']) ? intval($_POST['manifesto_margin_left']) : 5;
-                $bottom = isset($_POST['manifesto_margin_bottom']) ? intval($_POST['manifesto_margin_bottom']) : 5;
-                $right = isset($_POST['manifesto_margin_right']) ? intval($_POST['manifesto_margin_right']) : 5;
+                // Sanitize the alignment
                 $alignment = isset($_POST['manifesto_alignment']) ? sanitize_text_field($_POST['manifesto_alignment']) : 'center';
+
                 // Update the user meta
                 update_user_meta($user_id, 'manifesto_background', $manifesto_background);
                 update_user_meta($user_id, 'manifesto_orientation', $manifesto_orientation);
 
-                update_user_meta($user_id, 'manifesto_margin_top', $top);
-                update_user_meta($user_id, 'manifesto_margin_right', $right);
-                update_user_meta($user_id, 'manifesto_margin_bottom', $bottom);
-                update_user_meta($user_id, 'manifesto_margin_left', $left);
+                // Update the user meta with margins in percentage
+                update_user_meta($user_id, 'manifesto_margin_top', $top_percent);
+                update_user_meta($user_id, 'manifesto_margin_right', $right_percent);
+                update_user_meta($user_id, 'manifesto_margin_bottom', $bottom_percent);
+                update_user_meta($user_id, 'manifesto_margin_left', $left_percent);
                 update_user_meta($user_id, 'manifesto_alignment', $alignment);
+
                 // Redirect back to the form page with a success message
                 wp_redirect(add_query_arg('operation_result', 'success', wp_get_referer()));
                 exit;
             }
         }
+
 
     }
 //END CLASS
