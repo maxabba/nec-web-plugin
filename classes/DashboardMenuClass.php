@@ -121,27 +121,6 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
             }
             return $template;
         }
-        /*public function load_template($template)
-        {
-            global $wp_query;
-            if (isset($wp_query->query_vars['seleziona-prodotti'])) {
-                return DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/select-products.php';
-            }
-            if (isset($wp_query->query_vars['crea-annuncio'])) {
-                return DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/annunci-create-frontpage.php';
-            }
-            if (isset($wp_query->query_vars['annunci'])) {
-                return DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/annunci-list-frontend.php';
-            }
 
-            if (isset($wp_query->query_vars['trigesimo-add'])) {
-                return DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/trigesimo-create-frontpage.php';
-            }
-
-            if (isset($wp_query->query_vars['customize'])) {
-                return DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/customize.php';
-            }
-            return $template;
-        }*/
     }
 }

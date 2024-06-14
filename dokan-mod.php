@@ -71,6 +71,9 @@ dokan_mods_load_and_instantiate_class('TrigesimiClass', 'classes/TrigesimiClass.
 dokan_mods_load_and_instantiate_class('AnniversarioClass', 'classes/AnniversarioClass.php');
 dokan_mods_load_and_instantiate_class('PensieriniClass', 'classes/PensieriniClass.php');
 dokan_mods_load_and_instantiate_class('ManifestoClass', 'classes/ManifestoClass.php');
+dokan_mods_load_and_instantiate_class('NecrologiFrontendClass', 'classes/NecrologiFrontendClass.php');
+dokan_mods_load_and_instantiate_class('TrigesimiFrontendClass', 'classes/TrigesimiFrontendClass.php');
+
 
 dokan_mods_load_and_instantiate_class('ElementorWidgetInit', 'includes/ElementorWidgetInit.php');
 

@@ -20,9 +20,13 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             add_filter('acf/load_field/key=field_6638e3e77ffa0', array($this, 'load_province_choices'));
             //add_filter('acf/load_field/name=city', array($this, 'load_city_choices'));
 
+            add_filter('dokan_vendor_own_product_purchase_restriction', array($this, 'dokan_vendor_own_product_purchase_restriction'), 1, 2);
 
             add_action('init', array($this, 'set_city_filter'));
             add_action('pre_get_posts', array($this, 'apply_city_filter'));
+
+
+
             add_action('acf/init', array($this, 'add_acf_options_page'));
 
             add_action('acf/input/admin_enqueue_scripts', array($this, 'enqueue_ajax_script'));
@@ -38,6 +42,12 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             add_action('wp_ajax_nopriv_get_current_citta_value_if_is_set', array($this, 'get_current_citta_value_if_is_set'));
 
             $this->register_shortcodes();
+        }
+
+        public function dokan_vendor_own_product_purchase_restriction($is_purchasable, $product_id)
+        {
+
+            return true;
         }
 
         public function enqueue_select2_jquery()

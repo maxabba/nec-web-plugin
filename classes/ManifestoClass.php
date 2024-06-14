@@ -16,6 +16,12 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             add_action('wp_ajax_get_vendor_data', array($this, 'get_vendor_data'));
             add_action('wp_ajax_nopriv_get_vendor_data', array($this, 'get_vendor_data'));
 
+            add_action('admin_post_save_custom_text_editor', array($this, 'save_custom_text_editor'));
+            add_action('admin_post_nopriv_save_custom_text_editor', array($this, 'save_custom_text_editor'));
+
+            add_action('woocommerce_payment_complete', array($this, 'handle_payment_complete'));
+            add_filter('woocommerce_get_item_data', array($this, 'display_manifesto_and_post_title_in_cart'), 10, 2);
+            add_action('woocommerce_checkout_create_order_line_item', array($this, 'display_manifesto_and_post_title_in_order_checkout'), 10, 4);
 
         }
 
@@ -23,6 +29,177 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
         {
             add_shortcode('vendor_selector', array($this, 'shortcode_vendor_selector'));
             add_shortcode('custom_text_editor', array($this, 'create_custom_text_editor_shortcode'));
+        }
+
+
+        public function save_custom_text_editor()
+        {
+            if (!isset($_POST['product_id'])) {
+                wp_send_json_error('Product ID missing');
+            }
+
+            if (!isset($_POST['custom_text'])) {
+                wp_send_json_error('Custom text missing');
+            }
+
+            if (!isset($_POST['post_id'])) {
+                wp_send_json_error('Post ID missing');
+            }
+
+            $product_id = intval($_POST['product_id']);
+            $custom_text = $_POST['custom_text'];
+            $post_id = intval($_POST['post_id']);
+
+            if (!get_post($product_id)) {
+                wp_send_json_error('Invalid Product ID');
+            }
+
+            if (!get_post($post_id)) {
+                wp_send_json_error('Invalid Post ID');
+            }
+
+            // Check if WooCommerce is available
+            if (!class_exists('WooCommerce')) {
+                // Redirect back to the page with error message
+                wp_redirect(get_permalink($post_id));
+                exit;
+            }
+
+            $product = wc_get_product($product_id);
+            if (!$product) {
+                wp_die('Product not found');
+            }
+
+            // Ensure WooCommerce cart is loaded
+            if (!WC()->cart) {
+                wc_load_cart();
+            }
+
+            //get the product category
+            $product_category = get_the_terms($product_id, 'product_cat');
+            //split by - and get the last element
+            $product_category = explode('-', $product_category[0]->slug);
+            $is_purchasable = $product->is_purchasable();
+            if ($is_purchasable) {
+                $cart_item_data = array(
+                    'manifesto_html' => $custom_text,
+                    'tipo_manifesto' => $product_category[1],
+                    'manifesto_post_id' => $post_id,
+                );
+
+                WC()->cart->add_to_cart($product_id, 1, 0, array(), $cart_item_data);
+                wp_redirect(wc_get_cart_url());
+                exit;
+            } else {
+                wp_die('Product not purchasable');
+            }
+        }
+
+
+        public function display_manifesto_and_post_title_in_cart($item_data, $cart_item)
+        {
+            if (isset($cart_item['manifesto_html'])) {
+                $sanitized_html = sanitize_text_field($cart_item['manifesto_html']);
+                $item_data[] = array(
+                    'key' => 'Manifesto',
+                    'value' => sprintf(
+                        '%s',
+                        esc_html($sanitized_html)),
+                );
+            }
+
+            if (isset($cart_item['manifesto_post_id'])) {
+                $post_id = $cart_item['manifesto_post_id'];
+
+
+                // Get the post title
+                $post_title = get_the_title($post_id);
+                $item_data[] = array(
+                    'key' => 'Dedicato a',
+                    'value' => sprintf(
+                        '%s',
+                        esc_html($post_title),
+                    ),
+                );
+            }
+
+
+
+            return $item_data;
+        }
+
+
+        public function display_manifesto_and_post_title_in_order_checkout($item, $cart_item_key, $values, $order)
+        {
+            if (isset($values['manifesto_html'])) {
+                $item->add_meta_data('_manifesto_html', $values['manifesto_html']);
+                $item->add_meta_data('Manifesto', $values['manifesto_html']);
+            }
+
+            if (isset($values['manifesto_post_id'])) {
+                $post_id = $values['manifesto_post_id'];
+
+                // Get the post title
+                $post_title = get_the_title($post_id);
+                $item->add_meta_data('_post_id', $post_id);
+                $item->add_meta_data('Dedicato a', $post_title);
+            }
+
+            if (isset($values['tipo_manifesto'])) {
+                $tipo_manifesto = $values['tipo_manifesto'];
+                $item->add_meta_data('_tipo_manifesto', $tipo_manifesto);
+            }
+        }
+
+
+        public function handle_payment_complete($order_id)
+        {
+            $order = wc_get_order($order_id);
+            $items = $order->get_items();
+
+            foreach ($items as $item) {
+                if ($item->get_meta('_tipo_manifesto', true) && $item->get_meta('_manifesto_html', true) && $item->get_meta('_post_id', true)) {
+
+                    $product_id = $item->get_product_id();
+                    $product = wc_get_product($product_id);
+                    $tipo_manifesto = $item->get_meta('_tipo_manifesto', true);
+                    $manifesto_html = $item->get_meta('_manifesto_html', true);
+                    $post_id = $item->get_meta('_post_id', true);
+                    //get vendor id
+                    $vendor_id = get_post_field('post_author', $product_id);
+                    //get post_id citta and provincia
+                    $citta = get_field('citta', $post_id);
+                    $provincia = get_field('provincia', $post_id);
+
+                    // create post type manifesto
+                    $post = array(
+                        'post_title' => 'Manifesto per ' . get_the_title($post_id),
+                        'post_status' => 'draft',
+                        'post_author' => $vendor_id,
+                        'post_type' => 'manifesto',
+                    );
+
+
+                    $post_id = wp_insert_post($post);
+                    if ($post_id) {
+                        //set acf fields annuncio_di_morte_relativo with the post_id
+                        update_field('annuncio_di_morte_relativo', $post_id, $product_id);
+                        //vendor_id
+                        update_field('vendor_id', get_post_field('post_author', $product_id), $post_id);
+                        //testo_manifesto
+                        update_field('testo_manifesto', $manifesto_html, $post_id);
+                        //tipo_manifesto
+                        update_field('tipo_manifesto', $tipo_manifesto, $post_id);
+                        //provincia e citta
+                        update_field('provincia', $citta, $post_id);
+                        update_field('citta', $provincia, $post_id);
+                        //add meta data to $post_id with the id of the order
+                        add_post_meta($post_id, 'order_id', $order_id);
+                        add_post_meta($post_id, 'product_id', $product_id);
+                    }
+                }
+
+            }
         }
 
 
@@ -124,20 +301,22 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                         $store_name = $store_info['store_name'];
                         $store_banner = $store_info['store_banner'];
                         ?>
-                        <div class="vendor-card">
-                            <input type="radio" name="product_id" id="product_<?php echo $product_id; ?>"
-                                   value="<?php echo $product_id; ?>">
-                            <label for="product_<?php echo $product_id; ?>">
-                                <div class="card">
-                                    <?php if ($store_banner) : ?>
-                                        <img src="<?php echo $store_banner; ?>" alt="<?php echo $store_name; ?>"
-                                             class="card-img-top">
-                                    <?php endif; ?>
-                                    <div class="card-body">
-                                        <h5 class="card-title"><?php echo $store_name; ?></h5>
+                        <div class="vendor-flex">
+
+                                <input type="radio" name="product_id" id="product_<?php echo $product_id; ?>"
+                                       value="<?php echo $product_id; ?>">
+                                <label for="product_<?php echo $product_id; ?>" class="vendor-card">
+                                    <div class="card">
+                                        <?php if ($store_banner) : ?>
+                                            <img src="<?php echo $store_banner; ?>" alt="<?php echo $store_name; ?>"
+                                                 class="card-img-top" width="250px" height="250px">
+                                        <?php endif; ?>
+                                        <div class="card-body">
+                                            <h5 class="card-title"><?php echo $store_name; ?></h5>
+                                        </div>
                                     </div>
-                                </div>
-                            </label>
+                                </label>
+
                         </div>
                         <?php
                     }
@@ -151,23 +330,29 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                         justify-content: center;
                     }
 
-                    .vendor-card {
-                        flex: 1 1 30%;
-                        max-width: 30%;
-                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-                        border-radius: 5px;
+                    .vendor-flex {
+                        flex: 1 1 100%;
+                        max-width: 100%;
                         overflow: hidden;
                         position: relative;
                         text-align: center;
                     }
 
-                    .vendor-card input[type="radio"] {
+                    .vendor-card {
+                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                        border-radius: 5px;
+                        overflow: hidden;
+                        width: auto; /* Adatta la larghezza al contenuto */
+                        margin: 0 auto; /* Centra la carta */
+                    }
+
+                    .vendor-flex input[type="radio"] {
                         position: absolute;
                         opacity: 0;
                         cursor: pointer;
                     }
 
-                    .vendor-card input[type="radio"]:checked + label .card {
+                    .vendor-flex input[type="radio"]:checked + label .card {
                         border: 2px solid #007bff;
                     }
 
@@ -193,6 +378,28 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                         font-size: 16px;
                         font-weight: bold;
                         margin: 0;
+                    }
+
+                    /* Media queries per il layout responsive */
+                    @media (min-width: 576px) {
+                        .vendor-flex {
+                            flex: 1 1 48%;
+                            max-width: 48%;
+                        }
+                    }
+
+                    @media (min-width: 768px) {
+                        .vendor-flex {
+                            flex: 1 1 32%;
+                            max-width: 32%;
+                        }
+                    }
+
+                    @media (min-width: 992px) {
+                        .vendor-flex {
+                            flex: 1 1 24%;
+                            max-width: 24%;
+                        }
                     }
                 </style>
                 <script>
@@ -224,8 +431,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
                       id="custom-text-editor-form" class="full-width-form">
                     <input type="hidden" name="action" value="save_custom_text_editor">
-                    <input type="hidden" name="product_id" id="product_id" value="">
-                    <input type="hidden" name="user_id" value="<?php echo get_current_user_id(); ?>">
+                    <input type="hidden" name="product_id" id="product_id" value="<?php echo $_GET['product_id']; ?>">
+                    <input type="hidden" name="post_id" value="<?php echo $_GET['post_id'] ?? get_the_ID(); ?>">
 
                     <div style="margin:auto;" class="manifesti-container hide">
                         <div id="text-editor-background" class="text-editor-background" style="background-image: none;">
@@ -498,192 +705,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
         }
 
 
-        /*
-                function create_custom_text_editor_shortcode($atts)
-                {
-                    ob_start();
-                    ?>
-                    <div class="text-editor-container">
-                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
-                              id="custom-text-editor-form">
-                            <input type="hidden" name="action" value="save_custom_text_editor">
-                            <input type="hidden" name="product_id" id="product_id" value="">
-                            <input type="hidden" name="user_id" value="<?php echo get_current_user_id(); ?>">
 
-
-                            <div style="width:70%;margin:auto;" class="manifesti-container hide">
-                                <div id="text-editor-background" class="text-editor-background" style="background-image: none;">
-                                    <div id="text-editor" contenteditable="true" class="custom-text-editor"></div>
-                                </div>
-
-                                <input type="submit" value="Salva" class="button">
-                            </div>
-                        </form>
-                    </div>
-                    <style>
-                        .text-editor-container {
-                            position: relative;
-                            padding: 20px;
-                            width: 100%;
-                            max-width: 800px;
-                            margin: auto;
-                        }
-
-                        .text-editor-background {
-                            background-size: contain;
-                            background-position: center;
-                            height: 400px;
-                            width: auto;
-                            max-width: 100%;
-                            position: relative;
-                            margin: auto;
-                        }
-
-                        .custom-text-editor {
-                            width: 100%;
-                            height: 100%;
-                            border: none;
-                            background: transparent;
-                            color: #000;
-                            font-size: 16px;
-                            resize: none;
-                            box-sizing: border-box;
-                            outline: none;
-                            font-family: var(--e-global-typography-text-font-family), Sans-serif;
-                            font-weight: var(--e-global-typography-text-font-weight);
-                            overflow: visible;
-                        }
-                    </style>
-                    <script>
-                        document.addEventListener('DOMContentLoaded', function () {
-                            var marginTopPx = 0;
-                            var marginRightPx = 0;
-                            var marginBottomPx = 0;
-                            var marginLeftPx = 0;
-
-                            function updateEditorBackground(data) {
-                                const backgroundDiv = document.getElementById('text-editor-background');
-                                const textEditor = document.getElementById('text-editor');
-
-                                if (data.manifesto_background) {
-                                    const img = new Image();
-                                    img.src = data.manifesto_background;
-                                    img.onload = function () {
-                                        const aspectRatio = img.width / img.height;
-                                        backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
-                                        if (aspectRatio > 1) {
-                                            // Landscape
-                                            backgroundDiv.style.width = '100%';
-                                            backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
-                                        } else {
-                                            // Portrait
-                                            backgroundDiv.style.height = '400px';
-                                            backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
-                                        }
-
-                                        // Calcola i margini in pixel basati sulla percentuale
-                                        marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
-                                        marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
-                                        marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
-                                        marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
-
-                                        // Applica i margini e l'allineamento
-                                        textEditor.style.paddingTop = `${marginTopPx}px`;
-                                        textEditor.style.paddingRight = `${marginRightPx}px`;
-                                        textEditor.style.paddingBottom = `${marginBottomPx}px`;
-                                        textEditor.style.paddingLeft = `${marginLeftPx}px`;
-                                        textEditor.style.textAlign = data.alignment ? data.alignment : 'left';
-                                    }
-                                } else {
-                                    backgroundDiv.style.backgroundImage = 'none';
-                                }
-
-                                if (data.manifesto_orientation === 'vertical') {
-                                    textEditor.style.writingMode = 'vertical-lr';
-                                } else {
-                                    textEditor.style.writingMode = 'horizontal-tb';
-                                }
-                            }
-
-                            window.setProductID = function (productID) {
-                                document.getElementById('product_id').value = productID;
-
-                                jQuery.ajax({
-                                    url: '<?php echo admin_url('admin-ajax.php'); ?>',
-                                    type: 'POST',
-                                    data: {
-                                        action: 'get_vendor_data',
-                                        product_id: productID,
-                                    },
-                                    success: function (response) {
-                                        if (response.success) {
-                                            updateEditorBackground(response.data);
-                                            jQuery('.manifesti-container').removeClass('hide');
-                                        } else {
-                                            alert('Errore nel caricamento dei dati del venditore: ' + response.data);
-                                        }
-                                    },
-                                    error: function () {
-                                        alert('Errore nella richiesta AJAX.');
-                                    }
-                                });
-                            }
-
-                            // Initialize contenteditable div with a <p> if it's empty
-                            const textEditor = document.getElementById('text-editor');
-
-                            if (textEditor.innerHTML.trim() === '') {
-                                textEditor.innerHTML = '<p><br></p>';
-                            }
-
-                            // Handle Enter key to create new paragraphs
-                            textEditor.addEventListener('keypress', function (event) {
-                                const editorMaxHeight = textEditor.clientHeight;
-                                if (event.key === 'Enter') {
-
-                                    //create a p element with a id
-                                    const p = document.createElement('p');
-                                    p.id = 'p' + Math.floor(Math.random() * 1000000);
-                                    //add br to the p element
-                                    p.innerHTML = '<br>';
-                                    textEditor.appendChild(p);
-
-                                    if (textEditor.scrollHeight  > editorMaxHeight ) { // 20px buffer for new paragraph
-                                        event.preventDefault();
-                                        textEditor.removeChild(p);
-                                    } else {
-                                        textEditor.removeChild(p);
-                                        document.execCommand('formatBlock', false, 'p');
-                                    }
-                                }else{
-                                    if (textEditor.scrollHeight > editorMaxHeight) {
-                                        alert('Il testo è troppo lungo per l\'editor.');
-                                        textEditor.innerHTML = textEditor.innerHTML.substring(0, textEditor.innerHTML.length - 1);
-                                    }
-                                }
-                            });
-
-                            // Convert newlines to <p> tags when submitting the form
-                            document.getElementById('custom-text-editor-form').addEventListener('submit', function (event) {
-                                const textEditor = document.getElementById('text-editor');
-                                const paragraphs = textEditor.innerHTML.split('\n').map(line => `<p>${line}</p>`).join('');
-                                const hiddenTextarea = document.createElement('textarea');
-                                hiddenTextarea.name = 'custom_text';
-                                hiddenTextarea.style.display = 'none';
-                                hiddenTextarea.value = paragraphs;
-                                document.getElementById('custom-text-editor-form').appendChild(hiddenTextarea);
-
-                                // Aggiorna i margini prima di inviare
-                            });
-
-
-                        });
-                    </script>
-                    <?php
-
-                    return ob_get_clean();
-                }
-        */
 
     }
 }
