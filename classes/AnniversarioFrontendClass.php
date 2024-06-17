@@ -22,7 +22,7 @@ if (!class_exists(__NAMESPACE__ . '\AnniversarioFrontendClass')) {
 
                 $city_filter = get_transient('city_filter_' . session_id()) ?? null;
                 $province = get_transient('province' . session_id()) ?? null;
-                if (!empty($province) || !empty($city_filter)) {
+                if ((!empty($province) || !empty($city_filter) && !isset($_GET['province']))) {
                     $meta_query = (new FiltersClass($city_filter, $province))->get_city_filter_meta_query();
                     $query->set('meta_query', $meta_query);
                 }

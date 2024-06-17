@@ -1,50 +1,46 @@
 <?php
 
 namespace Dokan_Mods;
+use WP_Query;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
-if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
+if (!class_exists(__NAMESPACE__ . '\VendorFrontendClass')) {
 
-    class NecrologiFrontendClass
+    class VendorFrontendClass
     {
 
         public function __construct()
         {
-            add_action('wp_enqueue_scripts', array($this, 'enqueue_select2'));
             add_action('init', array($this, 'shortcode_register'));
             //add_action('pre_get_posts', array($this, 'custom_filter_query'));
-            add_action('elementor/query/tutti_necrologi_pagina_692', array($this, 'custom_filter_query'));
+            add_action('elementor/query/vendor_filter_query', array($this, 'custom_filter_query'));
 
-            add_filter('query_vars', array($this, 'add_custom_query_vars_filter'));
-           // add_action('init', array($this, 'custom_rewrite_rules'));
+
         }
-
-        function enqueue_select2()
-        {
-            wp_enqueue_style('select2-css', 'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css');
-            wp_enqueue_script('select2-js', 'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js', array('jquery'), null, true);
-        }
-
 
         public function shortcode_register()
         {
-            add_shortcode('custom_filter', array($this, 'custom_filter_shortcode'));
+            add_shortcode('custom_filter_vendor', array($this, 'custom_filter_shortcode'));
+            add_shortcode('render_vendor_banner_image', array($this, 'render_vendor_banner_image'));
         }
 
-        function custom_rewrite_rules()
-        {
-            add_rewrite_rule('^tutti-i-necrologi/([^/]*)/([^/]*)/?', 'index.php?pagename=tutti-i-necrologi&date_filter=$matches[1]&province=$matches[2]', 'top');
+        public function render_vendor_banner_image($attr){
+
+            $attrs = shortcode_atts(
+                array(
+                    'vendor_id' => get_the_ID(),
+                ),
+                $attr
+            );
+
+            $vendor = dokan()->vendor->get($attrs['vendor_id']);
+            $banner = $vendor->get_banner();
+            $banner_url = $banner ? $banner : 'https://via.placeholder.com/150';
+            return "<img src='$banner_url' alt='vendor banner' width='150px' height='150px'>";
         }
 
-
-        function add_custom_query_vars_filter($vars)
-        {
-            $vars[] = 'date_filter';
-            $vars[] = 'province';
-            return $vars;
-        }
 
         function custom_filter_shortcode()
         {
@@ -56,23 +52,12 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
             <form id="filter" method="GET" action="">
 
                 <div class="filter-group">
-                    <label>Filtra per periodo</label>
-                    <ul id="date_filter" style="list-style-type: none; padding-left: 0;">
-                        <li><a href="#" data-value="all">Tutti</a></li>
-                        <li><a href="#" data-value="today">Oggi</a></li>
-                        <li><a href="#" data-value="yesterday">Ieri</a></li>
-                        <li><a href="#" data-value="last_week">Ultima settimana</a></li>
-                        <li><a href="#" data-value="last_month">Ultimo mese</a></li>
-                    </ul>
-                    <input type="hidden" name="date_filter" id="date_filter_input" value="all">
-                </div>
-
-                <div class="filter-group">
                     <label for="province">Filtra per Provincia</label>
                     <select name="province" id="province">
                         <option value="">Tutte</option>
                         <?php foreach ($provinces as $province) : ?>
-                            <option value="<?php echo esc_attr($province['provincia_nome']); ?>" <?php if(isset($_GET['province']) && $_GET['province'] == $province['provincia_nome']) echo "selected" ;?>>
+                            <option
+                                value="<?php echo esc_attr($province['provincia_nome']); ?>" <?php if (isset($_GET['province']) && $_GET['province'] == $province['provincia_nome']) echo "selected"; ?>>
                                 <?php echo esc_html($province['provincia_nome']); ?>
                             </option>
                         <?php endforeach; ?>
@@ -137,13 +122,38 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
             return ob_get_clean();
         }
 
-
-
-
-
         function custom_filter_query($query)
         {
-            // Verifica che non siamo nella dashboard e che questa sia la query principale
+
+            $query_id = 'vendor_filter_query_executed';
+            //create the args to get all users that is a vendor that is approved
+            if( !is_admin() && !$query->get($query_id) ){
+
+            $args = array(
+                'role' => 'vendor',
+                $query_id => true,
+                'meta_query' => array(
+                    'relation' => 'AND', // Aggiungi la relazione AND per maggiore chiarezza
+                    array(
+                        'key' => 'dokan_enable_selling',
+                        'value' => 'yes',
+                        'compare' => '='
+                    ),
+                    array(
+                        'key' => 'dokan_admin_approved',
+                        'value' => 'yes',
+                        'compare' => '='
+                    )
+                )
+            );
+                $query = new WP_Query($args);
+
+                if ($query->have_posts()) {
+                    $query->set('meta_query', $args['meta_query']);
+                }
+            }
+
+                // Verifica che non siamo nella dashboard e che questa sia la query principale
             if (!is_admin()) {
 
                 $city_filter = get_transient('city_filter_' . session_id()) ?? null;
@@ -224,7 +234,5 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
                 }
             }
         }
-
-
     }
 }

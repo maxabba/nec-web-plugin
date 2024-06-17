@@ -12,6 +12,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
         public function __construct()
         {
             add_action('init', array($this, 'register_shortcodes'));
+            add_action('wp_enqueue_scripts', array($this, 'my_enqueue_scripts'));
 
             add_action('wp_ajax_get_vendor_data', array($this, 'get_vendor_data'));
             add_action('wp_ajax_nopriv_get_vendor_data', array($this, 'get_vendor_data'));
@@ -23,12 +24,45 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             add_filter('woocommerce_get_item_data', array($this, 'display_manifesto_and_post_title_in_cart'), 10, 2);
             add_action('woocommerce_checkout_create_order_line_item', array($this, 'display_manifesto_and_post_title_in_order_checkout'), 10, 4);
 
+            //add action fired when a post is published
+            add_action('transition_post_status', array($this, 'check_post_status_transition'), 10, 3);
+            //add action fired whea post is deleted
+            add_action('before_delete_post', array($this, 'delete_manifesto_post'), 10, 1);
+
+            add_action('wp_ajax_load_more_manifesti', array($this, 'load_more_manifesti'));
+            add_action('wp_ajax_nopriv_load_more_manifesti', array($this, 'load_more_manifesti'));
         }
+
+        public function my_enqueue_scripts()
+        {
+            $post_type = get_post_type();
+            //if type post is annuncio_di_morte
+            if ($post_type === 'annuncio-di-morte') {
+                wp_enqueue_script('my-manifesto-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/manifesto.js', array('jquery'), null, true);
+                wp_localize_script('my-manifesto-script', 'my_ajax_object', array(
+                    'ajax_url' => admin_url('admin-ajax.php')
+                ));
+                wp_enqueue_style('manifesto-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/manifesto.css');
+
+            }
+
+            if (get_query_var('manifesto-top') || get_query_var('manifesto-silver') || get_query_var('manifesto-online')) {
+                wp_enqueue_script('text-editor-manifesto-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/manifesto-text-editor.js', array('jquery'), null, true);
+                wp_localize_script('text-editor-manifesto-script', 'my_ajax_object', array(
+                    'ajax_url' => admin_url('admin-ajax.php')
+                ));
+                wp_enqueue_style('vendor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/vendor-selector.css');
+                wp_enqueue_style('manifesto-text-editor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/manifesto-text-editor.css');
+            }
+        }
+
+
 
         public function register_shortcodes()
         {
             add_shortcode('vendor_selector', array($this, 'shortcode_vendor_selector'));
             add_shortcode('custom_text_editor', array($this, 'create_custom_text_editor_shortcode'));
+            add_shortcode('render_manifesti', array($this, 'generate_manifesti_shortcode'));
         }
 
 
@@ -203,6 +237,41 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
         }
 
 
+        public function check_post_status_transition($new_status, $old_status, $post)
+        {
+            if ($post->post_type === 'manifesto' && $old_status == 'draft' && $new_status == 'publish'){
+                $order_id = get_post_meta($post->ID, 'order_id', true);
+                if ($order_id) {
+                    // Get the order object
+                    $order = wc_get_order($order_id);
+
+                    // Check if the order exists and is not already completed
+                    if ($order && $order->get_status() != 'completed') {
+                        // Update the order status to completed
+                        $order->update_status('completed');
+                    }
+                }
+            }
+        }
+
+        public function delete_manifesto_post($post_id)
+        {
+            if (get_post_type($post_id) === 'manifesto') {
+                $order_id = get_post_meta($post_id, 'order_id', true);
+                if ($order_id) {
+                    // Get the order object
+                    $order = wc_get_order($order_id);
+
+                    // Check if the order exists and is not already completed
+                    if ($order && $order->get_status() != 'completed') {
+                        // Update the order status to completed
+                        $order->update_status('cancelled');
+                    }
+                }
+            }
+        }
+
+
         function get_vendor_data()
         {
             if (!isset($_POST['product_id'])) {
@@ -233,6 +302,29 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 'margin_left' => $margin_left,
                 'alignment' => $alignment,
             ]);
+        }
+
+
+        public function get_vendor_data_by_id($user_id){
+
+            $manifesto_background = get_user_meta($user_id, 'manifesto_background', true);
+            $manifesto_orientation = get_user_meta($user_id, 'manifesto_orientation', true);
+            $margin_top = get_user_meta($user_id, 'manifesto_margin_top', true);
+            $margin_right = get_user_meta($user_id, 'manifesto_margin_right', true);
+            $margin_bottom = get_user_meta($user_id, 'manifesto_margin_bottom', true);
+            $margin_left = get_user_meta($user_id, 'manifesto_margin_left', true);
+            $alignment = get_user_meta($user_id, 'manifesto_alignment', true);
+
+            return [
+                'manifesto_background' => $manifesto_background,
+                'manifesto_orientation' => $manifesto_orientation,
+                'margin_top' => $margin_top,
+                'margin_right' => $margin_right,
+                'margin_bottom' => $margin_bottom,
+                'margin_left' => $margin_left,
+                'alignment' => $alignment,
+            ];
+
         }
 
 
@@ -322,86 +414,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                     }
                     ?>
                 </div>
-                <style>
-                    .vendor-selector {
-                        display: flex;
-                        flex-wrap: wrap;
-                        gap: 20px;
-                        justify-content: center;
-                    }
-
-                    .vendor-flex {
-                        flex: 1 1 100%;
-                        max-width: 100%;
-                        overflow: hidden;
-                        position: relative;
-                        text-align: center;
-                    }
-
-                    .vendor-card {
-                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-                        border-radius: 5px;
-                        overflow: hidden;
-                        width: auto; /* Adatta la larghezza al contenuto */
-                        margin: 0 auto; /* Centra la carta */
-                    }
-
-                    .vendor-flex input[type="radio"] {
-                        position: absolute;
-                        opacity: 0;
-                        cursor: pointer;
-                    }
-
-                    .vendor-flex input[type="radio"]:checked + label .card {
-                        border: 2px solid #007bff;
-                    }
-
-                    .card {
-                        border: 1px solid #ddd;
-                        border-radius: 5px;
-                        overflow: hidden;
-                        text-align: center;
-                    }
-
-                    .card img {
-                        display: block;
-                        margin: 0 auto;
-                        max-width: 100%;
-                        height: auto;
-                    }
-
-                    .card-body {
-                        padding: 10px;
-                    }
-
-                    .card-title {
-                        font-size: 16px;
-                        font-weight: bold;
-                        margin: 0;
-                    }
-
-                    /* Media queries per il layout responsive */
-                    @media (min-width: 576px) {
-                        .vendor-flex {
-                            flex: 1 1 48%;
-                            max-width: 48%;
-                        }
-                    }
-
-                    @media (min-width: 768px) {
-                        .vendor-flex {
-                            flex: 1 1 32%;
-                            max-width: 32%;
-                        }
-                    }
-
-                    @media (min-width: 992px) {
-                        .vendor-flex {
-                            flex: 1 1 24%;
-                            max-width: 24%;
-                        }
-                    }
-                </style>
                 <script>
                     document.addEventListener('DOMContentLoaded', function () {
                         document.querySelectorAll('input[name="product_id"]').forEach(function (input) {
@@ -445,265 +457,96 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
                 </form>
             </div>
-            <style>
-
-                .loader {
-                    border: 8px solid #f3f3f3; /* Light grey */
-                    border-top: 8px solid #3498db; /* Blue */
-                    border-radius: 50%;
-                    width: 40px;
-                    height: 40px;
-                    animation: spin 2s linear infinite;
-                    display: none; /* Nascosto inizialmente */
-                    margin: 20px auto;
-                }
-
-                @keyframes spin {
-                    0% {
-                        transform: rotate(0deg);
-                    }
-                    100% {
-                        transform: rotate(360deg);
-                    }
-                }
-                .full-width-form input[type="submit"] {
-                    display: block;
-                    margin: 0 auto;
-                }
-
-                .full-width-form {
-                    width: 100%;
-                }
-                .text-editor-container {
-                    position: relative;
-                    padding: 20px;
-                    width: 100%;
-                    max-width: 800px;
-                    margin: auto;
-                }
-
-                .text-editor-background {
-                    background-size: contain;
-                    background-position: center;
-                    height: 50vh; /* Usare vh per altezza responsiva */
-                    width: 100%; /* Usare larghezza completa */
-                    max-width: 100%;
-                    position: relative;
-                    margin: auto;
-                }
-
-                .custom-text-editor {
-                    width: 100%;
-                    height: 100%;
-                    border: none;
-                    background: transparent;
-                    color: #000;
-                    resize: none;
-                    box-sizing: border-box;
-                    outline: none;
-                    overflow: visible;
-                    font-size: calc(0.6vw + 0.6vh ); /* Dimensione del font reattiva e leggermente più piccola di 16px */
-                    font-family: var(--e-global-typography-text-font-family), Sans-serif;
-                    font-weight: var(--e-global-typography-text-font-weight);
-                }
-
-                .editor-toolbar {
-                    position: absolute;
-                    background: #fff;
-                    border: 1px solid #ccc;
-                    padding: 5px;
-                    display: none;
-                    z-index: 1000;
-                    border-radius: 5px;
-                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-                }
-
-                .editor-toolbar button {
-                    background: none;
-                    border: none;
-                    cursor: pointer;
-                    font-size: 16px;
-                    margin: 0 2px;
-                    padding: 2px 5px;
-                }
-
-                .editor-toolbar button:hover {
-                    background: #f0f0f0;
-                }
-
-                @media (max-width: 768px) {
-                    .text-editor-container {
-                        padding: 10px;
-                    }
-
-                    .editor-toolbar {
-                        font-size: 14px;
-                    }
-
-                    .custom-text-editor {
-                        font-size: calc(0.9vw + 0.9vh ); /* Dimensione del font reattiva per schermi piccoli */
-                    }
-                }
-            </style>
-            <script>
-                document.addEventListener('DOMContentLoaded', function () {
-                    var marginTopPx = 0;
-                    var marginRightPx = 0;
-                    var marginBottomPx = 0;
-                    var marginLeftPx = 0;
-
-                    function updateEditorBackground(data) {
-
-                        const backgroundDiv = document.getElementById('text-editor-background');
-                        const textEditor = document.getElementById('text-editor');
-
-                        if (data.manifesto_background) {
-                            const img = new Image();
-                            img.src = data.manifesto_background;
-                            img.onload = function () {
-                                const aspectRatio = img.width / img.height;
-                                backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
-                                if (aspectRatio > 1) {
-                                    // Landscape
-                                    backgroundDiv.style.width = '100%';
-                                    backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
-                                } else {
-                                    // Portrait
-                                    backgroundDiv.style.height = '400px';
-                                    backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
-                                }
-
-                                // Calcola i margini in pixel basati sulla percentuale
-                                marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
-                                marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
-                                marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
-                                marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
-
-                                // Applica i margini e l'allineamento
-                                textEditor.style.paddingTop = `${marginTopPx}px`;
-                                textEditor.style.paddingRight = `${marginRightPx}px`;
-                                textEditor.style.paddingBottom = `${marginBottomPx}px`;
-                                textEditor.style.paddingLeft = `${marginLeftPx}px`;
-                                textEditor.style.textAlign = data.alignment ? data.alignment : 'left';
-
-                            }
-
-                        } else {
-                            backgroundDiv.style.backgroundImage = 'none';
-                        }
-
-
-                    }
-
-                    window.setProductID = function (productID) {
-                        document.getElementById('product_id').value = productID;
-                        jQuery('#comments-loader').show();
-                        jQuery.ajax({
-                            url: '<?php echo admin_url('admin-ajax.php'); ?>',
-                            type: 'POST',
-                            data: {
-                                action: 'get_vendor_data',
-                                product_id: productID,
-                            },
-                            success: function (response) {
-                                if (response.success) {
-                                    jQuery('#comments-loader').hide();
-                                    updateEditorBackground(response.data);
-                                    jQuery('.manifesti-container').removeClass('hide');
-                                } else {
-                                    alert('Errore nel caricamento dei dati del venditore: ' + response.data);
-                                }
-                            },
-                            error: function () {
-                                alert('Errore nella richiesta AJAX.');
-                            }
-                        });
-                    }
-
-                    // Initialize contenteditable div with a <p> if it's empty
-                    const textEditor = document.getElementById('text-editor');
-                    const toolbar = document.createElement('div');
-                    toolbar.className = 'editor-toolbar';
-                    toolbar.innerHTML = `
-                <button type="button" data-command="bold"><b>B</b></button>
-                <button type="button" data-command="italic"><i>I</i></button>
-                <button type="button" data-command="underline"><u>U</u></button>
-            `;
-                    document.body.appendChild(toolbar);
-
-                    function showToolbar(event) {
-                        const selection = window.getSelection();
-                        if (selection.rangeCount > 0 && !selection.isCollapsed) {
-                            const range = selection.getRangeAt(0).getBoundingClientRect();
-                            toolbar.style.display = 'block';
-                            toolbar.style.top = `${range.top + window.scrollY - toolbar.offsetHeight - 5}px`;
-                            toolbar.style.left = `${range.left + window.scrollX + range.width / 2 - toolbar.offsetWidth / 2}px`;
-
-                        } else {
-                            toolbar.style.display = 'none';
-
-                        }
-                    }
-
-                    function applyCommand(command) {
-                        document.execCommand(command, false, null);
-                    }
-
-                    document.addEventListener('mouseup', showToolbar);
-                    document.addEventListener('touchend', showToolbar);
-                    toolbar.addEventListener('mousedown', function (event) {
-                        event.preventDefault();
-                        applyCommand(event.target.closest('button').getAttribute('data-command'));
-                       // setTimeout(showToolbar, 50); // Aggiungi un ritardo per permettere alla selezione di stabilizzarsi
-                    });
-
-                    if (textEditor.innerHTML.trim() === '') {
-                        textEditor.innerHTML = '<p><br></p>';
-                    }
-
-                    // Handle Enter key to create new paragraphs
-                    textEditor.addEventListener('keypress', function (event) {
-                        const editorMaxHeight = textEditor.clientHeight;
-                        if (event.key === 'Enter') {
-
-                            //create a p element with a id
-                            const p = document.createElement('p');
-                            p.id = 'p' + Math.floor(Math.random() * 1000000);
-                            //add br to the p element
-                            p.innerHTML = '<br>';
-                            textEditor.appendChild(p);
-
-                            if (textEditor.scrollHeight > editorMaxHeight) { // 20px buffer for new paragraph
-                                event.preventDefault();
-                                textEditor.removeChild(p);
-                            } else {
-                                textEditor.removeChild(p);
-                                document.execCommand('formatBlock', false, 'p');
-                            }
-                        } else {
-                            if (textEditor.scrollHeight > editorMaxHeight) {
-                                alert('Il testo è troppo lungo per l\'editor.');
-                                textEditor.innerHTML = textEditor.innerHTML.substring(0, textEditor.innerHTML.length - 1);
-                            }
-                        }
-                    });
-
-                    // Convert newlines to <p> tags when submitting the form
-                    document.getElementById('custom-text-editor-form').addEventListener('submit', function (event) {
-                        const textEditor = document.getElementById('text-editor');
-                        const paragraphs = textEditor.innerHTML.split('\n').map(line => `<p>${line}</p>`).join('');
-                        const hiddenTextarea = document.createElement('textarea');
-                        hiddenTextarea.name = 'custom_text';
-                        hiddenTextarea.style.display = 'none';
-                        hiddenTextarea.value = paragraphs;
-                        document.getElementById('custom-text-editor-form').appendChild(hiddenTextarea);
-                    });
-                });
-            </script>
             <?php
             return ob_get_clean();
         }
 
+
+        function load_more_manifesti()
+        {
+            $post_id = intval($_POST['post_id']) !== null ? intval($_POST['post_id']) : null;
+            $offset = intval($_POST['offset']) !== null ? intval($_POST['offset']) : 0;
+            $tipo_manifesto = $_POST['tipo_manifesto'] ?? null;
+            $limit = 5; // Numero di commenti da caricare per volta
+
+            // get post type manifesto where meta key annuncio_di_morte_relativo is equal to $post_id with offset and limit
+            $args = array(
+                'post_type' => 'manifesto',
+                'meta_query' => array(
+                        'relation' => 'AND',
+                    array(
+                        'key' => 'annuncio_di_morte_relativo',
+                        'value' => $post_id,
+                        'compare' => '=',
+                    ),
+                    array(
+                        'key' => 'tipo_manifesto',
+                        'value' => $tipo_manifesto,
+                        'compare' => '=',
+                    ),
+                ),
+                'posts_per_page' => $limit,
+                'offset' => $offset,
+            );
+
+            $manifesti = new \WP_Query($args);
+            $response = [];
+
+            if ($manifesti->have_posts()) {
+                while ($manifesti->have_posts()) {
+                    $manifesti->the_post();
+                    $post_id = get_the_ID();
+                    $vendor_id = get_field('vendor_id');
+
+                    // Get vendor data
+                    $vendor_data = $this->get_vendor_data_by_id($vendor_id);
+
+                    ob_start();
+                    ?>
+                    <div class="col-6 col-lg-3">
+                        <div class="text-editor-background" style="background-image: none"
+                             data-postid="<?php echo $post_id; ?>" data-vendorid="<?php echo $vendor_id; ?>">
+                            <div class="custom-text-editor">
+                                <?php the_field('testo_manifesto'); ?>
+                            </div>
+                        </div>
+                    </div>
+                    <?php
+                    $response[] = [
+                        'html' => ob_get_clean(),
+                        'vendor_data' => $vendor_data,
+                    ];
+                }
+            }
+
+            wp_send_json_success($response);
+
+            wp_die();
+        }
+
+        public function generate_manifesti_shortcode($attrs)
+        {
+            static $instance = 0;
+            $instance++;
+
+            $attrs = shortcode_atts(
+                array(
+                    'tipo_manifesto' => 'top',
+                ),
+                $attrs
+            );
+
+            $post_id = get_the_ID();
+            ob_start();
+            ?>
+
+            <div id="manifesto-container-<?php echo $instance; ?>" class="manifesto-container row g-2"
+                 data-postid="<?php echo $post_id; ?>" data-tipo="<?php echo $attrs['tipo_manifesto']; ?>"></div>
+            <div class="loader manifesto-loader" id="manifesto-loader-<?php echo $instance; ?>"></div>
+
+            <?php
+            return ob_get_clean();
+        }
 
 
 

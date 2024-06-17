@@ -1,7 +1,18 @@
-function loadCity($,element, city = null) {
+function loadCity($,element, data = null) {
 
     //console.log('loadCity');
-    var selectedValue = $(element).val();
+    var selectedValue = "";
+
+    if(data) {
+        city = data.city;
+        province = data.province;
+        if (province) {
+            $(element).val(province);
+        }
+    }
+    selectedValue = $(element).val();
+
+
     //console.log(selectedValue);
     $.ajax({
         url: ajax_object.ajax_url,
@@ -27,7 +38,6 @@ function loadCity($,element, city = null) {
             //add the new options
             $('#acf-field_662ca58a35da3').append('<option value="Tutte">Tutte</option>');
             $.each(data, function (index, value) {
-                console.log(city);
                 if (city === value) {
                     $('#acf-field_662ca58a35da3').append('<option value="' + value + '" selected>' + value + '</option>');
                 } else

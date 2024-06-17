@@ -128,7 +128,7 @@ $active_menu = 'add-annuncio';
                                     ),
                                     'field_groups' => array('group_665ec95bbe9ab'),
                                     'submit_value' => __($add_edit_text, 'Dokan-mod'),
-                                    'return' => home_url('/dashboard/anniversari?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success'),
+                                    'return' => home_url('/dashboard/lista-anniversari?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success'),
                                 );
 
                                 acf_form($form_args);

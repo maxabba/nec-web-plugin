@@ -28,12 +28,12 @@ if (!class_exists(__NAMESPACE__ . '\TrigesimiClass')) {
         public function validate_trigesimo_post()
         {
             // Check if the post type is 'trigesimo'
-            if ($_POST['post_type'] !== 'trigesimo') {
+            if (isset($_POST['post_type']) && $_POST['post_type'] !== 'trigesimo') {
                 return;
             }
 
             // Get the value of the 'field_66570739481f1' field
-            $field_value = $_POST['acf']['field_66570739481f1'];
+            $field_value = $_POST['acf']['field_66570739481f1'] ?? '';
 
             // Query for posts with the same 'field_66570739481f1' value
             $posts = get_posts(array(

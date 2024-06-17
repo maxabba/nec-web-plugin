@@ -29,6 +29,60 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
             }
         }
 
+        public function schedule_post_and_update_status($post_id)
+        {
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['post_status']) && isset($_POST['post_date']) && isset($_POST['post_id'])) {
+                $post_status = sanitize_text_field($_POST['post_status']);
+                $post_id = intval($_POST['post_id']);
+                $post_date = sanitize_text_field($_POST['post_date']);
+
+                // Update the post status and scheduled date
+                $post_data = array(
+                    'ID' => $post_id,
+                    'post_status' => $post_status,
+                );
+
+                if (!empty($post_date)) {
+                    $post_data['post_date'] = $post_date;
+                }
+
+                wp_update_post($post_data);
+            }
+
+
+            $post_title = get_the_title($post_id);
+            ob_start();
+            ?>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Programma/Cambia Stato: <?php echo $post_title ?></h5>
+
+                    <p class="card-text">Programma la pubblicazione o cambia lo stato del post</p>
+                    <form id="post-schedule-form" method="POST" action="">
+                        <input type="hidden" name="post_id" value="<?php echo $post_id ?>">
+                        <label for="post_status">Stato del Post:</label>
+                        <select id="post_status" name="post_status">
+                            <?php
+                            $current_status = get_post_status($post_id) ?: 'draft';
+                            $statuses = array('publish' => 'Pubblicato', 'draft' => 'Bozza', 'pending' => 'Attesa Revisione');
+                            foreach ($statuses as $status => $label) {
+                                echo '<option value="' . $status . '"' . selected($current_status, $status, false) . '>' . $label . '</option>';
+                            }
+                            ?>
+                        </select>
+                        <label for="post_date">Data di Pubblicazione:</label>
+                        <input type="datetime-local" id="post_date" name="post_date"
+                               value="<?php echo get_post_time('Y-m-d\TH:i', false, $post_id); ?>">
+                        <hr>
+                        <button type="submit">Update Status</button>
+                    </form>
+                </div>
+            </div>
+            <?php
+            return ob_get_clean();
+        }
+
+
         public function render_post_state_form_and_handle($post_id){
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['post_status'])) {
                 $post_status = sanitize_text_field($_POST['post_status']);

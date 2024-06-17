@@ -1,0 +1,101 @@
+
+.loader {
+    border: 8px solid #f3f3f3; /* Light grey */
+    border-top: 8px solid #3498db; /* Blue */
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 2s linear infinite;
+    display: none; /* Nascosto inizialmente */
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.full-width-form input[type="submit"] {
+    display: block;
+    margin: 0 auto;
+}
+
+.full-width-form {
+    width: 100%;
+}
+
+.text-editor-container {
+    position: relative;
+    padding: 20px;
+    width: 100%;
+    max-width: 800px;
+    margin: auto;
+}
+
+.text-editor-background {
+    background-size: contain;
+    background-position: center;
+    height: 50vh; /* Usare vh per altezza responsiva */
+    width: 100%; /* Usare larghezza completa */
+    max-width: 100%;
+    position: relative;
+    margin: auto;
+    overflow: hidden;
+}
+
+.custom-text-editor {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+    color: #000;
+    resize: none;
+    box-sizing: border-box;
+    outline: none;
+    overflow: visible;
+    font-size: calc(0.6vw + 0.6vh); /* Dimensione del font reattiva e leggermente più piccola di 16px */
+    font-family: var(--e-global-typography-text-font-family), Sans-serif;
+    font-weight: var(--e-global-typography-text-font-weight);
+}
+
+.editor-toolbar {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 5px;
+    display: none;
+    z-index: 1000;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.editor-toolbar button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    margin: 0 2px;
+    padding: 2px 5px;
+}
+
+.editor-toolbar button:hover {
+    background: #f0f0f0;
+}
+
+@media (max-width: 768px) {
+    .text-editor-container {
+        padding: 10px;
+    }
+
+    .editor-toolbar {
+        font-size: 14px;
+    }
+
+    .custom-text-editor {
+        font-size: calc(0.9vw + 0.9vh); /* Dimensione del font reattiva per schermi piccoli */
+    }
+}

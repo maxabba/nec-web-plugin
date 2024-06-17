@@ -33,6 +33,9 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
         }
 
 
+
+
+
         public function enqueue_bootstrap()
         {
             // Enqueue Bootstrap CSS
@@ -130,9 +133,14 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             return $template;
         }
 
+
+
+
         function annuncio_save_post($post_id)
         {
-            // Controlla se il post è del tipo 'custom_type'
+            remove_action('acf/save_post', 'annuncio_save_post', 20);
+
+            // Controlla se il post è del tipo 'annuncio-di-morte'
             if (get_post_type($post_id) == 'annuncio-di-morte') {
                 // Recupera i valori dei campi ACF
                 $nome = get_field('nome', $post_id);
@@ -146,16 +154,30 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                     'ID' => $post_id,
                     'post_title' => $post_title,
                 );
+
+                // Recupera lo stato del post e la data di pubblicazione dai campi ACF
+                $post_status = get_field('post_status', $post_id);
+                $post_date = get_field('post_date', $post_id);
+                $current_time = current_time('mysql');
+
+                // Controlla se la data di pubblicazione è nel futuro
+                if (!empty($post_date)) {
+                    if (strtotime($post_date) > strtotime($current_time)) {
+                        $post_data['post_status'] = 'future';
+                        $post_data['post_date'] = $post_date;
+                    } else {
+                        $post_data['post_status'] = $post_status ? $post_status : 'publish';
+                        $post_data['post_date'] = $post_date;
+                    }
+                } else {
+                    $post_data['post_status'] = $post_status ? $post_status : 'publish';
+                    $post_data['post_date'] = $current_time;
+                }
+
                 wp_update_post($post_data);
-
             }
+            add_action('acf/save_post', 'annuncio_save_post', 20);
         }
-
-
-
-
-
-
 
 
 

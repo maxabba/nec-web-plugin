@@ -9,7 +9,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
     {
         const PLUGIN_PATH = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/';
 
-        private array $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'annunci', 'customize', 'trigesimo-add','anniversari','crea-anniversario'];
+        private array $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'lista-annunci', 'customize', 'trigesimo-add','lista-anniversari','crea-anniversario', 'lista-manifesti','crea-manifesto'];
 
 
         public function __construct()
@@ -17,7 +17,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
             add_action('init', array($this, 'dynamic_page_init')); // Inizializza le pagine dinamiche
             add_action('dokan_get_dashboard_nav', array($this, 'add_dashboard_menu')); // Aggiunge il menu alla dashboard di Dokan
             add_filter('query_vars', array($this, 'add_query_vars')); // Aggiunge le variabili di query
-            add_filter('template_include', array($this, 'load_template')); // Include il template
+            add_filter('template_include', array($this, 'load_template'),-10); // Include il template
 
             add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'), 9999); // Mette in coda gli stili
 
@@ -73,13 +73,13 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
             $urls['annunci'] = array(
                 'title' => __('Annunci', 'dokan'),
                 'icon' => '<i class="fas fa-cross"></i>',
-                'url' => site_url('/dashboard/annunci'),
+                'url' => site_url('/dashboard/lista-annunci'),
                 'pos' => 34,
                 'submenu' => array(
                     'lista-annunci' => array(
                         'title' => __('Lista Annunci', 'dokan'),
                         'icon' => '<i class="fas fa-list"></i>',
-                        'url' => site_url('/dashboard/annunci'),
+                        'url' => site_url('/dashboard/lista-annunci'),
                         'pos' => 35,
                         'permission' => 'dokan_view_product_menu'
                     ),

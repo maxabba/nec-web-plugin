@@ -25,6 +25,7 @@ if (get_query_var('paged')) {
 }
 $args = array(
     'post_type' => 'annuncio-di-morte',
+    'post_status' => 'publish,pending,draft,future,private',
     'author' => $user_id,
     'posts_per_page' => 10, // Change this to the number of posts you want per page
     'paged' => $paged,
@@ -107,6 +108,7 @@ $active_menu = 'annunci/lista-annunci';
                                     <th><?php _e('Data publicazione', 'your-text-domain'); ?></th>
                                     <th><?php _e('Città', 'your-text-domain'); ?></th>
                                     <th><?php _e('Azioni', 'your-text-domain'); ?></th>
+                                    <th><?php _e('Manifesti', 'your-text-domain'); ?></th>
                                     <th><?php _e('Trigesimo', 'your-text-domain'); ?></th>
                                     <th><?php _e('Anniversari', 'your-text-domain'); ?></th>
                                 </tr>
@@ -126,10 +128,13 @@ $active_menu = 'annunci/lista-annunci';
                                                 <a href="<?php echo home_url('/dashboard/crea-annuncio?post_id=' . get_the_ID()); ?>"><?php _e('Modifica', 'your-text-domain'); ?></a>
                                             </td>
                                             <td>
+                                                <a href="<?php echo home_url('/dashboard/lista-manifesti?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'your-text-domain'); ?></a>
+                                            </td>
+                                            <td>
                                                 <a href="<?php echo home_url('/dashboard/trigesimo-add?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Aggingi/Modifica', 'your-text-domain'); ?></a>
                                             </td>
                                             <td>
-                                                <a href="<?php echo home_url('/dashboard/anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'your-text-domain'); ?></a>
+                                                <a href="<?php echo home_url('/dashboard/lista-anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'your-text-domain'); ?></a>
                                             </td>
                                         </tr>
                                     <?php

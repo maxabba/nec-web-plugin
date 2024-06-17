@@ -3,17 +3,23 @@
  * Template per la selezione dei prodotti predefiniti in Dokan.
  */
 
+
 $template_class = (new \Dokan_Mods\Templates_MiscClass());
 $template_class->check_dokan_can_and_message_login();
 
 
 $user_id = get_current_user_id();
-$store_info = dokan_get_store_info($user_id);
-$user_city = $store_info['address']['city'] ?? '';
+
+$post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_annuncio']) : null;
 $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
-$form = $template_class->schedule_post_and_update_status($post_id);
 
 
+$form = $template_class->render_post_state_form_and_handle($post_id);
+
+$add_edit_text = $post_id === 'new_post' ? 'Crea' : 'Modifica';
+
+//get the title
+$post_title = get_the_title($post_id_annuncio);
 //check if vendor status is enabled
 $disable_form = false;
 if (dokan_is_user_seller($user_id) && !dokan_is_seller_enabled($user_id)) {
@@ -23,7 +29,7 @@ if (dokan_is_user_seller($user_id) && !dokan_is_seller_enabled($user_id)) {
 // Includi l'header
 get_header();
 
-$active_menu = 'annunci/crea-annuncio';
+$active_menu = 'add-annuncio';
 
 // Include the Dokan dashboard sidebar
 
@@ -32,7 +38,8 @@ $active_menu = 'annunci/crea-annuncio';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __('Crea Nuovo Annuncio di Morte', 'dokan') ?></h1></header>
+            <h1 class="entry-title"><?php __($add_edit_text . ' Manifesto per: ' . $post_title, 'dokan') ?></h1>
+        </header>
 
         <div class="page-content">
 
@@ -58,7 +65,7 @@ $active_menu = 'annunci/crea-annuncio';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e('Crea Nuovo Annuncio di Morte', 'dokan'); ?> <span
+                            <?php _e($add_edit_text . ' Manifesto per: ' . $post_title, 'dokan'); ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
@@ -74,42 +81,64 @@ $active_menu = 'annunci/crea-annuncio';
                         ?>
                     </header>
 
+
                     <div class="product-edit-new-container product-edit-container" style="margin-bottom: 100px">
 
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
-
+                            <?php if ($post_id !== 'new_post') {
+                                echo $form;
+                            } ?>
                             <?php
                             // Check if the user is logged in
                             if (is_user_logged_in()) {
-
-
-                                function acf_load_post_date_field($field)
-                                {
-                                    if (empty($field['value'])) {
-                                        $field['value'] = current_time('Y-m-d H:i:s');
-                                    }
-                                    return $field;
-                                }
-
-                                add_filter('acf/load_field/name=post_date', 'acf_load_post_date_field');
-
                                 // Parameters for the ACF form
-                                $add_edit_text = $post_id === 'new_post' ? 'Crea' : 'Modifica';
+
+                                    function set_annuncio_di_morte_field($field)
+                                    {
+
+                                        // Check if it's our post type
+                                        if ($field['key'] == 'field_6666bf025040a') {
+                                            $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_annuncio']) : 'new_post';
+
+                                            $field['value'] = $post_id_annuncio;
+                                            $field['readonly'] = true;
+                                            $field['wrapper']['style'] = 'display: none;';
+
+                                        }
+                                        if ($field['key'] == 'field_6666bf6b5040b') {
+
+                                            $user_id = get_current_user_id();
+
+                                            $field['value'] = $user_id;
+                                            $field['readonly'] = true;
+                                            $field['wrapper']['style'] = 'display: none;';
+
+                                        }
+
+
+                                        return $field;
+                                    }
+
+                                    // Apply to fields named "annuncio_di_morte".
+                                    add_filter('acf/prepare_field/key=field_6666bf025040a', 'set_annuncio_di_morte_field');
+                                    add_filter('acf/prepare_field/key=field_6666bf6b5040b', 'set_annuncio_di_morte_field');
+
+
+
+
                                 $form_args = array(
                                     'post_id' => $post_id,
                                     'new_post' => array(
-                                        'post_type' => 'annuncio-di-morte',
-                                        'post_status' => 'draft',
+                                        'post_type' => 'manifesto',
+                                        'post_status' => 'publish',
                                     ),
-                                    'field_groups' => array('group_662ca589c62f7', 'group_6641d54c5f58d', 'group_666ef28ce50a3'),
+                                    'field_groups' => array('group_6666bf01a488b'),
                                     'submit_value' => __($add_edit_text, 'Dokan-mod'),
-                                    'return' => home_url('/dashboard/lista-annunci'),
+                                    'return' => home_url('/dashboard/lista-manifesti?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success'),
                                 );
 
-
                                 acf_form($form_args);
-
 
                             } else {
                                 echo '<p>' . __('Devi essere loggato per compilare questo form.', 'your-text-domain') . '</p>';
@@ -168,6 +197,10 @@ $active_menu = 'annunci/crea-annuncio';
             color: #721c24;
             background-color: #f8d7da;
             border-color: #f5c6cb;
+        }
+
+        .hidden-field {
+            display: none;
         }
     </style>
 

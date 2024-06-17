@@ -16,7 +16,7 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
         {
 
 
-            add_filter('acf/load_value/key=field_662ca58a35da3', array($this, 'auto_fill_acf_field_based_on_user'), 10, 3);
+            //add_filter('acf/load_value/key=field_662ca58a35da3', array($this, 'auto_fill_acf_field_based_on_user'), 10, 3);
             add_filter('acf/load_field/key=field_6638e3e77ffa0', array($this, 'load_province_choices'));
             //add_filter('acf/load_field/name=city', array($this, 'load_city_choices'));
 
@@ -40,6 +40,7 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
 
             add_action('wp_ajax_get_current_citta_value_if_is_set', array($this, 'get_current_citta_value_if_is_set'));
             add_action('wp_ajax_nopriv_get_current_citta_value_if_is_set', array($this, 'get_current_citta_value_if_is_set'));
+
 
             $this->register_shortcodes();
         }
@@ -87,6 +88,37 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
         public function register_shortcodes()
         {
             add_shortcode('show_acf_select_values', array($this, 'show_acf_select_values')); // Registra lo shortcode per mostrare i valori di un campo ACF select as [show_acf_select_values field_key="nome_campo"]
+            //add_shortcode('acf_gmaps_link', array($this, 'generate_google_maps_link')); // Registra lo shortcode per generare un link a Google Maps come [acf_gmaps_link acf_field="nome_campo"]
+        }
+
+        public function generate_google_maps_link($atts)
+        {
+
+            // Estrai gli attributi passati allo shortcode
+            //get the relative path of the image in assets/images/Simple-Location-Picker.webp
+            $atts = shortcode_atts(array(
+                'acf_field' => '',
+                'placeholder_image' => DOKAN_SELECT_PRODUCTS_PLUGIN_URL . '/assets/images/Simple-Location-Picker.jpg',
+            ), $atts, 'acf_gmaps_link');
+
+            // Recupera l'indirizzo dal campo ACF
+            $address = get_field($atts['acf_field']);
+            ob_start();
+            // Se l'indirizzo è vuoto, restituisci un messaggio di errore
+            if (empty($address)) {
+                return '<p>Indirizzo non trovato.</p>';
+            }
+
+            // Formatta l'indirizzo per l'URL di Google Maps
+            $formatted_address = urlencode($address);
+            $maps_url = "https://www.google.com/maps/search/?api=1&query={$formatted_address}";
+            ?>
+            <a href="<?php echo esc_url($maps_url); ?>" target="_blank">
+            <img src="<?php echo esc_url($atts['placeholder_image']); ?>" width="200px" alt="Mappa di <?php echo esc_attr($address); ?> ">
+            </a>
+            <?php
+
+            return ob_get_clean();
         }
 
         public function set_city_filter()
@@ -153,27 +185,55 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
 
         public function get_current_citta_value_if_is_set()
         {
-
+            global $dbClassInstance;
             $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : null;
             if (empty($post_id)) {
                 echo json_encode([]);
                 wp_die();
             }
             $city_filter = get_field('citta', $post_id);
-            echo json_encode($city_filter);
+
+            //if null check if user logged is a vendor
+            if (empty($city_filter)) {
+                $current_user = wp_get_current_user();
+                if ($current_user instanceof WP_User) {
+
+                    $store_info = dokan_get_store_info($current_user->ID);
+
+                    if ($store_info) {
+                        $user_city = $store_info['address']['city'] ?? '';
+                        if (!empty($user_city)) {
+                            $city_filter = $user_city;
+                        }
+                    }
+                }
+            }
+
+            $province = $dbClassInstance->get_provincia_by_comune($city_filter);
+
+            $response = [
+                'city' => $city_filter,
+                'province' => $province
+            ];
+
+            echo json_encode($response);
             wp_die();
         }
 
         public function auto_fill_acf_field_based_on_user($value, $post_id, $field)
         {
             // Assicurati che il campo sia vuoto prima di autocompilarlo
-            if (empty($value)) {
+            if (empty($value) || $value === "Tutte") {
                 $current_user = wp_get_current_user();
                 if ($current_user instanceof WP_User) {
-                    //select the city based on the user city
-                    $city = get_user_meta($current_user->ID, 'city', true);
-                    if (!empty($city)) {
-                        $value = $city;
+
+                    $store_info = dokan_get_store_info($current_user->ID);
+
+                    if ($store_info) {
+                        $user_city = $store_info['address']['city'] ?? '';
+                        if (!empty($user_city)) {
+                            $value = $user_city;
+                        }
                     }
                 }
             }
