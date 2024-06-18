@@ -63,7 +63,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
         {
             unset($urls['products']);
             $urls['seleziona-prodotti'] = array(
-                'title' => __('Aggiungi Servizi', 'dokan'),
+                'title' => __('Aggiungi Servizi', 'dokan-mod'),
                 'icon' => '<i class="fas fa-briefcase"></i>',
                 'url' => site_url('/dashboard/seleziona-prodotti'), // Aggiungi qui l'URL del tuo template
                 'pos' => 33,
@@ -71,20 +71,20 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
             );
 
             $urls['annunci'] = array(
-                'title' => __('Annunci', 'dokan'),
+                'title' => __('Annunci', 'dokan-mod'),
                 'icon' => '<i class="fas fa-cross"></i>',
                 'url' => site_url('/dashboard/lista-annunci'),
                 'pos' => 34,
                 'submenu' => array(
                     'lista-annunci' => array(
-                        'title' => __('Lista Annunci', 'dokan'),
+                        'title' => __('Lista Annunci', 'dokan-mod'),
                         'icon' => '<i class="fas fa-list"></i>',
                         'url' => site_url('/dashboard/lista-annunci'),
                         'pos' => 35,
                         'permission' => 'dokan_view_product_menu'
                     ),
                     'crea-annuncio' => array(
-                        'title' => __('Crea Annuncio', 'dokan'),
+                        'title' => __('Crea Annuncio', 'dokan-mod'),
                         'icon' => '<i class="fas fa-plus"></i>',
                         'url' => site_url('/dashboard/crea-annuncio'),
                         'pos' => 36,
@@ -95,7 +95,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
 
             if (isset($urls['settings'])) {
                 $urls['settings']['submenu']['customize'] = array(
-                    'title' => __('Personalizza', 'dokan'),
+                    'title' => __('Personalizza', 'dokan-mod'),
                     'icon' => '<i class="fas fa-wrench"></i>',
                     'url' => site_url('/dashboard/customize'),
                     'pos' => 100,

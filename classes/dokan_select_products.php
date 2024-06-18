@@ -147,11 +147,11 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
             woocommerce_wp_select(
                 array(
                     'id' => 'dokan_withdraw_type',
-                    'label' => __('Withdraw Type', 'dokan'),
-                    'description' => __('Seleziona il tipo di withdrawal: percentuale o importo fisso.', 'dokan'),
+                    'label' => __('Withdraw Type', 'dokan-mod'),
+                    'description' => __('Seleziona il tipo di withdrawal: percentuale o importo fisso.', 'dokan-mod'),
                     'options' => array(
-                        'percentage' => __('Percentuale', 'dokan'),
-                        'fixed' => __('Importo fisso', 'dokan')
+                        'percentage' => __('Percentuale', 'dokan-mod'),
+                        'fixed' => __('Importo fisso', 'dokan-mod')
                     ),
                 )
             );
@@ -159,9 +159,9 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
             woocommerce_wp_text_input(
                 array(
                     'id' => 'dokan_withdraw_rate',
-                    'label' => __('Withdraw Rate (%)', 'dokan'),
+                    'label' => __('Withdraw Rate (%)', 'dokan-mod'),
                     'desc_tip' => 'true',
-                    'description' => __('Inserisci la percentuale di withdrawal per questo prodotto.', 'dokan'),
+                    'description' => __('Inserisci la percentuale di withdrawal per questo prodotto.', 'dokan-mod'),
                     'type' => 'number',
                     'custom_attributes' => array(
                         'step' => '0.01',
@@ -175,9 +175,9 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
             woocommerce_wp_text_input(
                 array(
                     'id' => 'dokan_withdraw_fixed_amount',
-                    'label' => __('Withdraw Amount (Fixed)', 'dokan'),
+                    'label' => __('Withdraw Amount (Fixed)', 'dokan-mod'),
                     'desc_tip' => 'true',
-                    'description' => __('Inserisci l\'importo fisso di withdrawal per questo prodotto.', 'dokan'),
+                    'description' => __('Inserisci l\'importo fisso di withdrawal per questo prodotto.', 'dokan-mod'),
                     'type' => 'number',
                     'custom_attributes' => array(
                         'step' => '0.01',

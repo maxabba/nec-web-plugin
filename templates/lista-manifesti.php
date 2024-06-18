@@ -58,7 +58,7 @@ $active_menu = '';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __('Lista Manifesti: ' . $title, 'dokan') ?></h1></header>
+            <h1 class="entry-title"><?php __('Lista Manifesti: ' . $title, 'dokan-mod') ?></h1></header>
 
         <div class="page-content">
 
@@ -84,7 +84,7 @@ $active_menu = '';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e('Lista Manifesti: ' . $title, 'dokan') ?> <span
+                            <?php _e('Lista Manifesti: ' . $title, 'dokan-mod') ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
@@ -105,7 +105,7 @@ $active_menu = '';
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
                             <a href="<?php echo esc_url(home_url('/dashboard/crea-manifesto')); ?>" class="custom-widget-button" style="margin-bottom: 15px">
-                                <i class="fas fa-plus"></i> <?php _e('Aggiungi Manifesto', 'your-text-domain'); ?>
+                                <i class="fas fa-plus"></i> <?php _e('Aggiungi Manifesto', 'dokan-mod'); ?>
                             </a>
 
                             <div style="display: flex; flex-direction: column; width: 300px; margin-bottom: 15px">
@@ -134,10 +134,10 @@ $active_menu = '';
                             <table>
                                 <thead>
                                 <tr>
-                                    <th><?php _e('Titolo', 'your-text-domain'); ?></th>
-                                    <th><?php _e('Data publicazione', 'your-text-domain'); ?></th>
-                                    <th><?php _e('Città', 'your-text-domain'); ?></th>
-                                    <th><?php _e('Azioni', 'your-text-domain'); ?></th>
+                                    <th><?php _e('Titolo', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Data publicazione', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Città', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Azioni', 'dokan-mod'); ?></th>
                                 </tr>
                                 </thead>
                                 <tbody>
@@ -152,7 +152,7 @@ $active_menu = '';
                                             <td><?php the_date(); ?></td>
                                             <td><?php echo get_post_meta(get_the_ID(), 'citta', true); ?></td>
                                             <td>
-                                                <a href="<?php echo home_url('/dashboard/crea-manifesto?post_id=' . get_the_ID() . '&post_id_annuncio=' . $post_id_annuncio); ?>"><?php _e('Modifica', 'your-text-domain'); ?></a>
+                                                <a href="<?php echo home_url('/dashboard/crea-manifesto?post_id=' . get_the_ID() . '&post_id_annuncio=' . $post_id_annuncio); ?>"><?php _e('Modifica', 'dokan-mod'); ?></a>
                                             </td>
                                         </tr>
                                     <?php
@@ -160,7 +160,7 @@ $active_menu = '';
                                 else :
                                     ?>
                                     <tr>
-                                        <td colspan="4"><?php _e('Nessun post trovato.', 'your-text-domain'); ?></td>
+                                        <td colspan="4"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
                                     </tr>
                                 <?php
                                 endif;

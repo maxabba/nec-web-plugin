@@ -46,7 +46,7 @@ $active_menu = 'annunci/lista-annunci';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __('Lista Annunci di Morte', 'dokan') ?></h1></header>
+            <h1 class="entry-title"><?php __('Lista Annunci di Morte', 'dokan-mod') ?></h1></header>
 
         <div class="page-content">
 
@@ -72,7 +72,7 @@ $active_menu = 'annunci/lista-annunci';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e('Lista Annunci di Morte', 'dokan'); ?> <span
+                            <?php _e('Lista Annunci di Morte', 'dokan-mod'); ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
@@ -93,7 +93,7 @@ $active_menu = 'annunci/lista-annunci';
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
                             <a href="<?php echo home_url('dashboard/crea-annuncio/'); ?>" class="custom-widget-button" style="margin-bottom: 15px">
-                                <i class="fas fa-plus"></i> <?php _e('Aggiungi Annuncio', 'your-text-domain'); ?>
+                                <i class="fas fa-plus"></i> <?php _e('Aggiungi Annuncio', 'dokan-mod'); ?>
                             </a>
                             <form method="get" action="<?php echo esc_url(home_url('/dashboard/annunci')); ?>"
                                   style="display: flex;">
@@ -104,13 +104,13 @@ $active_menu = 'annunci/lista-annunci';
                             <table>
                                 <thead>
                                 <tr>
-                                    <th><?php _e('Titolo', 'your-text-domain'); ?></th>
-                                    <th><?php _e('Data publicazione', 'your-text-domain'); ?></th>
-                                    <th><?php _e('Città', 'your-text-domain'); ?></th>
-                                    <th><?php _e('Azioni', 'your-text-domain'); ?></th>
-                                    <th><?php _e('Manifesti', 'your-text-domain'); ?></th>
-                                    <th><?php _e('Trigesimo', 'your-text-domain'); ?></th>
-                                    <th><?php _e('Anniversari', 'your-text-domain'); ?></th>
+                                    <th><?php _e('Titolo', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Data publicazione', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Città', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Azioni', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Manifesti', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Trigesimo', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Anniversari', 'dokan-mod'); ?></th>
                                 </tr>
                                 </thead>
                                 <tbody>
@@ -125,16 +125,16 @@ $active_menu = 'annunci/lista-annunci';
                                             <td><?php the_date(); ?></td>
                                             <td><?php echo get_post_meta(get_the_ID(), 'citta', true); ?></td>
                                             <td>
-                                                <a href="<?php echo home_url('/dashboard/crea-annuncio?post_id=' . get_the_ID()); ?>"><?php _e('Modifica', 'your-text-domain'); ?></a>
+                                                <a href="<?php echo home_url('/dashboard/crea-annuncio?post_id=' . get_the_ID()); ?>"><?php _e('Modifica', 'dokan-mod'); ?></a>
                                             </td>
                                             <td>
-                                                <a href="<?php echo home_url('/dashboard/lista-manifesti?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'your-text-domain'); ?></a>
+                                                <a href="<?php echo home_url('/dashboard/lista-manifesti?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
                                             </td>
                                             <td>
-                                                <a href="<?php echo home_url('/dashboard/trigesimo-add?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Aggingi/Modifica', 'your-text-domain'); ?></a>
+                                                <a href="<?php echo home_url('/dashboard/trigesimo-add?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Aggingi/Modifica', 'dokan-mod'); ?></a>
                                             </td>
                                             <td>
-                                                <a href="<?php echo home_url('/dashboard/lista-anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'your-text-domain'); ?></a>
+                                                <a href="<?php echo home_url('/dashboard/lista-anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
                                             </td>
                                         </tr>
                                     <?php
@@ -142,7 +142,7 @@ $active_menu = 'annunci/lista-annunci';
                                 else :
                                     ?>
                                     <tr>
-                                        <td colspan="6"><?php _e('Nessun post trovato.', 'your-text-domain'); ?></td>
+                                        <td colspan="6"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
                                     </tr>
                                 <?php
                                 endif;

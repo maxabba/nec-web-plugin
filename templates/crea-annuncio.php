@@ -32,7 +32,7 @@ $active_menu = 'annunci/crea-annuncio';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __('Crea Nuovo Annuncio di Morte', 'dokan') ?></h1></header>
+            <h1 class="entry-title"><?php __('Crea Nuovo Annuncio di Morte', 'dokan-mod') ?></h1></header>
 
         <div class="page-content">
 
@@ -58,7 +58,7 @@ $active_menu = 'annunci/crea-annuncio';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e('Crea Nuovo Annuncio di Morte', 'dokan'); ?> <span
+                            <?php _e('Crea Nuovo Annuncio di Morte', 'dokan-mod'); ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
@@ -112,7 +112,7 @@ $active_menu = 'annunci/crea-annuncio';
 
 
                             } else {
-                                echo '<p>' . __('Devi essere loggato per compilare questo form.', 'your-text-domain') . '</p>';
+                                echo '<p>' . __('Devi essere loggato per compilare questo form.', 'dokan-mod') . '</p>';
                                 wp_login_form();
                             }
                             ?>

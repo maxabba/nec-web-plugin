@@ -29,7 +29,7 @@ $active_menu = 'settings/customize';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __('Personalizza', 'dokan') ?></h1></header>
+            <h1 class="entry-title"><?php __('Personalizza', 'dokan-mod') ?></h1></header>
 
         <div class="page-content">
 
@@ -55,7 +55,7 @@ $active_menu = 'settings/customize';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e('Personalizza Manifesto', 'dokan'); ?> <span
+                            <?php _e('Personalizza Manifesto', 'dokan-mod'); ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
@@ -94,7 +94,7 @@ $active_menu = 'settings/customize';
                                 <!-- add a wp.media input for select the image and limit to the user upload -->
                                 <div class="dokan-form-group dokan-clearfix">
                                     <label class="dokan-w3 dokan-control-label"
-                                           for="poster_image"><?php _e('Immagine del Manifesto', 'dokan'); ?></label>
+                                           for="poster_image"><?php _e('Immagine del Manifesto', 'dokan-mod'); ?></label>
                                     <div class="dokan-w5">
                                         <input type="button" class="button" value="Seleziona Immagine"
                                                id="upload_image_button">
@@ -105,7 +105,7 @@ $active_menu = 'settings/customize';
                                 </div>
 
                                 <h3 class="entry-title">
-                                    <?php _e('Modifica allineamento testo', 'dokan'); ?>
+                                    <?php _e('Modifica allineamento testo', 'dokan-mod'); ?>
                                 </h3>
                                 <span style="font-size:14px; margin-bottom:25px">
                                         Modifica l'allineamento del testo all'interno del manifesto.
@@ -129,7 +129,7 @@ $active_menu = 'settings/customize';
                                 </div>
 
                                 <h3 class="entry-title">
-                                    <?php _e('Modifica margini', 'dokan'); ?>
+                                    <?php _e('Modifica margini', 'dokan-mod'); ?>
                                 </h3>
                                 <span style="font-size:14px; margin-bottom:25px">
                                         Modifica i margini di scrittura del manifesto. Tali margini sono espressi in pixel.

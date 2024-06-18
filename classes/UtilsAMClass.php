@@ -16,12 +16,34 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
 
         public function __construct()
         {
-            $this->pages = [
-                'pensierini' => [334, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/pensierini.php'],
-                'manifesto-top' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
-                'manifesto-silver' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
-                'manifesto-online' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
-            ];
+
+            $product_template_mapping = get_option('product_template_mapping', array());
+
+            if (!empty($product_template_mapping)) {
+                foreach ($product_template_mapping as $product_id => $template_id) {
+                    //clean the pages
+                    $product = get_post($product_id);
+                    $template = get_post($template_id);
+                    if ($product && $template) {
+                        $product_slug = $product->post_name;
+                        $template_id = $template->ID;
+
+                        // Usa l'accoppiata $product_slug => $template_id come necessario
+
+
+                        $this->pages[$product_slug] = [$template_id, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/' . $product_slug . '.php'];
+                    }
+                }
+            }else{
+                $this->pages = [
+                    'pensierini' => [334, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/pensierini.php'],
+                    'manifesto-top' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
+                    'manifesto-silver' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
+                    'manifesto-online' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
+                ];
+
+            }
+
             $this->pages_slug = array_keys($this->pages);
             $links = array_map(function ($slug) {
                 return [$slug => __($slug, 'Dokan_mod')];

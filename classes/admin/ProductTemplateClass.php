@@ -1,0 +1,120 @@
+<?php
+
+namespace Dokan_Mods;
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly.
+}
+
+if (!class_exists(__NAMESPACE__ . '\ProductTemplateClass')) {
+    class ProductTemplateClass
+    {
+        public function __construct()
+        {
+            add_action('admin_menu', array($this, 'create_menu'));
+            add_action('admin_init', array($this, 'register_settings'));
+        }
+
+        public function create_menu()
+        {
+            add_menu_page(
+                'Product Templates',
+                'Product Templates',
+                'manage_options',
+                'product-templates',
+                array($this, 'settings_page'),
+                'dashicons-admin-generic',
+                20
+            );
+        }
+
+        public function register_settings()
+        {
+            register_setting('product-templates-group', 'product_template_mapping', array(
+                'sanitize_callback' => array($this, 'sanitize_product_template_mapping')
+            ));
+        }
+
+        public function sanitize_product_template_mapping($input)
+        {
+            $sanitized_input = array();
+            foreach ($input as $product_id => $template_id) {
+                $sanitized_input[intval($product_id)] = intval($template_id);
+            }
+            return $sanitized_input;
+        }
+
+
+        public function settings_page()
+        {
+            ?>
+            <div class="wrap">
+                <h1>Product Templates</h1>
+                <p>In questa pagina puoi associare i prodotti della categoria <strong>default-products</strong> ai
+                    template di Elementor. Seleziona un template dalla lista per ogni prodotto e salva le impostazioni.
+                    Questo ti permetterà di personalizzare l'aspetto dei tuoi prodotti utilizzando i template di
+                    Elementor.</p>
+                <form method="post" action="options.php">
+                    <?php
+                    settings_fields('product-templates-group');
+                    do_settings_sections('product-templates-group');
+                    $product_template_mapping = get_option('product_template_mapping', array());
+
+                    $args = array(
+                        'post_type' => 'product',
+                        'posts_per_page' => -1,
+                        'orderby' => 'title',
+                        'order' => 'ASC',
+                        'tax_query' => array(
+                            array(
+                                'taxonomy' => 'product_cat',
+                                'field' => 'slug',
+                                'terms' => 'default-products',
+                            ),
+                        ),
+                    );
+
+                    $products = get_posts($args);
+
+                    $elementor_templates = get_posts(array(
+                        'post_type' => 'elementor_library',
+                        'posts_per_page' => -1
+                    ));
+                    ?>
+                    <div id="poststuff">
+                        <div class="postbox">
+                            <h2 class="hndle"><span><?php _e('Product Template Mapping', 'dokan-mod'); ?></span>
+                            </h2>
+                            <div class="inside">
+                                <table class="form-table">
+                                    <tbody>
+                                    <?php foreach ($products as $product): ?>
+                                        <tr>
+                                            <th scope="row"><?php echo esc_html($product->post_title); ?></th>
+                                            <td>
+                                                <select
+                                                    name="product_template_mapping[<?php echo esc_attr($product->ID); ?>]">
+                                                    <option
+                                                        value=""><?php _e('Select Template', 'dokan-mod'); ?></option>
+                                                    <?php foreach ($elementor_templates as $template): ?>
+                                                        <option
+                                                            value="<?php echo esc_attr($template->ID); ?>" <?php selected(isset($product_template_mapping[$product->ID]) ? $product_template_mapping[$product->ID] : '', $template->ID); ?>>
+                                                            <?php echo esc_html($template->post_title); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                                <?php submit_button(); ?>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <?php
+        }
+
+    }
+}

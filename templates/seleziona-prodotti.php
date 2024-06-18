@@ -36,7 +36,7 @@ $active_menu = 'seleziona-prodotti';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __('Aggiungi i servizi offerti','dokan') ?></h1></header>
+            <h1 class="entry-title"><?php __('Aggiungi i servizi offerti','dokan-mod') ?></h1></header>
 
         <div class="page-content">
 
@@ -62,10 +62,10 @@ $active_menu = 'seleziona-prodotti';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e('Aggiungi i servizi offerti', 'dokan'); ?> <span class="dokan-label  dokan-product-status-label">
+                            <?php _e('Aggiungi i servizi offerti', 'dokan-mod'); ?> <span class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
-                        <p><?php _e('Scegli quali servizi aggiungere dalla lista sottostante', 'dokan'); ?></p>
+                        <p><?php _e('Scegli quali servizi aggiungere dalla lista sottostante', 'dokan-mod'); ?></p>
                         <?php
                         if (isset($_GET['operation_result'])) {
                             $operation_result = wp_kses($_GET['operation_result'], array());
@@ -131,10 +131,10 @@ $active_menu = 'seleziona-prodotti';
                                     $price = $product_wc->get_price();
 
                                     if ($product_exist[0]->post_status == 'pending') {
-                                        $product_name .= __(' (Pending)', 'dokan');
+                                        $product_name .= __(' (Pending)', 'dokan-mod');
                                         $disabled = 'disabled';
                                     } else {
-                                        $product_name .= __(' (Already Added)', 'dokan');
+                                        $product_name .= __(' (Already Added)', 'dokan-mod');
                                         $check = 'checked';
 
                                     }
@@ -151,7 +151,7 @@ $active_menu = 'seleziona-prodotti';
                                 $product_description = $product->post_content;
                                 if (!empty($product_description)) {
                                     ?>
-                                    <p><strong><?php  _e('Descrizione del servizio:','dokan'); ?></strong> <?php echo $product_description; ?></p>
+                                    <p><strong><?php  _e('Descrizione del servizio:','dokan-mod'); ?></strong> <?php echo $product_description; ?></p>
                                     <?php
                                 }
                                 ?>
@@ -160,7 +160,7 @@ $active_menu = 'seleziona-prodotti';
                                            style="width: 20px; height: 20px; margin-right: 10px;"
                                            value="<?php echo $product_id; ?>" <?php echo $check; ?> <?php echo $disabled; ?> >
                                     <label for="product-<?php echo $product_id; ?>" style="font-size: 20px">
-                                        <?php _e('Aggiungi alla lista dei servizi', 'dokan'); ?>
+                                        <?php _e('Aggiungi alla lista dei servizi', 'dokan-mod'); ?>
                                     </label>
                                 </div>
                                 <?php
@@ -183,7 +183,7 @@ $active_menu = 'seleziona-prodotti';
                                 }else{
                                     // print the price of the product
                                     ?>
-                                    <p><strong><?php  _e('Prezzo del servizio:','dokan'); ?></strong><?php echo $currency_symbol; ?> <?php echo $price; ?></p>
+                                    <p><strong><?php  _e('Prezzo del servizio:','dokan-mod'); ?></strong><?php echo $currency_symbol; ?> <?php echo $price; ?></p>
                                     <p>Per questo servizio non è prevista la modificha del prezzo, per richiedere informazioni o modifiche utilizza l'apposito modulo di contatto</p>
                                     <?php
                                 }
@@ -191,7 +191,7 @@ $active_menu = 'seleziona-prodotti';
 
                             }
                             ?>
-                            <input type="submit" value="<?php _e('Add Products', 'dokan'); ?>">
+                            <input type="submit" value="<?php _e('Add Products', 'dokan-mod'); ?>">
                         </form>
                     <?php } else { ?>
 

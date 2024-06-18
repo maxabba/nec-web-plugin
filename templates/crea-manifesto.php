@@ -38,7 +38,7 @@ $active_menu = 'add-annuncio';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __($add_edit_text . ' Manifesto per: ' . $post_title, 'dokan') ?></h1>
+            <h1 class="entry-title"><?php __($add_edit_text . ' Manifesto per: ' . $post_title, 'dokan-mod') ?></h1>
         </header>
 
         <div class="page-content">
@@ -65,7 +65,7 @@ $active_menu = 'add-annuncio';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e($add_edit_text . ' Manifesto per: ' . $post_title, 'dokan'); ?> <span
+                            <?php _e($add_edit_text . ' Manifesto per: ' . $post_title, 'dokan-mod'); ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
@@ -141,7 +141,7 @@ $active_menu = 'add-annuncio';
                                 acf_form($form_args);
 
                             } else {
-                                echo '<p>' . __('Devi essere loggato per compilare questo form.', 'your-text-domain') . '</p>';
+                                echo '<p>' . __('Devi essere loggato per compilare questo form.', 'dokan-mod') . '</p>';
                                 wp_login_form();
                             }
                             ?>

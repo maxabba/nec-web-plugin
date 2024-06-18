@@ -94,7 +94,7 @@ public function custom_display_vendor_file_link($value, $column_name, $user_id)
 
 public function custom_add_dokan_vendor_file_column($columns)
     {
-        $columns['company_file'] = __('Visura Camerale', 'dokan');
+        $columns['company_file'] = __('Visura Camerale', 'dokan-mod');
         return $columns;
     }
 

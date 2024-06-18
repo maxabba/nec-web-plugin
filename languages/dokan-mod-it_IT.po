@@ -1,0 +1,505 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Selezione Prodotti Predefiniti per Dokan\n"
+"POT-Creation-Date: 2024-06-18 18:18+0200\n"
+"PO-Revision-Date: 2024-06-18 18:25+0200\n"
+"Last-Translator: Marco Abbattista <abbattista.marco@gmail.com>\n"
+"Language-Team: Marco Abbattista <abbattista.marco@gmail.com>\n"
+"Language: it_IT\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.4.4\n"
+"X-Poedit-Basepath: ..\n"
+"X-Poedit-Flags-xgettext: --add-comments=translators:\n"
+"X-Poedit-WPHeader: dokan-mod.php\n"
+"X-Poedit-SourceCharset: UTF-8\n"
+"X-Poedit-KeywordsList: __;_e;_n:1,2;_x:1,2c;_ex:1,2c;_nx:4c,1,2;esc_attr__;"
+"esc_attr_e;esc_attr_x:1,2c;esc_html__;esc_html_e;esc_html_x:1,2c;"
+"_n_noop:1,2;_nx_noop:3c,1,2;__ngettext_noop:1,2\n"
+"X-Poedit-SearchPath-0: .\n"
+"X-Poedit-SearchPathExcluded-0: *.min.js\n"
+
+#: classes/DashboardMenuClass.php:66
+msgid "Aggiungi Servizi"
+msgstr "Aggiungi Servizi"
+
+#: classes/DashboardMenuClass.php:74
+msgid "Annunci"
+msgstr "Annunci"
+
+#: classes/DashboardMenuClass.php:80
+msgid "Lista Annunci"
+msgstr "Lista Annunci"
+
+#: classes/DashboardMenuClass.php:87
+msgid "Crea Annuncio"
+msgstr "Crea Annuncio"
+
+#: classes/DashboardMenuClass.php:98 templates/customize.php:32
+msgid "Personalizza"
+msgstr "Personalizza"
+
+#: classes/RegistrationForm.php:97
+msgid "Visura Camerale"
+msgstr "Visura Camerale"
+
+#: classes/Templates_MiscClass.php:20
+msgid "Non hai i permessi per visualizzare questa pagina. "
+msgstr "Non hai i permessi per visualizzare questa pagina. "
+
+#: classes/Templates_MiscClass.php:21
+msgid "Login"
+msgstr "Login"
+
+#: classes/admin/ProductTemplateClass.php:85
+msgid "Product Template Mapping"
+msgstr "Mappatura template Prodotti"
+
+#: classes/admin/ProductTemplateClass.php:97
+msgid "Select Template"
+msgstr "Seleziona Template"
+
+#: classes/dokan_select_products.php:150
+msgid "Withdraw Type"
+msgstr "Withdraw Type"
+
+#: classes/dokan_select_products.php:151
+msgid "Seleziona il tipo di withdrawal: percentuale o importo fisso."
+msgstr "Seleziona il tipo di withdrawal: percentuale o importo fisso."
+
+#: classes/dokan_select_products.php:153
+msgid "Percentuale"
+msgstr "Percentuale"
+
+#: classes/dokan_select_products.php:154
+msgid "Importo fisso"
+msgstr "Importo fisso"
+
+#: classes/dokan_select_products.php:162
+msgid "Withdraw Rate (%)"
+msgstr "Withdraw Rate (%)"
+
+#: classes/dokan_select_products.php:164
+msgid "Inserisci la percentuale di withdrawal per questo prodotto."
+msgstr "Inserisci la percentuale di withdrawal per questo prodotto."
+
+#: classes/dokan_select_products.php:178
+msgid "Withdraw Amount (Fixed)"
+msgstr "Withdraw Amount (Fixed)"
+
+#: classes/dokan_select_products.php:180
+msgid "Inserisci l'importo fisso di withdrawal per questo prodotto."
+msgstr "Inserisci l'importo fisso di withdrawal per questo prodotto."
+
+#: includes/AddPDefault/add-p-default-widget.php:17
+msgid "Aggiungi Pensierini Predefiniti"
+msgstr "Aggiungi Pensierini Predefiniti"
+
+#: includes/AddPDefault/add-p-default-widget.php:36
+#: includes/AddPDefault/add-p-default-widget.php:44
+#: includes/WidgetBuyElementor/widget_buy.php:49
+msgid "Content"
+msgstr "Contenuto"
+
+#: includes/AddPDefault/add-p-default-widget.php:46
+msgid "Default content"
+msgstr "Contenuto predefinito"
+
+#: includes/AddPDefault/add-p-default-widget.php:56
+#: includes/WidgetBuyElementor/widget_buy.php:149
+#: includes/WidgetBuyElementor/widget_buy.php:334
+msgid "Button"
+msgstr "Bottone"
+
+#: includes/AddPDefault/add-p-default-widget.php:64
+#: includes/WidgetBuyElementor/widget_buy.php:157
+msgid "Button Text"
+msgstr "Testo Bottone"
+
+#: includes/AddPDefault/add-p-default-widget.php:66
+msgid "Seleziona"
+msgstr "Seleziona"
+
+#: includes/AddPDefault/add-p-default-widget.php:74
+msgid "Button Margin"
+msgstr "Margine Bottone"
+
+#: includes/AddPDefault/add-p-default-widget.php:90
+msgid "Text Style"
+msgstr "Stile Testo"
+
+#: includes/AddPDefault/add-p-default-widget.php:98
+#: includes/WidgetBuyElementor/widget_buy.php:309
+msgid "Text Color"
+msgstr "Colore Testo"
+
+#: includes/AddPDefault/add-p-default-widget.php:110
+#: includes/AddPDefault/add-p-default-widget.php:152
+#: includes/WidgetBuyElementor/widget_buy.php:420
+msgid "Typography"
+msgstr "Tipografia"
+
+#: includes/AddPDefault/add-p-default-widget.php:121
+msgid "Button Style"
+msgstr "Stile Bottone"
+
+#: includes/AddPDefault/add-p-default-widget.php:129
+#: includes/WidgetBuyElementor/widget_buy.php:342
+msgid "Button Color"
+msgstr "Color eBottone"
+
+#: includes/AddPDefault/add-p-default-widget.php:140
+msgid "Button Background Color"
+msgstr "Colore di sfondo Bottone"
+
+#: includes/AddPDefault/add-p-default-widget.php:164
+msgid "Main Div Style"
+msgstr "Stile del contenitore principale"
+
+#: includes/AddPDefault/add-p-default-widget.php:172
+msgid "Main Div Background Color"
+msgstr "Colore del contenitore principale"
+
+#: includes/AddPDefault/add-p-default-widget.php:185
+#: includes/WidgetBuyElementor/widget_buy.php:368
+msgid "Border"
+msgstr "Bordo"
+
+#: includes/AddPDefault/add-p-default-widget.php:193
+#: includes/WidgetBuyElementor/widget_buy.php:377
+msgid "Border Radius"
+msgstr "Raggio del bordo"
+
+#: includes/AddPDefault/add-p-default-widget.php:209
+msgid "Box Shadow"
+msgstr "Box Shadow"
+
+#: includes/AddPDefault/add-p-default-widget.php:224
+msgid "Padding"
+msgstr "Padding"
+
+#: includes/WidgetBuyElementor/widget_buy.php:29
+msgid "Annunci Widget"
+msgstr "Annunci Widget"
+
+#: includes/WidgetBuyElementor/widget_buy.php:57
+#: includes/WidgetBuyElementor/widget_buy.php:200
+msgid "Icon"
+msgstr "Icona"
+
+#: includes/WidgetBuyElementor/widget_buy.php:70
+msgid "Icon Width"
+msgstr "Larghezza Icona"
+
+#: includes/WidgetBuyElementor/widget_buy.php:104
+msgid "Icon Margin"
+msgstr "Margine Icona"
+
+#: includes/WidgetBuyElementor/widget_buy.php:125
+#: includes/WidgetBuyElementor/widget_buy.php:301
+msgid "Text"
+msgstr "Testo"
+
+#: includes/WidgetBuyElementor/widget_buy.php:127
+#: includes/WidgetBuyElementor/widget_buy.php:266
+msgid "Default text"
+msgstr "Testo Default"
+
+#: includes/WidgetBuyElementor/widget_buy.php:128
+#: includes/WidgetBuyElementor/widget_buy.php:267
+msgid "Type your text here"
+msgstr "Scrivi il tuo testo qui"
+
+#: includes/WidgetBuyElementor/widget_buy.php:135
+msgid "Tooltip"
+msgstr "Tooltip"
+
+#: includes/WidgetBuyElementor/widget_buy.php:137
+msgid "Default tooltip text"
+msgstr "Testo predefinito tooltip"
+
+#: includes/WidgetBuyElementor/widget_buy.php:138
+msgid "Type your tooltip text here"
+msgstr "Scrivi il testo del tooltip qui"
+
+#: includes/WidgetBuyElementor/widget_buy.php:159
+msgid "Click Me"
+msgstr "Clicca"
+
+#: includes/WidgetBuyElementor/widget_buy.php:160
+msgid "Type your button text here"
+msgstr "Scrivi il testo del bottone qui"
+
+#: includes/WidgetBuyElementor/widget_buy.php:167
+msgid "Button Link"
+msgstr "Link Bottone"
+
+#: includes/WidgetBuyElementor/widget_buy.php:179
+msgid "Product"
+msgstr "Prodotto"
+
+#: includes/WidgetBuyElementor/widget_buy.php:187
+msgid "Correlated Product"
+msgstr "Prodotto Correlato"
+
+#: includes/WidgetBuyElementor/widget_buy.php:190
+msgid "Select Product"
+msgstr "Seleziona Prodotto"
+
+#: includes/WidgetBuyElementor/widget_buy.php:209
+msgid "SVG Icon Color"
+msgstr "SVG Icon Color"
+
+#: includes/WidgetBuyElementor/widget_buy.php:226
+msgid "Time to Disable"
+msgstr "Tempo per disabilitare"
+
+#: includes/WidgetBuyElementor/widget_buy.php:235
+msgid "Post pubblicato il: "
+msgstr "Post pubblicato il: "
+
+#: includes/WidgetBuyElementor/widget_buy.php:245
+msgid "Disable after"
+msgstr "Disabilita dopo"
+
+#: includes/WidgetBuyElementor/widget_buy.php:264
+msgid "Button Disable Text"
+msgstr "Testo bottone disabilitato"
+
+#: includes/WidgetBuyElementor/widget_buy.php:274
+msgid "Button Disable Color"
+msgstr "Colore bottone disabilitato"
+
+#: includes/WidgetBuyElementor/widget_buy.php:286
+msgid "Button Disable Background Color"
+msgstr "Colore sfondo bottone disabilitato"
+
+#: includes/WidgetBuyElementor/widget_buy.php:322
+msgid "Text Typography"
+msgstr "Tipografia testo"
+
+#: includes/WidgetBuyElementor/widget_buy.php:354
+msgid "Button Text Color"
+msgstr "Colore testo bottone"
+
+#: includes/WidgetBuyElementor/widget_buy.php:390
+msgid "Button Typography"
+msgstr "Tipografia bottone"
+
+#: includes/WidgetBuyElementor/widget_buy.php:400
+msgid "Custom Widget Price Style"
+msgstr "Stile Prezzo Widget Personalizzato"
+
+#: includes/WidgetBuyElementor/widget_buy.php:408
+msgid "Color"
+msgstr "Colore"
+
+#: includes/WidgetBuyElementor/widget_buy.php:428
+msgid "Price Text Color"
+msgstr "Colore testo prezzo"
+
+#: includes/WidgetBuyElementor/widget_buy.php:440
+msgid "Price Text Typography"
+msgstr "Tipografia testo prezzo"
+
+#: templates/crea-anniversario.php:41 templates/crea-anniversario.php:68
+msgid " Anniversario per: "
+msgstr " Anniversario per: "
+
+#: templates/crea-anniversario.php:137 templates/crea-annuncio.php:115
+#: templates/crea-manifesto.php:144 templates/trigesimo-add.php:149
+msgid "Devi essere loggato per compilare questo form."
+msgstr "Devi essere loggato per compilare questo form."
+
+#: templates/crea-annuncio.php:35 templates/crea-annuncio.php:61
+msgid "Crea Nuovo Annuncio di Morte"
+msgstr "Crea Nuovo Annuncio di Morte"
+
+#: templates/crea-manifesto.php:41 templates/crea-manifesto.php:68
+msgid " Manifesto per: "
+msgstr " Manifesto per: "
+
+#: templates/customize.php:58
+msgid "Personalizza Manifesto"
+msgstr "Personalizza Manifesto"
+
+#: templates/customize.php:97
+msgid "Immagine del Manifesto"
+msgstr "Immagine del Manifesto"
+
+#: templates/customize.php:108
+msgid "Modifica allineamento testo"
+msgstr "Modifica allineamento testo"
+
+#: templates/customize.php:132
+msgid "Modifica margini"
+msgstr "Modifica margini"
+
+#: templates/global/seller-registration-form.php:13
+msgid "First Name"
+msgstr "Nome"
+
+#: templates/global/seller-registration-form.php:18
+msgid "Last Name"
+msgstr "Cognome"
+
+#: templates/global/seller-registration-form.php:24
+msgid "Shop Name"
+msgstr "Nome agenzia/negozio"
+
+#: templates/global/seller-registration-form.php:29
+msgid "Shop URL"
+msgstr "URL Agenzia/Negozio"
+
+#: templates/global/seller-registration-form.php:51
+msgid "Phone Number"
+msgstr "Numero di telefono"
+
+#: templates/global/seller-registration-form.php:57
+msgid "Visura camerale"
+msgstr "Visura camerale"
+
+#. translators: %1$s: opening anchor tag with link, %2$s: an ampersand %3$s: closing anchor tag
+#: templates/global/seller-registration-form.php:74
+#, php-format
+msgid "I have read and agree to the %1$sTerms %2$s Conditions%3$s."
+msgstr "Ho letto e accetto i %1$sTermini %2$s e Condizioni%3$s."
+
+#: templates/global/seller-registration-form.php:94
+msgid "I am a customer"
+msgstr "Sono un cliente"
+
+#: templates/global/seller-registration-form.php:99
+msgid "I am a vendor"
+msgstr "Sono un agenzia/negozio"
+
+#: templates/lista-anniversari.php:80 templates/lista-anniversari.php:106
+msgid "Lista Anniversari: "
+msgstr "Lista Anniversari: "
+
+#: templates/lista-anniversari.php:127
+msgid "Aggiungi Anniversario"
+msgstr "Aggiungi Anniversario"
+
+#: templates/lista-anniversari.php:138
+msgid "Anniversario"
+msgstr "Anniversario"
+
+#: templates/lista-anniversari.php:139 templates/lista-annunci.php:107
+#: templates/lista-manifesti.php:137
+msgid "Titolo"
+msgstr "Titolo"
+
+#: templates/lista-anniversari.php:140 templates/lista-annunci.php:108
+#: templates/lista-manifesti.php:138
+msgid "Data publicazione"
+msgstr "Data publicazione"
+
+#: templates/lista-anniversari.php:141 templates/lista-annunci.php:109
+#: templates/lista-manifesti.php:139
+msgid "Città"
+msgstr "Città"
+
+#: templates/lista-anniversari.php:142 templates/lista-annunci.php:110
+#: templates/lista-manifesti.php:140
+msgid "Azioni"
+msgstr "Azioni"
+
+#: templates/lista-anniversari.php:158 templates/lista-annunci.php:128
+#: templates/lista-manifesti.php:155
+msgid "Modifica"
+msgstr "Modifica"
+
+#: templates/lista-anniversari.php:166 templates/lista-annunci.php:145
+#: templates/lista-manifesti.php:163
+msgid "Nessun post trovato."
+msgstr "Nessun post trovato."
+
+#: templates/lista-annunci.php:49 templates/lista-annunci.php:75
+msgid "Lista Annunci di Morte"
+msgstr "Lista Annunci di Morte"
+
+#: templates/lista-annunci.php:96
+msgid "Aggiungi Annuncio"
+msgstr "Aggiungi Annuncio"
+
+#: templates/lista-annunci.php:111
+msgid "Manifesti"
+msgstr "Manifesti"
+
+#: templates/lista-annunci.php:112
+msgid "Trigesimo"
+msgstr "Trigesimo"
+
+#: templates/lista-annunci.php:113
+msgid "Anniversari"
+msgstr "Anniversari"
+
+#: templates/lista-annunci.php:131 templates/lista-annunci.php:137
+msgid "Visualizza lista"
+msgstr "Visualizza lista"
+
+#: templates/lista-annunci.php:134
+msgid "Aggingi/Modifica"
+msgstr "Aggingi/Modifica"
+
+#: templates/lista-manifesti.php:61 templates/lista-manifesti.php:87
+msgid "Lista Manifesti: "
+msgstr "Lista Manifesti: "
+
+#: templates/lista-manifesti.php:108
+msgid "Aggiungi Manifesto"
+msgstr "Aggiungi Manifesto"
+
+#: templates/seleziona-prodotti.php:39 templates/seleziona-prodotti.php:65
+msgid "Aggiungi i servizi offerti"
+msgstr "Aggiungi i servizi offerti"
+
+#: templates/seleziona-prodotti.php:68
+msgid "Scegli quali servizi aggiungere dalla lista sottostante"
+msgstr "Scegli quali servizi aggiungere dalla lista sottostante"
+
+#: templates/seleziona-prodotti.php:134
+msgid " (Pending)"
+msgstr " (In attesa)"
+
+#: templates/seleziona-prodotti.php:137
+msgid " (Already Added)"
+msgstr " (Aggiunto)"
+
+#: templates/seleziona-prodotti.php:154
+msgid "Descrizione del servizio:"
+msgstr "Descrizione del servizio:"
+
+#: templates/seleziona-prodotti.php:163
+msgid "Aggiungi alla lista dei servizi"
+msgstr "Aggiungi alla lista dei servizi"
+
+#: templates/seleziona-prodotti.php:186
+msgid "Prezzo del servizio:"
+msgstr "Prezzo del servizio:"
+
+#: templates/seleziona-prodotti.php:194
+msgid "Add Products"
+msgstr "Aggiungi prodotto"
+
+#: templates/trigesimo-add.php:61 templates/trigesimo-add.php:87
+msgid " Triggesiomo per: "
+msgstr " Triggesiomo per: "
+
+#. Plugin Name of the plugin/theme
+msgid "Selezione Prodotti Predefiniti per Dokan"
+msgstr "Selezione Prodotti Predefiniti per Dokan"
+
+#. Description of the plugin/theme
+msgid ""
+"Aggiunge una funzionalità per permettere ai vendor di selezionare prodotti "
+"predefiniti."
+msgstr ""
+"Aggiunge una funzionalità per permettere ai vendor di selezionare prodotti "
+"predefiniti."
+
+#. Author of the plugin/theme
+msgid "Marco Abbattista"
+msgstr "Marco Abbattista"

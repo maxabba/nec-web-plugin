@@ -17,8 +17,8 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
                 $myaccount_page_id = get_option('woocommerce_myaccount_page_id');
                 if ($myaccount_page_id) {
                     $myaccount_url = get_permalink($myaccount_page_id);
-                    $message = __('Non hai i permessi per visualizzare questa pagina. ', 'dokan');
-                    $message .= '<a href="' . esc_url($myaccount_url) . '">' . __('Login', 'dokan') . '</a>';
+                    $message = __('Non hai i permessi per visualizzare questa pagina. ', 'dokan-mod');
+                    $message .= '<a href="' . esc_url($myaccount_url) . '">' . __('Login', 'dokan-mod') . '</a>';
                     echo $message;
                     exit;
                 } else {
