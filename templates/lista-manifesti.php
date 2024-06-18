@@ -30,14 +30,14 @@ if (get_query_var('paged')) {
 
 
 $args = array(
-    'post_type' => 'anniversario',
+    'post_type' => 'manifesto',
     'post_status' => 'publish, pending, draft, future, private',
     'posts_per_page' => 10, // Change this to the number of posts you want per page
     'paged' => $paged,
     's' => get_query_var('s'),
     'meta_query' => array(
         array(
-            'key' => 'annuncio_di_morte',
+            'key' => 'annuncio_di_morte_relativo',
             'value' => $post_id_annuncio,
             'compare' => '='
         )
@@ -107,6 +107,24 @@ $active_menu = '';
                             <a href="<?php echo esc_url(home_url('/dashboard/crea-manifesto')); ?>" class="custom-widget-button" style="margin-bottom: 15px">
                                 <i class="fas fa-plus"></i> <?php _e('Aggiungi Manifesto', 'your-text-domain'); ?>
                             </a>
+
+                            <div style="display: flex; flex-direction: column; width: 300px; margin-bottom: 15px">
+                                <label for="page-format" style="margin-bottom: 5px;">Seleziona formato pagina:</label>
+                                <div style="display: flex; align-items: center;">
+                                    <select id="page-format" style="flex: 1; margin-right: 10px;">
+                                        <option value="A3">A3</option>
+                                        <option value="A4">A4</option>
+                                        <option value="A5">A5</option>
+                                    </select>
+                                    <button id="start-button">Stampa tutti i manifesti</button>
+                                </div>
+                            </div>
+                            <div id="hidden-container" data-postid="<?php echo $post_id_annuncio; ?>"></div>
+                            <div id="progress-bar-container" style="display: none; width: 100%; margin-top: 10px;">
+                                <div id="progress-bar" style="width: 0; height: 20px; background: green;"></div>
+                            </div>
+
+
                             <form method="get" action="<?php echo esc_url(home_url('/dashboard/anniversari')); ?>"
                                   style="display: flex;">
                                 <input type="text" name="s" value="<?php echo get_query_var('s'); ?>"

@@ -1,0 +1,99 @@
+/* Blocco dello scroll */
+.no-scroll {
+    overflow: hidden;
+}
+
+@media print {
+    @page {
+        margin: 0;
+    }
+
+    body {
+        margin: 0;
+    }
+
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .page-a3 {
+        width: 297mm;
+        height: 420mm;
+    }
+
+    .page-a4 {
+        width: 210mm;
+        height: 297mm;
+    }
+
+    .page-a5 {
+        width: 148mm;
+        height: 210mm;
+    }
+
+    .custom-text-editor {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background: transparent;
+        color: #000;
+        resize: none;
+        box-sizing: border-box;
+        outline: none;
+        overflow: visible;
+        font-size: 4.1rem; /* Dimensione del font reattiva */
+        font-family: "PlayFair Display Mine", serif;
+        font-weight: 400;
+    }
+}
+/* Formati di pagina */
+.page-a3 {
+    width: 297mm;
+    height: 420mm;
+}
+
+.page-a4 {
+    width: 210mm;
+    height: 297mm;
+}
+
+.page-a5 {
+    width: 148mm;
+    height: 210mm;
+}
+
+/* Barra di progresso */
+#progress-bar-container {
+    width: 100%;
+    background: #ccc;
+}
+
+#progress-bar {
+    width: 0;
+    height: 20px;
+    background: green;
+}
+
+/* Stile per gli elementi di testo */
+.text-editor-background {
+    background-size: contain;
+    background-position: center;
+    margin: auto;
+    overflow: hidden;
+}
+
+.custom-text-editor {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+    color: #000;
+    resize: none;
+    box-sizing: border-box;
+    outline: none;
+    overflow: visible;
+    font-size: 4.1rem; /* Dimensione del font reattiva */
+    font-family: "PlayFair Display Mine", serif;
+    font-weight: 400;
+}

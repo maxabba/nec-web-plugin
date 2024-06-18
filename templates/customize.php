@@ -5,12 +5,13 @@
 
 (new \Dokan_Mods\Templates_MiscClass())->check_dokan_can_and_message_login();
 $user_id = get_current_user_id();
-$manifesto_background = get_user_meta($user_id, 'manifesto_background', true);//check if vendor status is enabled
-$top = get_user_meta($user_id, 'manifesto_margin_top', true) ?:5;
-$right = get_user_meta($user_id, 'manifesto_margin_right', true) ?: 5;
-$bottom = get_user_meta($user_id, 'manifesto_margin_bottom', true) ?: 5;
-$left = get_user_meta($user_id, 'manifesto_margin_left', true) ?: 5;
-$alignment = get_user_meta($user_id, 'manifesto_alignment', true) ?: 'center';
+$manifesto_background = get_user_meta($user_id, 'manifesto_background', true) !== '' ? get_user_meta($user_id, 'manifesto_background', true) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/img/default.jpg';
+$manifesto_orientation = get_user_meta($user_id, 'manifesto_orientation', true) !== '' ? get_user_meta($user_id, 'manifesto_orientation', true) : 'vertical';
+$margin_top = get_user_meta($user_id, 'manifesto_margin_top', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_top', true) : '3.9188837174992';
+$margin_right = get_user_meta($user_id, 'manifesto_margin_right', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_right', true) : '5.8620083240518';
+$margin_bottom = get_user_meta($user_id, 'manifesto_margin_bottom', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_bottom', true) : '3.9188837174992';
+$margin_left = get_user_meta($user_id, 'manifesto_margin_left', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_left', true) : '5.8620083240518';
+$alignment = get_user_meta($user_id, 'manifesto_alignment', true) !== '' ? get_user_meta($user_id, 'manifesto_alignment', true) : 'center';
 $disable_form = false;
 if (dokan_is_user_seller($user_id) && !dokan_is_seller_enabled($user_id)) {
     $disable_form = true;
@@ -66,7 +67,7 @@ $active_menu = 'settings/customize';
                             } else if ($operation_result == 'error') {
                                 echo '<div class="alert alert-danger">Si è verificato un errore durante l\'operazione.</div>';
                             }
-                        }else{
+                        } else {
                             echo '<div class="alert-tmp hide"></div>';
                         }
                         ?>
@@ -80,10 +81,14 @@ $active_menu = 'settings/customize';
                             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                                 <input type="hidden" name="action" value="customize_poster">
                                 <input type="hidden" name="user_id" value="<?php echo $user_id; ?>">
-                                <input type="hidden" id="margin_top_percent" name="margin_top_percent" value="<?php echo $top; ?>">
-                                <input type="hidden" id="margin_right_percent" name="margin_right_percent" value="<?php echo $right; ?>">
-                                <input type="hidden" id="margin_bottom_percent" name="margin_bottom_percent" value="<?php echo $bottom; ?>">
-                                <input type="hidden" id="margin_left_percent" name="margin_left_percent" value="<?php echo $left; ?>">
+                                <input type="hidden" id="margin_top_percent" name="margin_top_percent"
+                                       value="<?php echo $margin_top; ?>">
+                                <input type="hidden" id="margin_bottom_percent" name="margin_bottom_percent"
+                                       value="<?php echo $margin_bottom; ?>">
+                                <input type="hidden" id="margin_right_percent" name="margin_right_percent"
+                                       value="<?php echo $margin_right; ?>">
+                                <input type="hidden" id="margin_left_percent" name="margin_left_percent"
+                                       value="<?php echo $margin_left; ?>">
 
 
                                 <!-- add a wp.media input for select the image and limit to the user upload -->
@@ -110,9 +115,15 @@ $active_menu = 'settings/customize';
                                     <label class="dokan-w3 dokan-control-label" for="alignment">Allineamento</label>
                                     <div class="dokan-w5">
                                         <select name="manifesto_alignment" id="alignment">
-                                            <option value="left" <?php echo $alignment == 'left' ? 'selected' : ''; ?>>Sinistra</option>
-                                            <option value="center" <?php echo $alignment == 'center' ? 'selected' : ''; ?>>Centro</option>
-                                            <option value="right" <?php echo $alignment == 'right' ? 'selected' : ''; ?>>Destra</option>
+                                            <option value="left" <?php echo $alignment == 'left' ? 'selected' : ''; ?>>
+                                                Sinistra
+                                            </option>
+                                            <option value="center" <?php echo $alignment == 'center' ? 'selected' : ''; ?>>
+                                                Centro
+                                            </option>
+                                            <option value="right" <?php echo $alignment == 'right' ? 'selected' : ''; ?>>
+                                                Destra
+                                            </option>
                                         </select>
                                     </div>
                                 </div>
@@ -161,12 +172,13 @@ $active_menu = 'settings/customize';
                                 <div class="dokan-form-group dokan-clearfix">
                                     <div class="dokan-w5">
                                         <div id="image_container"
-                                             style="background-image: url('<?php echo $manifesto_background; ?>'); background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; width: 80%; max-width: 100%; margin: 0 auto;">
+                                             style="background-image: url('<?php echo $manifesto_background; ?>');
+                                                     background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; width: 80%; max-width: 100%; margin: 0 auto;">
                                             <div id="inner_container" contenteditable="true"
                                                  style="border: 2px solid #000; background-color: rgba(255, 255, 255, 0.5); position: absolute;">
-                                                <p class="inner-text" >Testo di
+                                                <p class="inner-text">Testo di
                                                     esempio</p>
-                                                <p class="inner-text" >
+                                                <p class="inner-text">
                                                     Lorem ipsum dolor sit amet, consectetur adipiscing elit. In eu dui
                                                     odio. Aenean tempor elementum fringilla. Praesent finibus
                                                     condimentum dictum. Aenean a augue erat. Integer urna nulla, mattis
@@ -174,7 +186,7 @@ $active_menu = 'settings/customize';
                                                     maximus mauris, ac ultricies lacus ullamcorper a. Pellentesque ut
                                                     odio metus. Fusce malesuada egestas luctus.
                                                 </p>
-                                                <p class="inner-text" >Testo di
+                                                <p class="inner-text">Testo di
                                                     esempio</p>
                                             </div>
                                         </div>
@@ -271,10 +283,10 @@ $active_menu = 'settings/customize';
 
         #inner_container {
             position: absolute;
-            top: <?php echo $top; ?>px;
-            right: <?php echo $right; ?>px;
-            bottom: <?php echo $bottom; ?>px;
-            left: <?php echo $left; ?>px;
+            top: <?php echo $margin_top; ?>px;
+            right: <?php echo $margin_right; ?>px;
+            bottom: <?php echo $margin_bottom; ?>px;
+            left: <?php echo $margin_left; ?>px;
         }
 
     </style>

@@ -29,6 +29,9 @@ define('DOKAN_SELECT_PRODUCTS_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('DOKAN_SELECT_PRODUCTS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('DOKAN_MOD_MAIN_FILE', __FILE__);
 
+require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'vendor/autoload.php';
+
+
 // Includi e istanzia DbClass solo se non esiste già
 if (!class_exists(__NAMESPACE__ . '\DbClass')) {
     require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/DbClass.php';
@@ -80,6 +83,7 @@ dokan_mods_load_and_instantiate_class('RingraziamentoFrontendClass', 'classes/Ri
 dokan_mods_load_and_instantiate_class('VendorFrontendClass', 'classes/VendorFrontendClass.php');
 
 dokan_mods_load_and_instantiate_class('SearchFrontendClass', 'classes/SearchFrontendClass.php');
+dokan_mods_load_and_instantiate_class('PrintManifestoClass', 'classes/PrintManifestoClass.php');
 
 
 dokan_mods_load_and_instantiate_class('ElementorWidgetInit', 'includes/ElementorWidgetInit.php');

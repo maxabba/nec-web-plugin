@@ -257,16 +257,16 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                 $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
 
                 // Sanitize the manifesto_background
-                $manifesto_background = isset($_POST['manifesto_background']) ? sanitize_text_field($_POST['manifesto_background']) : '';
+                $manifesto_background = isset($_POST['manifesto_background']) ? sanitize_text_field($_POST['manifesto_background']) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/img/default.jpg';
 
                 // Sanitize the manifesto_orientation
-                $manifesto_orientation = isset($_POST['manifesto_orientation']) ? sanitize_text_field($_POST['manifesto_orientation']) : '';
+                $manifesto_orientation = isset($_POST['manifesto_orientation']) ? sanitize_text_field($_POST['manifesto_orientation']) : 'vertical';
 
                 // Recupera i margini in percentuale dal form
-                $top_percent = isset($_POST['margin_top_percent']) ? floatval($_POST['margin_top_percent']) : 5;
-                $right_percent = isset($_POST['margin_right_percent']) ? floatval($_POST['margin_right_percent']) : 5;
-                $bottom_percent = isset($_POST['margin_bottom_percent']) ? floatval($_POST['margin_bottom_percent']) : 5;
-                $left_percent = isset($_POST['margin_left_percent']) ? floatval($_POST['margin_left_percent']) : 5;
+                $top_percent = isset($_POST['margin_top_percent']) ? floatval($_POST['margin_top_percent']) : '3.9188837174992';
+                $right_percent = isset($_POST['margin_right_percent']) ? floatval($_POST['margin_right_percent']) : '5.8620083240518';
+                $bottom_percent = isset($_POST['margin_bottom_percent']) ? floatval($_POST['margin_bottom_percent']) : '3.9188837174992';
+                $left_percent = isset($_POST['margin_left_percent']) ? floatval($_POST['margin_left_percent']) : '5.8620083240518';
 
                 // Sanitize the alignment
                 $alignment = isset($_POST['manifesto_alignment']) ? sanitize_text_field($_POST['manifesto_alignment']) : 'center';

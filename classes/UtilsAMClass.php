@@ -1,11 +1,11 @@
 <?php
-
 namespace Dokan_Mods;
 use WP_Query;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
+
 if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
 
     class UtilsAMClass
@@ -208,5 +208,28 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
 
             return false;
         }
+
+        public function get_vendor_data_by_id($user_id)
+        {
+            $manifesto_background = get_user_meta($user_id, 'manifesto_background', true) !== '' ? get_user_meta($user_id, 'manifesto_background', true) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/img/default.jpg';
+            $manifesto_orientation = get_user_meta($user_id, 'manifesto_orientation', true) !== '' ? get_user_meta($user_id, 'manifesto_orientation', true) : 'vertical';
+            $margin_top = get_user_meta($user_id, 'manifesto_margin_top', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_top', true) : '3.9188837174992';
+            $margin_right = get_user_meta($user_id, 'manifesto_margin_right', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_right', true) : '5.8620083240518';
+            $margin_bottom = get_user_meta($user_id, 'manifesto_margin_bottom', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_bottom', true) : '3.9188837174992';
+            $margin_left = get_user_meta($user_id, 'manifesto_margin_left', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_left', true) : '5.8620083240518';
+            $alignment = get_user_meta($user_id, 'manifesto_alignment', true) !== '' ? get_user_meta($user_id, 'manifesto_alignment', true) : 'center';
+
+            return [
+                'manifesto_background' => $manifesto_background,
+                'manifesto_orientation' => $manifesto_orientation,
+                'margin_top' => $margin_top,
+                'margin_right' => $margin_right,
+                'margin_bottom' => $margin_bottom,
+                'margin_left' => $margin_left,
+                'alignment' => $alignment,
+            ];
+
+        }
+
     }
 }

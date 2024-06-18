@@ -285,47 +285,11 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 wp_send_json_error('Invalid Product ID');
             }
 
-            $manifesto_background = get_user_meta($user_id, 'manifesto_background', true);
-            $manifesto_orientation = get_user_meta($user_id, 'manifesto_orientation', true);
-            $margin_top = get_user_meta($user_id, 'manifesto_margin_top', true);
-            $margin_right = get_user_meta($user_id, 'manifesto_margin_right', true);
-            $margin_bottom = get_user_meta($user_id, 'manifesto_margin_bottom', true);
-            $margin_left = get_user_meta($user_id, 'manifesto_margin_left', true);
-            $alignment = get_user_meta($user_id, 'manifesto_alignment', true);
+            $manifesto_array_data = (new UtilsAMClass())->get_vendor_data_by_id($user_id);
 
-            wp_send_json_success([
-                'manifesto_background' => $manifesto_background,
-                'manifesto_orientation' => $manifesto_orientation,
-                'margin_top' => $margin_top,
-                'margin_right' => $margin_right,
-                'margin_bottom' => $margin_bottom,
-                'margin_left' => $margin_left,
-                'alignment' => $alignment,
-            ]);
+            wp_send_json_success($manifesto_array_data);
         }
 
-
-        public function get_vendor_data_by_id($user_id){
-
-            $manifesto_background = get_user_meta($user_id, 'manifesto_background', true);
-            $manifesto_orientation = get_user_meta($user_id, 'manifesto_orientation', true);
-            $margin_top = get_user_meta($user_id, 'manifesto_margin_top', true);
-            $margin_right = get_user_meta($user_id, 'manifesto_margin_right', true);
-            $margin_bottom = get_user_meta($user_id, 'manifesto_margin_bottom', true);
-            $margin_left = get_user_meta($user_id, 'manifesto_margin_left', true);
-            $alignment = get_user_meta($user_id, 'manifesto_alignment', true);
-
-            return [
-                'manifesto_background' => $manifesto_background,
-                'manifesto_orientation' => $manifesto_orientation,
-                'margin_top' => $margin_top,
-                'margin_right' => $margin_right,
-                'margin_bottom' => $margin_bottom,
-                'margin_left' => $margin_left,
-                'alignment' => $alignment,
-            ];
-
-        }
 
 
         public function shortcode_vendor_selector($attr)
@@ -499,7 +463,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                     $vendor_id = get_field('vendor_id');
 
                     // Get vendor data
-                    $vendor_data = $this->get_vendor_data_by_id($vendor_id);
+                    $vendor_data = (new UtilsAMClass())->get_vendor_data_by_id($vendor_id);
 
                     ob_start();
                     ?>
