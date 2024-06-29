@@ -1,4 +1,4 @@
-(function ($) {
+/*(function ($) {
     $(document).ready(function () {
         $('.manifesto-container').each(function () {
             var container = $(this);
@@ -64,10 +64,10 @@
                             offset: offset
                         },
                         success: function (response) {
-                            //console.log("Risposta ricevuta:", response); // Log di debug
+                            console.log("Risposta ricevuta:", response); // Log di debug
 
                             if (!response.success || response.data.length === 0) {
-                                //console.log("Nessun dato da caricare."); // Log di debug
+                                console.log("Nessun dato da caricare."); // Log di debug
                                 allDataLoaded = true;
                                 $loader.hide();
                                 return;
@@ -75,7 +75,6 @@
 
                             response.data.forEach(function (item) {
                                 var newElement = $(item.html);
-                                container.parent().parent().parent().parent().find('.manifesto_divider').show();
                                 container.append(newElement);
                                 updateEditorBackground(item.vendor_data, newElement);
                             });
@@ -92,23 +91,8 @@
                 })();
             }
 
-            // Controllo compatibilità Intersection Observer
-            if ('IntersectionObserver' in window) {
-                // Utilizza Intersection Observer per caricare i manifesti solo quando il container è visibile
-                var observer = new IntersectionObserver(function (entries) {
-                    entries.forEach(function (entry) {
-                        if (entry.isIntersecting) {
-                            loadAllManifesti(container);
-                            observer.unobserve(entry.target); // Interrompe l'osservazione una volta caricato
-                        }
-                    });
-                }, {threshold: 0.1});
-
-                observer.observe(container.get(0)); // Inizia a osservare il container
-            } else {
-                // Fallback per browser non compatibili
-                loadAllManifesti(container);
-            }
+            // Carica tutti i manifesti all'inizio
+            loadAllManifesti(container);
         });
     });
-})(jQuery);
+})(jQuery);*/

@@ -24,11 +24,12 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             //add_action('init', array($this, 'check_and_create_product'));
             add_action('acf/save_post', array($this, 'annuncio_save_post'), 20);
 
+
             add_action('elementor/editor/before_enqueue_scripts', array($this, 'enqueue_bootstrap'));
             add_action('wp_enqueue_scripts', array($this, 'enqueue_bootstrap'));
 
             add_filter('query_vars', array($this, 'query_vars'));
-            add_filter('template_include', array($this, 'custom_dynamic_page_template'));
+            add_filter('template_include', array($this, 'custom_dynamic_page_template'), 99);
 
         }
 
@@ -70,7 +71,6 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
         {
             add_shortcode('product_price', array($this, 'get_product_price'));
             add_shortcode('product_title', array($this, 'get_product_title_shortcode'));
-            add_shortcode('vendor_selector', array($this, 'shortcode_vendor_selector'));
         }
 
 
@@ -142,6 +142,12 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
 
             // Controlla se il post è del tipo 'annuncio-di-morte'
             if (get_post_type($post_id) == 'annuncio-di-morte') {
+                $user_id = get_current_user_id();
+                //check if the user is a vendor
+                if (!dokan_is_user_seller($user_id)) {
+                    add_action('acf/save_post', 'annuncio_save_post', 20);
+                    return;
+                }
                 // Recupera i valori dei campi ACF
                 $nome = get_field('nome', $post_id);
                 $cognome = get_field('cognome', $post_id);
@@ -174,7 +180,18 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                     $post_data['post_date'] = $current_time;
                 }
 
+
+
                 wp_update_post($post_data);
+
+                $store_info = dokan_get_store_info($user_id);
+                $user_city = $store_info['address']['city'] ?? '';
+
+                global $dbClassInstance;
+                $user_provincia = $dbClassInstance->get_provincia_by_comune($user_city);
+
+                update_field('citta', $user_city, $post_id);
+                update_field('provincia', $user_provincia, $post_id);
             }
             add_action('acf/save_post', 'annuncio_save_post', 20);
         }

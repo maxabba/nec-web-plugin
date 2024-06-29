@@ -9,6 +9,13 @@ $template_class->check_dokan_can_and_message_login();
 
 
 $user_id = get_current_user_id();
+$manifesto_background = get_user_meta($user_id, 'manifesto_background', true) !== '' ? get_user_meta($user_id, 'manifesto_background', true) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/img/default.jpg';
+$manifesto_orientation = get_user_meta($user_id, 'manifesto_orientation', true) !== '' ? get_user_meta($user_id, 'manifesto_orientation', true) : 'vertical';
+$margin_top = get_user_meta($user_id, 'manifesto_margin_top', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_top', true) : '3.9188837174992';
+$margin_right = get_user_meta($user_id, 'manifesto_margin_right', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_right', true) : '5.8620083240518';
+$margin_bottom = get_user_meta($user_id, 'manifesto_margin_bottom', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_bottom', true) : '3.9188837174992';
+$margin_left = get_user_meta($user_id, 'manifesto_margin_left', true) !== '' ? get_user_meta($user_id, 'manifesto_margin_left', true) : '5.8620083240518';
+$alignment = get_user_meta($user_id, 'manifesto_alignment', true) !== '' ? get_user_meta($user_id, 'manifesto_alignment', true) : 'center';
 
 $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_annuncio']) : null;
 $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
@@ -65,7 +72,7 @@ $active_menu = 'add-annuncio';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e($add_edit_text . ' Manifesto per: ' . $post_title, 'dokan-mod'); ?> <span
+                            <?php _e($add_edit_text . ' Partecipazione per: ' . $post_title, 'dokan-mod'); ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
@@ -91,59 +98,81 @@ $active_menu = 'add-annuncio';
                             } ?>
                             <?php
                             // Check if the user is logged in
-                            if (is_user_logged_in()) {
-                                // Parameters for the ACF form
+                        if (is_user_logged_in()) {
+                            // Parameters for the ACF form
 
-                                    function set_annuncio_di_morte_field($field)
-                                    {
+                            function set_annuncio_di_morte_field($field)
+                            {
 
-                                        // Check if it's our post type
-                                        if ($field['key'] == 'field_6666bf025040a') {
-                                            $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_annuncio']) : 'new_post';
+                                // Check if it's our post type
+                                if ($field['key'] == 'field_6666bf025040a') {
+                                    $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_annuncio']) : 'new_post';
 
-                                            $field['value'] = $post_id_annuncio;
-                                            $field['readonly'] = true;
-                                            $field['wrapper']['style'] = 'display: none;';
+                                    $field['value'] = $post_id_annuncio;
+                                    $field['readonly'] = true;
+                                    $field['wrapper']['style'] = 'display: none;';
 
-                                        }
-                                        if ($field['key'] == 'field_6666bf6b5040b') {
+                                }
+                                if ($field['key'] == 'field_6666bf6b5040b') {
 
-                                            $user_id = get_current_user_id();
+                                    $user_id = get_current_user_id();
 
-                                            $field['value'] = $user_id;
-                                            $field['readonly'] = true;
-                                            $field['wrapper']['style'] = 'display: none;';
+                                    $field['value'] = $user_id;
+                                    $field['readonly'] = true;
+                                    $field['wrapper']['style'] = 'display: none;';
 
-                                        }
-
-
-                                        return $field;
-                                    }
-
-                                    // Apply to fields named "annuncio_di_morte".
-                                    add_filter('acf/prepare_field/key=field_6666bf025040a', 'set_annuncio_di_morte_field');
-                                    add_filter('acf/prepare_field/key=field_6666bf6b5040b', 'set_annuncio_di_morte_field');
+                                }
 
 
-
-
-                                $form_args = array(
-                                    'post_id' => $post_id,
-                                    'new_post' => array(
-                                        'post_type' => 'manifesto',
-                                        'post_status' => 'publish',
-                                    ),
-                                    'field_groups' => array('group_6666bf01a488b'),
-                                    'submit_value' => __($add_edit_text, 'Dokan-mod'),
-                                    'return' => home_url('/dashboard/lista-manifesti?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success'),
-                                );
-
-                                acf_form($form_args);
-
-                            } else {
-                                echo '<p>' . __('Devi essere loggato per compilare questo form.', 'dokan-mod') . '</p>';
-                                wp_login_form();
+                                return $field;
                             }
+
+                            // Apply to fields named "annuncio_di_morte".
+                            add_filter('acf/prepare_field/key=field_6666bf025040a', 'set_annuncio_di_morte_field');
+                            add_filter('acf/prepare_field/key=field_6666bf6b5040b', 'set_annuncio_di_morte_field');
+
+
+                        function manifesto_Render($field) {
+                            $user_id = get_current_user_id();
+                            $manifesto_background = get_user_meta($user_id, 'manifesto_background', true) !== '' ? get_user_meta($user_id, 'manifesto_background', true) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/img/default.jpg';
+                            $alignment = get_user_meta($user_id, 'manifesto_alignment', true) !== '' ? get_user_meta($user_id, 'manifesto_alignment', true) : 'center';
+                            ob_start();
+                            ?>
+                            <div id="image_container"
+                                 style="background-image: url('<?php echo $manifesto_background; ?>');
+                                         background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; margin: 0 auto;">
+                                <div id="inner_container"
+                                     style="position: absolute; font-size: 14px; text-align: <?php echo $alignment; ?>; ">
+
+                                </div>
+                            </div>
+
+                            <?php
+                            //print the ob content
+                            echo ob_get_clean();
+                        }
+                            add_action('acf/render_field/name=testo_manifesto', 'manifesto_Render');
+
+
+
+
+                            $form_args = array(
+                                'post_id' => $post_id,
+                                'new_post' => array(
+                                    'post_type' => 'manifesto',
+                                    'post_status' => 'publish',
+                                ),
+                                'field_groups' => array('group_6666bf01a488b'),
+                                'submit_value' => __($add_edit_text, 'Dokan-mod'),
+                                'return' => home_url('/dashboard/lista-manifesti?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success'),
+                            );
+
+                            acf_form($form_args);
+
+                        } else {
+                            echo '<p>' . __('Devi essere loggato per compilare questo form.', 'dokan-mod') . '</p>';
+                            wp_login_form();
+                        }
                             ?>
 
                         <?php } else { ?>
@@ -202,9 +231,115 @@ $active_menu = 'add-annuncio';
         .hidden-field {
             display: none;
         }
+
+        #image_container {
+            width: 350px; /* Imposta la larghezza massima al 80% */
+            position: relative;
+            margin: 0 auto; /* Centra l'immagine */
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        #inner_container {
+            position: absolute;
+            top: <?php echo $margin_top; ?>px;
+            right: <?php echo $margin_right; ?>px;
+            bottom: <?php echo $margin_bottom; ?>px;
+            left: <?php echo $margin_left; ?>px;
+        }
     </style>
 
     <script>
+
+
+        jQuery(document).ready(function ($) {
+            const innerContainer = $('#inner_container');
+            const innerTextElements = $('.inner-text');
+            const imageContainer = $('#image_container');
+
+            function initInputMargin() {
+                const containerWidth = imageContainer.width();
+                const containerHeight = imageContainer.height();
+
+                const marginTopPer = <?php echo $margin_top; ?>;
+                const marginRightPer = <?php echo $margin_right; ?>;
+                const marginBottomPer = <?php echo $margin_bottom; ?>;
+                const marginLeftPer = <?php echo $margin_left; ?>;
+
+                const marginTopPx = Math.round((marginTopPer / 100) * containerHeight);
+                const marginRightPx = Math.round((marginRightPer / 100) * containerWidth);
+                const marginBottomPx = Math.round((marginBottomPer / 100) * containerHeight);
+                const marginLeftPx = Math.round((marginLeftPer / 100) * containerWidth);
+
+                innerContainer.css({
+                    top: `${marginTopPx}px`,
+                    right: `${marginRightPx}px`,
+                    bottom: `${marginBottomPx}px`,
+                    left: `${marginLeftPx}px`
+                });
+
+
+            }
+
+
+            function updateAspectRatio() {
+                const img = new Image();
+                img.src = "<?php echo $manifesto_background; ?>";
+                img.onload = function () {
+                    const containerWidth = imageContainer.width();
+                    const aspectRatio = img.height / img.width;
+                    const containerHeight = containerWidth * aspectRatio;
+                    imageContainer.css('height', `${containerHeight}px`);
+
+                    // Call initInputMargin after setting the height
+                    initInputMargin();
+                }
+            }
+
+            function updateAlignment() {
+                const alignment = "<?php echo $alignment; ?>";
+                innerTextElements.css('text-align', alignment);
+            }
+
+            updateAspectRatio();
+            updateAlignment();
+
+            //find the id of the div with class mce-tinymce
+
+
+            function addChangeListenerToTinyMCE() {
+                // Verifica se tinymce è definito
+                if (typeof tinymce !== 'undefined') {
+                    // Itera su tutti gli editor TinyMCE
+                    tinymce.editors.forEach(function (editor) {
+                        if (!editor.hasChangeListener) { // Evita di aggiungere più volte lo stesso listener
+                            // Aggiungi un listener per l'evento 'change'
+                            editor.on('change', function (e) {
+                                // Ottieni il contenuto dell'editor
+                                var content = editor.getContent();
+                                innerContainer.html(content);
+                                // Puoi fare altre azioni qui, come inviare il contenuto tramite AJAX
+                            });
+                            editor.hasChangeListener = true; // Segna che il listener è stato aggiunto
+                        }
+                    });
+                }
+            }
+
+            // Aggiungi i listener quando la pagina è pronta
+            addChangeListenerToTinyMCE();
+
+            // ACF può aggiungere campi dinamicamente, quindi intercetta l'evento 'acf/setup_fields'
+            $(document).on('acf/setup_fields', function (e, postbox) {
+                addChangeListenerToTinyMCE();
+            });
+
+            // Inoltre, verifica periodicamente se ci sono nuovi editor TinyMCE inizializzati
+            setInterval(addChangeListenerToTinyMCE, 1000); // Ogni secondo
+
+        });
+
         window.onload = function () {
             var alerts = document.querySelectorAll('.alert');
             setTimeout(function () {

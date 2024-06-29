@@ -55,7 +55,7 @@ $active_menu = 'settings/customize';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e('Personalizza Manifesto', 'dokan-mod'); ?> <span
+                            <?php _e('Personalizza Partecipazione', 'dokan-mod'); ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
@@ -93,8 +93,24 @@ $active_menu = 'settings/customize';
 
                                 <!-- add a wp.media input for select the image and limit to the user upload -->
                                 <div class="dokan-form-group dokan-clearfix">
+                                    <h4>Requisiti per il Caricamento delle Immagini</h4>
+                                    <p>Per favore, assicurati che l'immagine da caricare rispetti i seguenti
+                                        requisiti:</p>
+                                    <h5>Formato A3:</h5>
+                                    <ul>
+                                        <li><strong>Dimensioni in pixel:</strong>
+                                            <ul>
+                                                <li><strong>Orizzontale (Landscape):</strong> 1075 x 1522 pixel</li>
+                                                <li><strong>Verticale (Portrait):</strong> 1522 x 1075 pixel</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                    <p>Non importa l'orientamento, sia orizzontale che verticale sono accettati, a patto
+                                        che rispettino le dimensioni sopra indicate.</p>
+                                    <br>
+                                    <br>
                                     <label class="dokan-w3 dokan-control-label"
-                                           for="poster_image"><?php _e('Immagine del Manifesto', 'dokan-mod'); ?></label>
+                                           for="poster_image"><?php _e('Immagine del Partecipazione', 'dokan-mod'); ?></label>
                                     <div class="dokan-w5">
                                         <input type="button" class="button" value="Seleziona Immagine"
                                                id="upload_image_button">
@@ -107,9 +123,9 @@ $active_menu = 'settings/customize';
                                 <h3 class="entry-title">
                                     <?php _e('Modifica allineamento testo', 'dokan-mod'); ?>
                                 </h3>
-                                <span style="font-size:14px; margin-bottom:25px">
-                                        Modifica l'allineamento del testo all'interno del manifesto.
-                                            </span>
+                                <p style="font-size:14px; margin-bottom:25px">
+                                        Modifica l'allineamento del testo all'interno della partecipazione.
+                                            </p>
 
                                 <div class="dokan-form-group dokan-clearfix">
                                     <label class="dokan-w3 dokan-control-label" for="alignment">Allineamento</label>
@@ -131,9 +147,9 @@ $active_menu = 'settings/customize';
                                 <h3 class="entry-title">
                                     <?php _e('Modifica margini', 'dokan-mod'); ?>
                                 </h3>
-                                <span style="font-size:14px; margin-bottom:25px">
-                                        Modifica i margini di scrittura del manifesto. Tali margini sono espressi in pixel.
-                                            </span>
+                                <p style="font-size:14px; margin-bottom:25px">
+                                        Modifica i margini di scrittura della partecipazione. Tali margini sono espressi in pixel.
+                                            </p>
 
                                 <div class="dokan-form-group dokan-clearfix">
                                     <label class="dokan-w3 dokan-control-label" for="top">Top</label>
@@ -175,7 +191,7 @@ $active_menu = 'settings/customize';
                                              style="background-image: url('<?php echo $manifesto_background; ?>');
                                                      background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; width: 80%; max-width: 100%; margin: 0 auto;">
                                             <div id="inner_container" contenteditable="true"
-                                                 style="border: 2px solid #000; background-color: rgba(255, 255, 255, 0.5); position: absolute;">
+                                                 style="border: 2px solid #000; background-color: rgba(255, 255, 255, 0.5); position: absolute; font-size: 14px">
                                                 <p class="inner-text">Testo di
                                                     esempio</p>
                                                 <p class="inner-text">

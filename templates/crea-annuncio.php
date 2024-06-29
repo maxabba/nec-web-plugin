@@ -13,6 +13,14 @@ $user_city = $store_info['address']['city'] ?? '';
 $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
 $form = $template_class->schedule_post_and_update_status($post_id);
 
+//check if the current user is the autor of the post
+if ($post_id !== 'new_post') {
+    $post_author_id = get_post_field('post_author', $post_id);
+    if ($post_author_id !== $user_id) {
+        //redirect to the dashboard lista-annunci
+        wp_redirect(home_url('/dashboard/lista-annunci'));
+    }
+}
 
 //check if vendor status is enabled
 $disable_form = false;
@@ -102,7 +110,7 @@ $active_menu = 'annunci/crea-annuncio';
                                         'post_type' => 'annuncio-di-morte',
                                         'post_status' => 'draft',
                                     ),
-                                    'field_groups' => array('group_662ca589c62f7', 'group_6641d54c5f58d', 'group_666ef28ce50a3'),
+                                    'field_groups' => array('group_6641d54c5f58d', 'group_666ef28ce50a3'),
                                     'submit_value' => __($add_edit_text, 'Dokan-mod'),
                                     'return' => home_url('/dashboard/lista-annunci'),
                                 );

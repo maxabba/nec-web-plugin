@@ -109,44 +109,22 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
                     array(
                         'taxonomy' => 'product_cat',
                         'field' => 'slug',
-                        'terms' => array('default-products', 'editable-price'), // Combined terms for better performance
-                    )
+                        'terms' => 'default-products', // Products with 'default-products' category
+                    ),
+                    array(
+                        'relation' => 'AND',
+                        array(
+                            'taxonomy' => 'product_cat',
+                            'field' => 'slug',
+                            'terms' => 'default-products', // Products with 'default-products' category
+                        ),
+                        array(
+                            'taxonomy' => 'product_cat',
+                            'field' => 'slug',
+                            'terms' => 'editable-price', // Products with 'editable-price' category
+                        ),
+                    ),
                 ),
-/*                'meta_query' => array(
-                    'relation' => 'OR',
-                    array(
-                        'key' => 'citta',
-                        'value' => $this->city,
-                        'compare' => '='
-                    ),
-                    array(
-                        'relation' => 'AND',
-                        array(
-                            'key' => 'provincia',
-                            'value' => $this->province,
-                            'compare' => '='
-                        ),
-                        array(
-                            'key' => 'citta',
-                            'value' => 'Tutte',
-                            'compare' => '='
-                        )
-                    ),
-                    array(
-                        'relation' => 'AND',
-                        array(
-                            'key' => 'provincia',
-                            'value' => 'Tutte',
-                            'compare' => '='
-                        ),
-                        array(
-                            'key' => 'citta',
-                            'value' => 'Tutte',
-                            'compare' => '='
-                        )
-                    )
-
-                )*/
             );
             return $args;
         }

@@ -15,6 +15,8 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
         public function __construct()
         {
 
+            add_filter('elementor_pro/display_conditions/dynamic_tags/custom_fields_meta_limit', array($this, 'custom_custom_fields_meta_limit'));
+            add_action('plugins_loaded', array($this, 'trasferisci_azione_dokan_seller'));
 
             //add_filter('acf/load_value/key=field_662ca58a35da3', array($this, 'auto_fill_acf_field_based_on_user'), 10, 3);
             add_filter('acf/load_field/key=field_6638e3e77ffa0', array($this, 'load_province_choices'));
@@ -28,6 +30,7 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
 
 
             add_action('acf/init', array($this, 'add_acf_options_page'));
+            add_filter('acf/load_value/name=fotografia', array($this, 'photo_placeholder'), 10, 3);
 
             add_action('acf/input/admin_enqueue_scripts', array($this, 'enqueue_ajax_script'));
             add_action('wp_enqueue_scripts', array($this, 'enqueue_ajax_script'));
@@ -43,6 +46,22 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
 
 
             $this->register_shortcodes();
+        }
+
+
+        function custom_custom_fields_meta_limit($limit)
+        {
+            $new_limit = 100; // Change this to your desired limit
+            return $new_limit;
+        }
+
+        function trasferisci_azione_dokan_seller()
+        {
+            // Rimuovi l'azione originale
+            remove_action('woocommerce_register_form', 'dokan_seller_reg_form_fields');
+
+            // Aggiungi l'azione all'inizio del form di registrazione
+            add_action('woocommerce_register_form_start', 'dokan_seller_reg_form_fields');
         }
 
         public function dokan_vendor_own_product_purchase_restriction($is_purchasable, $product_id)
@@ -88,38 +107,51 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
         public function register_shortcodes()
         {
             add_shortcode('show_acf_select_values', array($this, 'show_acf_select_values')); // Registra lo shortcode per mostrare i valori di un campo ACF select as [show_acf_select_values field_key="nome_campo"]
-            //add_shortcode('acf_gmaps_link', array($this, 'generate_google_maps_link')); // Registra lo shortcode per generare un link a Google Maps come [acf_gmaps_link acf_field="nome_campo"]
+            add_shortcode('acf_gmaps_link', array($this, 'generate_google_maps_link')); // Registra lo shortcode per generare un link a Google Maps come [acf_gmaps_link acf_field="nome_campo"]
+        }
+
+
+        public function photo_placeholder($value, $post_id, $field)
+        {
+            if (!$value && $field['name'] == 'fotografia') {
+                return '1464';
+            }
+            return $value;
         }
 
         public function generate_google_maps_link($atts)
         {
-
             // Estrai gli attributi passati allo shortcode
-            //get the relative path of the image in assets/images/Simple-Location-Picker.webp
             $atts = shortcode_atts(array(
                 'acf_field' => '',
-                'placeholder_image' => DOKAN_SELECT_PRODUCTS_PLUGIN_URL . '/assets/images/Simple-Location-Picker.jpg',
+                'placeholder_image' => DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/images/gmaps.webp',
             ), $atts, 'acf_gmaps_link');
 
             // Recupera l'indirizzo dal campo ACF
             $address = get_field($atts['acf_field']);
-            ob_start();
+
             // Se l'indirizzo è vuoto, restituisci un messaggio di errore
             if (empty($address)) {
-                return '<p>Indirizzo non trovato.</p>';
+                return '';
             }
 
             // Formatta l'indirizzo per l'URL di Google Maps
             $formatted_address = urlencode($address);
             $maps_url = "https://www.google.com/maps/search/?api=1&query={$formatted_address}";
+
+            // Inizia l'output buffering
+            ob_start();
             ?>
             <a href="<?php echo esc_url($maps_url); ?>" target="_blank">
-            <img src="<?php echo esc_url($atts['placeholder_image']); ?>" width="200px" alt="Mappa di <?php echo esc_attr($address); ?> ">
+                <img src="<?php echo esc_url($atts['placeholder_image']); ?>" width="100px"
+                     alt="Mappa di <?php echo esc_attr($address); ?>">
             </a>
             <?php
 
+            // Restituisce l'output bufferizzato
             return ob_get_clean();
         }
+
 
         public function set_city_filter()
         {

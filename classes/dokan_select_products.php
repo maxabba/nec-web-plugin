@@ -27,6 +27,9 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
             add_action('admin_post_add_product_dokan_vendor', array($this, 'handle_form_submission'));
             add_action('admin_post_nopriv_add_product_dokan_vendor', array($this, 'handle_form_submission'));
 
+            add_action('admin_post_remove_product_dokan_vendor', array($this, 'handle_remove_product_form'));
+            add_action('admin_post_nopriv_remove_product_dokan_vendor', array($this, 'handle_remove_product_form'));
+
 
             add_action('woocommerce_product_options_general_product_data', array($this, 'dcw_add_withdraw_fields_to_product'));
             add_action('woocommerce_process_product_meta', array($this, 'dcw_save_withdraw_fields_to_product'));
@@ -136,6 +139,27 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                     }
                     exit;
 
+            }
+
+        }
+
+
+        public function handle_remove_product_form()
+        {
+            // Check if the form is submitted
+            if (isset($_POST['remove_product'])) {
+                // Sanitize and process the form data
+                $product_id = filter_input(INPUT_POST, 'product_id', FILTER_VALIDATE_INT);
+
+                //cestina il prodotto
+                $response = wp_trash_post($product_id);
+
+                if ($response) {
+                    wp_redirect(add_query_arg(array('operation_result' => 'success'), wp_get_referer()));
+                } else {
+                    wp_redirect(add_query_arg(array('operation_result' => 'error'), wp_get_referer()));
+                }
+                exit;
             }
         }
 

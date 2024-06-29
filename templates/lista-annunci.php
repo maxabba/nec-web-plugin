@@ -26,7 +26,20 @@ if (get_query_var('paged')) {
 $args = array(
     'post_type' => 'annuncio-di-morte',
     'post_status' => 'publish,pending,draft,future,private',
-    'author' => $user_id,
+    //'author' => $user_id,
+    'meta_query' => array(
+        'relation' => 'OR',
+        array(
+            'key' => 'vendor_id',
+            'value' => $user_id,
+            'compare' => '=',
+        ),
+        array(
+            'key' => 'citta',
+            'value' => $user_city,
+            'compare' => '=',
+        ),
+    ),
     'posts_per_page' => 10, // Change this to the number of posts you want per page
     'paged' => $paged,
     's' => get_query_var('s'),
@@ -95,7 +108,7 @@ $active_menu = 'annunci/lista-annunci';
                             <a href="<?php echo home_url('dashboard/crea-annuncio/'); ?>" class="custom-widget-button" style="margin-bottom: 15px">
                                 <i class="fas fa-plus"></i> <?php _e('Aggiungi Annuncio', 'dokan-mod'); ?>
                             </a>
-                            <form method="get" action="<?php echo esc_url(home_url('/dashboard/annunci')); ?>"
+                            <form method="get" action="<?php echo esc_url(home_url('/dashboard/lista-annunci')); ?>"
                                   style="display: flex;">
                                 <input type="text" name="s" value="<?php echo get_query_var('s'); ?>"
                                        placeholder="Search..." style="margin-right: 10px;">
@@ -108,9 +121,10 @@ $active_menu = 'annunci/lista-annunci';
                                     <th><?php _e('Data publicazione', 'dokan-mod'); ?></th>
                                     <th><?php _e('Città', 'dokan-mod'); ?></th>
                                     <th><?php _e('Azioni', 'dokan-mod'); ?></th>
-                                    <th><?php _e('Manifesti', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Partecipazioni', 'dokan-mod'); ?></th>
                                     <th><?php _e('Trigesimo', 'dokan-mod'); ?></th>
                                     <th><?php _e('Anniversari', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Agenzia', 'dokan-mod'); ?></th>
                                 </tr>
                                 </thead>
                                 <tbody>
@@ -119,22 +133,31 @@ $active_menu = 'annunci/lista-annunci';
 
                                 if ($query->have_posts()) :
                                     while ($query->have_posts()) : $query->the_post();
+
+                                        $the_author_id = get_the_author_meta('ID');
+                                        $modify_post_url_disabled = false;
+                                        if ($the_author_id != $user_id) {
+                                            $modify_post_url_disabled = true;
+                                        }
                                         ?>
                                         <tr>
                                             <td><?php the_title(); ?></td>
                                             <td><?php the_date(); ?></td>
                                             <td><?php echo get_post_meta(get_the_ID(), 'citta', true); ?></td>
-                                            <td>
-                                                <a href="<?php echo home_url('/dashboard/crea-annuncio?post_id=' . get_the_ID()); ?>"><?php _e('Modifica', 'dokan-mod'); ?></a>
+                                            <td >
+                                                <a <?php echo $modify_post_url_disabled ? '' : 'href='?>"<?php echo $modify_post_url_disabled ? '' : home_url('/dashboard/crea-annuncio?post_id=' . get_the_ID()); ?>"><?php _e('Modifica', 'dokan-mod'); ?></a>
                                             </td>
                                             <td>
                                                 <a href="<?php echo home_url('/dashboard/lista-manifesti?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
                                             </td>
                                             <td>
-                                                <a href="<?php echo home_url('/dashboard/trigesimo-add?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Aggingi/Modifica', 'dokan-mod'); ?></a>
+                                                <a <?php echo $modify_post_url_disabled ? '' : 'href=' ?>"<?php echo $modify_post_url_disabled ? '' : home_url('/dashboard/trigesimo-add?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Aggingi/Modifica', 'dokan-mod'); ?></a>
                                             </td>
                                             <td>
-                                                <a href="<?php echo home_url('/dashboard/lista-anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
+                                                <a <?php echo $modify_post_url_disabled ? '' : 'href=' ?>"<?php echo $modify_post_url_disabled ? '' : home_url('/dashboard/lista-anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
+                                            </td>
+                                            <td>
+                                                <?php echo get_the_author() ?>
                                             </td>
                                         </tr>
                                     <?php
@@ -142,7 +165,7 @@ $active_menu = 'annunci/lista-annunci';
                                 else :
                                     ?>
                                     <tr>
-                                        <td colspan="6"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
+                                        <td colspan="8"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
                                     </tr>
                                 <?php
                                 endif;

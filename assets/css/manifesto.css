@@ -57,7 +57,7 @@
     box-sizing: border-box;
     outline: none;
     overflow: visible;
-    font-size: calc(0.6vw + 0.6vh); /* Dimensione del font reattiva e leggermente più piccola di 16px */
+    font-size: 14px; /* Dimensione del font reattiva e leggermente più piccola di 16px */
     font-family: var(--e-global-typography-text-font-family), Sans-serif;
     font-weight: var(--e-global-typography-text-font-weight);
 }
@@ -96,6 +96,14 @@
     }
 
     .custom-text-editor {
-        font-size: calc(0.9vw + 0.9vh); /* Dimensione del font reattiva per schermi piccoli */
+        font-size: 14px; /* Dimensione del font reattiva per schermi piccoli */
+    }
+}
+
+@media (min-width: 992px) {
+
+    .custom-col-lg-5{
+        flex: 0 0 auto;
+        width: 20%;
     }
 }

@@ -31,6 +31,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
             add_action('wp_ajax_load_more_manifesti', array($this, 'load_more_manifesti'));
             add_action('wp_ajax_nopriv_load_more_manifesti', array($this, 'load_more_manifesti'));
+
         }
 
         public function my_enqueue_scripts()
@@ -46,7 +47,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
             }
 
-            if (get_query_var('manifesto-top') || get_query_var('manifesto-silver') || get_query_var('manifesto-online')) {
+            if (get_query_var('manifesto-top') || get_query_var('manifesto-silver') || get_query_var('manifesto-online') ) {
                 wp_enqueue_script('text-editor-manifesto-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/manifesto-text-editor.js', array('jquery'), null, true);
                 wp_localize_script('text-editor-manifesto-script', 'my_ajax_object', array(
                     'ajax_url' => admin_url('admin-ajax.php')
@@ -292,6 +293,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
 
 
+
         public function shortcode_vendor_selector($attr)
         {
             $product_id = isset($_GET['product_id']) && $_GET['product_id'] != 0 ? intval($_GET['product_id']) : '66';
@@ -307,6 +309,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             $categoria_finale = get_field('categoria_finale', $atts['product_id']);
             $categoria_finale = strtolower(str_replace(' ', '-', $categoria_finale));
             $citta = get_field('citta', $post_id);
+
+            $author_id = get_post_field('post_author', $post_id);
 
             // Get all vendors with the city equal to $citta
             $args_vendors = array(
@@ -341,16 +345,30 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 ),
             );
             $products = new \WP_Query($args);
+            $products_count = $products->found_posts;
             ob_start();
 
             if ($products->have_posts()) {
+                // Convert WP_Query results to an array
+                $products_array = $products->posts;
+
+                // Sort products by author_id to have the author's product first
+                usort($products_array, function ($a, $b) use ($author_id) {
+                    if ($a->post_author == $author_id) {
+                        return -1;
+                    }
+                    if ($b->post_author == $author_id) {
+                        return 1;
+                    }
+                    return 0;
+                });
+
                 ?>
                 <div class="vendor-selector">
                     <?php
-                    while ($products->have_posts()) {
+                    foreach ($products_array as $product) {
                         // Ottieni l'autore del prodotto
-                        $products->the_post();
-                        $product_id = get_the_ID();
+                        $product_id = $product->ID;
 
                         // Ottieni le informazioni del negozio Dokan
                         $store_info = (new UtilsAMClass())->get_dokan_store_info_by_product($product_id);
@@ -359,19 +377,19 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                         ?>
                         <div class="vendor-flex">
 
-                                <input type="radio" name="product_id" id="product_<?php echo $product_id; ?>"
-                                       value="<?php echo $product_id; ?>">
-                                <label for="product_<?php echo $product_id; ?>" class="vendor-card">
-                                    <div class="card">
-                                        <?php if ($store_banner) : ?>
-                                            <img src="<?php echo $store_banner; ?>" alt="<?php echo $store_name; ?>"
-                                                 class="card-img-top" width="250px" height="250px">
-                                        <?php endif; ?>
-                                        <div class="card-body">
-                                            <h5 class="card-title"><?php echo $store_name; ?></h5>
-                                        </div>
+                            <input type="radio" name="product_id" id="product_<?php echo $product_id; ?>"
+                                   value="<?php echo $product_id; ?>" disabled>
+                            <label for="product_<?php echo $product_id; ?>" class="vendor-card">
+                                <div class="card">
+                                    <?php if ($store_banner) : ?>
+                                        <img src="<?php echo $store_banner; ?>" alt="<?php echo $store_name; ?>"
+                                             class="card-img-top" width="250px" height="250px">
+                                    <?php endif; ?>
+                                    <div class="card-body">
+                                        <h5 class="card-title"><?php echo $store_name; ?></h5>
                                     </div>
-                                </label>
+                                </div>
+                            </label>
 
                         </div>
                         <?php
@@ -381,6 +399,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 <script>
                     document.addEventListener('DOMContentLoaded', function () {
                         document.querySelectorAll('input[name="product_id"]').forEach(function (input) {
+                            input.disabled = false;
                             input.addEventListener('change', function () {
                                 if (this.checked) {
                                     var productID = this.value;
@@ -411,16 +430,22 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                     <input type="hidden" name="post_id" value="<?php echo $_GET['post_id'] ?? get_the_ID(); ?>">
 
                     <div style="margin:auto;" class="manifesti-container hide">
+                        <div class="editor-toolbar">
+                            <button type="button" data-command="bold"><b>B</b></button>
+                            <button type="button" data-command="italic"><i>I</i></button>
+                            <button type="button" data-command="underline"><u>U</u></button>
+                        </div>
                         <div id="text-editor-background" class="text-editor-background" style="background-image: none;">
                             <div id="text-editor" contenteditable="true" class="custom-text-editor"></div>
                         </div>
 
-                        <input type="submit" value="Salva" class="button">
+                        <hr style="margin-top: 20px; margin-bottom: 20px;">
+                        <input type="submit" value="Continua con l'ordine" class="button" >
                     </div>
                     <div class="loader" id="comments-loader"></div>
-
                 </form>
             </div>
+
             <?php
             return ob_get_clean();
         }
@@ -433,9 +458,18 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             $tipo_manifesto = $_POST['tipo_manifesto'] ?? null;
             $limit = 5; // Numero di commenti da caricare per volta
 
+            //check if the tipo_manifesto is splitted by comma
+            $compare = '=';
+            if (str_contains($tipo_manifesto, ',')) {
+                $tipo_manifesto = explode(',', $tipo_manifesto);
+                $compare = 'IN';
+            }
+
             // get post type manifesto where meta key annuncio_di_morte_relativo is equal to $post_id with offset and limit
             $args = array(
                 'post_type' => 'manifesto',
+                'orderby' => 'date',
+                'order' => 'DESC',
                 'meta_query' => array(
                         'relation' => 'AND',
                     array(
@@ -446,7 +480,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                     array(
                         'key' => 'tipo_manifesto',
                         'value' => $tipo_manifesto,
-                        'compare' => '=',
+                        'compare' => $compare,
                     ),
                 ),
                 'posts_per_page' => $limit,
@@ -467,7 +501,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
                     ob_start();
                     ?>
-                    <div class="col-6 col-lg-3">
+                    <div class="col-12 custom-col-lg-5" style="margin-bottom: 25px; ">
                         <div class="text-editor-background" style="background-image: none"
                              data-postid="<?php echo $post_id; ?>" data-vendorid="<?php echo $vendor_id; ?>">
                             <div class="custom-text-editor">
@@ -482,7 +516,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                     ];
                 }
             }
-
             wp_send_json_success($response);
 
             wp_die();
@@ -500,11 +533,13 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 $attrs
             );
 
+
+
             $post_id = get_the_ID();
             ob_start();
             ?>
 
-            <div id="manifesto-container-<?php echo $instance; ?>" class="manifesto-container row g-2"
+            <div id="manifesto-container-<?php echo $instance; ?>" class="manifesto-container row g-2" style="justify-content: center;"
                  data-postid="<?php echo $post_id; ?>" data-tipo="<?php echo $attrs['tipo_manifesto']; ?>"></div>
             <div class="loader manifesto-loader" id="manifesto-loader-<?php echo $instance; ?>"></div>
 

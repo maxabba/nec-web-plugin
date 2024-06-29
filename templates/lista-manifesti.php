@@ -32,6 +32,7 @@ if (get_query_var('paged')) {
 $args = array(
     'post_type' => 'manifesto',
     'post_status' => 'publish, pending, draft, future, private',
+    'author' => $user_id,
     'posts_per_page' => 10, // Change this to the number of posts you want per page
     'paged' => $paged,
     's' => get_query_var('s'),
@@ -58,7 +59,7 @@ $active_menu = '';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __('Lista Manifesti: ' . $title, 'dokan-mod') ?></h1></header>
+            <h1 class="entry-title"><?php __('Lista Partecipazioni: ' . $title, 'dokan-mod') ?></h1></header>
 
         <div class="page-content">
 
@@ -84,7 +85,7 @@ $active_menu = '';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e('Lista Manifesti: ' . $title, 'dokan-mod') ?> <span
+                            <?php _e('Lista Partecipazioni: ' . $title, 'dokan-mod') ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
@@ -104,8 +105,9 @@ $active_menu = '';
 
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
-                            <a href="<?php echo esc_url(home_url('/dashboard/crea-manifesto')); ?>" class="custom-widget-button" style="margin-bottom: 15px">
-                                <i class="fas fa-plus"></i> <?php _e('Aggiungi Manifesto', 'dokan-mod'); ?>
+                            <a href="<?php echo esc_url(home_url('/dashboard/crea-manifesto?post_id_annuncio=' . $post_id_annuncio)); ?>"
+                               class="custom-widget-button" style="margin-bottom: 15px">
+                            <i class="fas fa-plus"></i> <?php _e('Aggiungi Partecipazione', 'dokan-mod'); ?>
                             </a>
 
                             <div style="display: flex; flex-direction: column; width: 300px; margin-bottom: 15px">
@@ -116,7 +118,7 @@ $active_menu = '';
                                         <option value="A4">A4</option>
                                         <option value="A5">A5</option>
                                     </select>
-                                    <button id="start-button">Stampa tutti i manifesti</button>
+                                    <button id="start-button">Stampa tutte le partecipazioni</button>
                                 </div>
                             </div>
                             <div id="hidden-container" data-postid="<?php echo $post_id_annuncio; ?>"></div>
@@ -125,7 +127,7 @@ $active_menu = '';
                             </div>
 
 
-                            <form method="get" action="<?php echo esc_url(home_url('/dashboard/anniversari')); ?>"
+                            <form method="get" action="<?php echo esc_url(home_url('/dashboard/lista-manifesti')); ?>"
                                   style="display: flex;">
                                 <input type="text" name="s" value="<?php echo get_query_var('s'); ?>"
                                        placeholder="Search..." style="margin-right: 10px;">
@@ -134,7 +136,7 @@ $active_menu = '';
                             <table>
                                 <thead>
                                 <tr>
-                                    <th><?php _e('Titolo', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Testo', 'dokan-mod'); ?></th>
                                     <th><?php _e('Data publicazione', 'dokan-mod'); ?></th>
                                     <th><?php _e('Città', 'dokan-mod'); ?></th>
                                     <th><?php _e('Azioni', 'dokan-mod'); ?></th>
@@ -148,7 +150,7 @@ $active_menu = '';
                                     while ($query->have_posts()) : $query->the_post();
                                         ?>
                                         <tr>
-                                            <td><?php the_title(); ?></td>
+                                            <td><?php echo wp_strip_all_tags(get_field('testo_manifesto')); ?></td>
                                             <td><?php the_date(); ?></td>
                                             <td><?php echo get_post_meta(get_the_ID(), 'citta', true); ?></td>
                                             <td>

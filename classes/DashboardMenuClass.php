@@ -17,9 +17,8 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
             add_action('init', array($this, 'dynamic_page_init')); // Inizializza le pagine dinamiche
             add_action('dokan_get_dashboard_nav', array($this, 'add_dashboard_menu')); // Aggiunge il menu alla dashboard di Dokan
             add_filter('query_vars', array($this, 'add_query_vars')); // Aggiunge le variabili di query
-            add_filter('template_include', array($this, 'load_template'),-10); // Include il template
-
-            add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'), 9999); // Mette in coda gli stili
+            add_filter('template_include', array($this, 'load_template'),12); // Include il template
+            add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'),99999); // Mette in coda gli stili
 
         }
 
@@ -34,19 +33,22 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
         public function enqueue_styles()
         {
             if (array_filter($this->query_vars, 'get_query_var')) {
+
+
                 // Debugging: stampa tutti gli stili registrati
-                global $wp_styles;
                 // Prova a mettere in coda 'dokan-style'
                 if (wp_style_is('dokan-style', 'registered')) {
                     wp_enqueue_style('dokan-style');
                     //set dokan-dashboard dokan-theme-hello-elementor class on body
                     add_filter('body_class', function ($classes) {
-                        $classes[] = 'dokan-dashboard dokan-theme-hello-elementor';
+                        $classes = [];
+                        $classes[] = 'page-template-default page page-id-58 logged-in theme-hello-elementor woocommerce-js elementor-default elementor-kit-6 dokan-dashboard dokan-theme-hello-elementor e--ua-blink e--ua-chrome e--ua-mac e--ua-webkit';
                         return $classes;
                     });
                 } else {
                     echo 'The "dokan-style" is not registered.';
                 }
+                //enque all default template styles
                 //check if acf is active and load the acf form css
                 if (function_exists('acf_form_head')) {
                     acf_form_head();
@@ -113,14 +115,20 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
         public function load_template($template)
         {
             global $wp_query;
+
             foreach ($this->query_vars as $var) {
                 if (isset($wp_query->query_vars[$var])) {
-                    $template = self::PLUGIN_PATH . $var . '.php';
-                    return self::PLUGIN_PATH . $var . '.php';
+                    $template_temp = self::PLUGIN_PATH . $var . '.php';
+                    if (!file_exists($template_temp)) {
+                        return $template;
+                    }
+                    return $template_temp;
                 }
             }
+
             return $template;
         }
+
 
     }
 }

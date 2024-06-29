@@ -109,14 +109,14 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
                 <div class="card-body">
                     <h5 class="card-title">Pubblica: <?php echo $post_title ?></h5>
 
-                    <p class="card-text">Cambia lo stato del triggesimo</p>
+                    <p class="card-text">Cambia lo stato del post</p>
                     <form id="post-status-form" method="POST" action="">
                         <input type="hidden" name="post_id" value="<?php echo $post_id ?>">
                         <label for="post_status">Stato del Post:</label>
                         <select id="post_status" name="post_status">
                             <?php
                             $current_status = get_post_status($post_id);
-                            $statuses = array('publish' => 'Pubblicato', 'draft' => 'Bozza', 'pending' => 'Attesa Revisione');
+                            $statuses = array('publish' => 'Pubblicato', 'draft' => 'Bozza', 'pending' => 'Attesa Revisione','delete' => 'Elimina');
                             foreach ($statuses as $status => $label) {
                                 echo '<option value="' . $status . '"' . selected($current_status, $status, false) . '>' . $label . '</option>';
                             }

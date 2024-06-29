@@ -37,6 +37,10 @@ if (!class_exists(__NAMESPACE__ . '\PensieriniClass')) {
             add_shortcode('pensierino_comments', array($this, 'generate_comments_shortcode'));
         }
 
+
+
+
+
         public function generate_pensierino_form()
         {
             ob_start(); // Start output buffering
@@ -290,7 +294,7 @@ if (!class_exists(__NAMESPACE__ . '\PensieriniClass')) {
             if ($comments) {
                 foreach ($comments as $comment) {
                     ?>
-                    <div class="col-6 col-lg-3">
+                    <div class="col-12 col-lg-3" >
                         <div class="p-3" style="display: inline-block;">
                             <div class="nrc-user d-flex justify-content-between">
                                 <p><?php echo (empty($comment->comment_author) || $comment->comment_author == '') ? 'Anonimo' : esc_html($comment->comment_author); ?></p>
@@ -390,6 +394,7 @@ if (!class_exists(__NAMESPACE__ . '\PensieriniClass')) {
                                     $loader.hide();
                                     return;
                                 }
+                                $('#divisore_pensierini').show();
                                 $('#comments-container').append(response);
                                 offset += 4; // Incrementa l'offset per il prossimo caricamento
                                 loading = false;
@@ -409,7 +414,7 @@ if (!class_exists(__NAMESPACE__ . '\PensieriniClass')) {
                         );
                     }
 
-                    $(window).on('scroll', function () {
+                    $(window).on('scroll.pensierini', function () {
                         if (isElementInViewport(document.getElementById('comments-container'))) {
                             loadComments();
                         }

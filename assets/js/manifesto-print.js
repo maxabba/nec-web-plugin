@@ -35,6 +35,7 @@
 
                     response.data.forEach(function (item) {
                         var newElement = $(item.html);
+                        //find all occurrences of the class .custom-text-editor
                         container.append(newElement);
                         var imagePromise = new Promise(function (resolve) {
                             updateEditorBackground(item.vendor_data, newElement, resolve);
@@ -117,9 +118,9 @@
 
         function updateEditorBackground(data, container, resolve) {
             const pageFormatDimensions = {
-                'a5': {width: 148, height: 210},
-                'a4': {width: 210, height: 297},
-                'a3': {width: 297, height: 420},
+                'a5': {width: Math.round(148 * 3.78), height: Math.round(210 * 3.78)},
+                'a4': {width: Math.round(210 * 3.78), height: Math.round(297 * 3.78)},
+                'a3': {width: Math.round(297 * 3.78), height: Math.round(420 * 3.78)}
                 // Add more formats as needed
             };
             const backgroundDiv = container.get(0);
@@ -141,12 +142,12 @@
 
                     if (aspectRatio > 1) {
                         // Landscape
-                        backgroundDiv.style.width = `${dimensions.width}mm`;
-                        backgroundDiv.style.height = `${dimensions.width / aspectRatio}mm`;
+                        backgroundDiv.style.width = `${dimensions.width}px`;
+                        backgroundDiv.style.height = `${dimensions.width / aspectRatio}px`;
                     } else {
                         // Portrait
-                        backgroundDiv.style.height = `${dimensions.height}mm`;
-                        backgroundDiv.style.width = `${dimensions.height * aspectRatio}mm`;
+                        backgroundDiv.style.height = `${dimensions.height}px`;
+                        backgroundDiv.style.width = `${dimensions.height * aspectRatio}px`;
                     }
 
                     // Calcola i margini in pixel basati sulla percentuale
@@ -161,6 +162,10 @@
                     textEditor.style.paddingBottom = `${marginBottomPx}px`;
                     textEditor.style.paddingLeft = `${marginLeftPx}px`;
                     textEditor.style.textAlign = data.alignment ? data.alignment : 'left';
+
+                    //textEditor font size equal to 4% of the page height
+                    textEditor.style.fontSize = `${(backgroundDiv.clientHeight / 100) * 3.28}px`;
+
                     resolve();
 
                 }

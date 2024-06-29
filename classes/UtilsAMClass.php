@@ -18,7 +18,12 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
         {
 
             $product_template_mapping = get_option('product_template_mapping', array());
-
+            $this->pages = [
+                'pensierini' => [334, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/pensierini.php'],
+                'manifesto-top' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
+                'manifesto-silver' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
+                'manifesto-online' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
+            ];
             if (!empty($product_template_mapping)) {
                 foreach ($product_template_mapping as $product_id => $template_id) {
                     //clean the pages
@@ -34,14 +39,6 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
                         $this->pages[$product_slug] = [$template_id, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/' . $product_slug . '.php'];
                     }
                 }
-            }else{
-                $this->pages = [
-                    'pensierini' => [334, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/pensierini.php'],
-                    'manifesto-top' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
-                    'manifesto-silver' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
-                    'manifesto-online' => [402, DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/manifesto.php'],
-                ];
-
             }
 
             $this->pages_slug = array_keys($this->pages);
@@ -189,6 +186,8 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
         {
             foreach ($this->pages as $query_var => $template_id) {
                 add_rewrite_rule('^' . $query_var . '/?$', 'index.php?' . $query_var . '=1', 'top');
+                add_rewrite_tag('%' . $query_var . '%', '([^&]+)');
+
             }
         }
 

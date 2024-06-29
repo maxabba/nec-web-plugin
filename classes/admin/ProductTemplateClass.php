@@ -32,6 +32,9 @@ if (!class_exists(__NAMESPACE__ . '\ProductTemplateClass')) {
             register_setting('product-templates-group', 'product_template_mapping', array(
                 'sanitize_callback' => array($this, 'sanitize_product_template_mapping')
             ));
+
+            //handle the creation of dummy post type manifesto
+            //$this->handle_create_manifesto();
         }
 
         public function sanitize_product_template_mapping($input)
@@ -44,6 +47,42 @@ if (!class_exists(__NAMESPACE__ . '\ProductTemplateClass')) {
         }
 
 
+        //handle the creation of dummy post type manifesto
+        public function handle_create_manifesto()
+        {
+            if (isset($_POST['create_manifesto'])) {
+                $this->create_manifesto_post_type();
+            }
+        }
+
+        //generate a function to create dummy post type manifesto
+        public function create_manifesto_post_type()
+        {
+            $num_posts = isset($_POST['num_posts']) ? intval($_POST['num_posts']) : 10;
+            $post_type = 'manifesto';
+            $post_status = 'publish';
+            $post_author = 10;
+            $post_title = 'Manifesto';
+            $testo_manifesto = '<p>Testo del manifesto</p><p>Testo del manifesto</p><p>Testo del manifesto</p><p>Testo del manifesto</p>';
+            for ($i = 0; $i < $num_posts; $i++) {
+                $post_id = wp_insert_post(array(
+                    'post_title' => $post_title . ' ' . $_POST['tipo_manifesto'] . ' ' . $i,
+                    'post_type' => $post_type,
+                    'post_status' => $post_status,
+                    'post_author' => $post_author,
+                ));
+
+                if ($post_id) {
+                    update_field('vendor_id', $post_author, $post_id);
+                    update_field('annuncio_di_morte_relativo', 262, $post_id);
+                    update_field('tipo_manifesto', $_POST['tipo_manifesto'], $post_id);
+
+                    update_field('testo_manifesto', $testo_manifesto, $post_id);
+                }
+            }
+        }
+
+
         public function settings_page()
         {
             ?>
@@ -53,6 +92,24 @@ if (!class_exists(__NAMESPACE__ . '\ProductTemplateClass')) {
                     template di Elementor. Seleziona un template dalla lista per ogni prodotto e salva le impostazioni.
                     Questo ti permetterà di personalizzare l'aspetto dei tuoi prodotti utilizzando i template di
                     Elementor.</p>
+
+                <!--create a button to create dummy post type manifesto
+                <form method="post" action="">
+                    <label>
+                        Numero di Manifesti da Creare:
+                        <input type="number" name="num_posts" value="10">
+                    </label>
+                    <label>
+                        <select name="tipo_manifesto">
+                            <option value="top">Top</option>
+                            <option value="silver" selected>Silver</option>
+                            <option value="online">Online</option>
+                        </select>
+                    </label>
+
+                    <input type="submit" name="create_manifesto" value="Create Manifesto" class="button button-primary">
+                </form>
+                -->
                 <form method="post" action="options.php">
                     <?php
                     settings_fields('product-templates-group');
