@@ -42,6 +42,11 @@ if (!class_exists(__NAMESPACE__ . '\DbClass')) {
 if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
     require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/UtilsAMClass.php';
 }
+
+if (!class_exists(__NAMESPACE__ . '\RenderDokanSelectProducts')) {
+    require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/RenderDokanSelectProducts.php';
+}
+
 if (!class_exists(__NAMESPACE__ . '\Templates_MiscClass')) {
     require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/Templates_MiscClass.php';
 }
@@ -75,6 +80,7 @@ dokan_mods_load_and_instantiate_class('AnniversarioClass', 'classes/Anniversario
 dokan_mods_load_and_instantiate_class('PensieriniClass', 'classes/PensieriniClass.php');
 dokan_mods_load_and_instantiate_class('ManifestoClass', 'classes/ManifestoClass.php');
 dokan_mods_load_and_instantiate_class('RingraziamentoClass', 'classes/RingraziamentoClass.php');
+dokan_mods_load_and_instantiate_class('FioraiClass', 'classes/FioraiClass.php');
 
 dokan_mods_load_and_instantiate_class('NecrologiFrontendClass', 'classes/NecrologiFrontendClass.php');
 dokan_mods_load_and_instantiate_class('TrigesimiFrontendClass', 'classes/TrigesimiFrontendClass.php');

@@ -72,29 +72,31 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
                 'permission' => 'dokan_view_product_menu'
             );
 
-            $urls['annunci'] = array(
-                'title' => __('Annunci', 'dokan-mod'),
-                'icon' => '<i class="fas fa-cross"></i>',
-                'url' => site_url('/dashboard/lista-annunci'),
-                'pos' => 34,
-                'submenu' => array(
-                    'lista-annunci' => array(
-                        'title' => __('Lista Annunci', 'dokan-mod'),
-                        'icon' => '<i class="fas fa-list"></i>',
-                        'url' => site_url('/dashboard/lista-annunci'),
-                        'pos' => 35,
-                        'permission' => 'dokan_view_product_menu'
-                    ),
-                    'crea-annuncio' => array(
-                        'title' => __('Crea Annuncio', 'dokan-mod'),
-                        'icon' => '<i class="fas fa-plus"></i>',
-                        'url' => site_url('/dashboard/crea-annuncio'),
-                        'pos' => 36,
-                        'permission' => 'dokan_view_product_menu'
-                    )
-                )
-            );
+            if(current_user_can('sell_manifesto')) {
 
+                $urls['annunci'] = array(
+                    'title' => __('Annunci', 'dokan-mod'),
+                    'icon' => '<i class="fas fa-cross"></i>',
+                    'url' => site_url('/dashboard/lista-annunci'),
+                    'pos' => 34,
+                    'submenu' => array(
+                        'lista-annunci' => array(
+                            'title' => __('Lista Annunci', 'dokan-mod'),
+                            'icon' => '<i class="fas fa-list"></i>',
+                            'url' => site_url('/dashboard/lista-annunci'),
+                            'pos' => 35,
+                            'permission' => 'dokan_view_product_menu'
+                        ),
+                        'crea-annuncio' => array(
+                            'title' => __('Crea Annuncio', 'dokan-mod'),
+                            'icon' => '<i class="fas fa-plus"></i>',
+                            'url' => site_url('/dashboard/crea-annuncio'),
+                            'pos' => 36,
+                            'permission' => 'dokan_view_product_menu'
+                        )
+                    )
+                );
+            }
             if (isset($urls['settings'])) {
                 $urls['settings']['submenu']['customize'] = array(
                     'title' => __('Personalizza', 'dokan-mod'),

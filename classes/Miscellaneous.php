@@ -25,6 +25,7 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             add_filter('dokan_vendor_own_product_purchase_restriction', array($this, 'dokan_vendor_own_product_purchase_restriction'), 1, 2);
 
             add_action('init', array($this, 'set_city_filter'));
+            add_action('init', array($this, 'register_shortcodes'));
             add_action('pre_get_posts', array($this, 'apply_city_filter'));
 
 
@@ -44,8 +45,7 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             add_action('wp_ajax_get_current_citta_value_if_is_set', array($this, 'get_current_citta_value_if_is_set'));
             add_action('wp_ajax_nopriv_get_current_citta_value_if_is_set', array($this, 'get_current_citta_value_if_is_set'));
 
-
-            $this->register_shortcodes();
+            add_action('dokan_order_detail_after_order_items', array($this, 'display_post_title_in_order_detail'), 10, 1);
         }
 
 
@@ -391,6 +391,46 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             $result = $dbClassInstance->get_comuni_by_provincia($province_name);
             echo json_encode($result);
             wp_die(); // this is required to terminate immediately and return a proper response
+        }
+
+
+        public function display_post_title_in_order_detail($order_id)
+        {
+            $order = wc_get_order($order_id);
+            $items = $order->get_items();
+            foreach ($items as $item) {
+                $post_id = $item->get_meta('_post_id');
+                if ($post_id) {
+                    $post_title = get_the_title($post_id);
+
+                    ob_start();
+                    ?>
+                    <div class="dokan-panel dokan-panel-default">
+                        <div class="dokan-panel-heading">
+                            <strong>Informazioni Annuncio di morte collegato</strong>
+                        </div>
+                        <div class="dokan-panel-body" id="woocommerce-order-items">
+                                <table class="dokan-table order-items">
+                                    <thead>
+                                    <tr>
+                                        <th class="item" colspan="2"><?php esc_html_e('Annuncio', 'dokan-mod'); ?></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="order_items_list">
+                                    <tr class="item">
+                                        <td class="item-name" colspan="2">
+                                                <a href="<?php echo get_permalink($post_id); ?>"><?php echo $post_title; ?></a>
+                                        </td>
+                                    </tbody>
+
+                                </table>
+
+                        </div>
+                    </div>
+                    <?php
+                    echo ob_get_clean();
+                }
+            }
         }
 
     }

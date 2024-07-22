@@ -97,7 +97,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             if (!class_exists('WooCommerce')) {
                 // Redirect back to the page with error message
                 wp_redirect(get_permalink($post_id));
-                exit;
             }
 
             $product = wc_get_product($product_id);
@@ -108,6 +107,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             // Ensure WooCommerce cart is loaded
             if (!WC()->cart) {
                 wc_load_cart();
+                wc_empty_cart();
             }
 
             //get the product category
@@ -124,7 +124,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
                 WC()->cart->add_to_cart($product_id, 1, 0, array(), $cart_item_data);
                 wp_redirect(wc_get_cart_url());
-                exit;
             } else {
                 wp_die('Product not purchasable');
             }
@@ -277,6 +276,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
         {
             if (!isset($_POST['product_id'])) {
                 wp_send_json_error('Product ID missing');
+                wp_die();
             }
 
             $product_id = intval($_POST['product_id']);
@@ -289,6 +289,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             $manifesto_array_data = (new UtilsAMClass())->get_vendor_data_by_id($user_id);
 
             wp_send_json_success($manifesto_array_data);
+            wp_die();
+
         }
 
 

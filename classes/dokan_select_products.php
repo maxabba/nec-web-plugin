@@ -11,6 +11,7 @@
 namespace Dokan_Mods;
 
 use WC_Admin_Duplicate_Product;
+use WC_Product_Variation;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
@@ -40,25 +41,19 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
         }
 
 
-
         public function handle_form_submission()
         {
             // Check if the form is submitted
             if (isset($_POST['selected_product_for_vendor'])) {
                 // Sanitize and process the form data
-                $data = filter_input_array(INPUT_POST, [
-                    'product' => [
-                        'filter' => FILTER_VALIDATE_INT,
-                        'flags' => FILTER_REQUIRE_ARRAY,
-                    ],
-                    'product_price' => [
-                        'filter' => FILTER_VALIDATE_FLOAT,
-                        'flags' => FILTER_REQUIRE_ARRAY,
-                    ]
-                ]);
-
-                $selected_products = $data['product'] ?? array();
-                $price = $data['product_price'] ?? array();
+                $data = $_POST;
+                $selected_products = isset($data['product']) ? array_map('intval', $data['product']) : array();
+                $price = isset($data['product_price']) ? array_map('floatval', $data['product_price']) : array();
+                $description = isset($data['product_description']) ? array_map('wp_kses_post', $data['product_description']) : array();
+                $variation_price = isset($data['variation_price']) ? array_map('floatval', $data['variation_price']) : array();
+                $variation_description = isset($data['variation_description']) ? array_map('wp_kses_post', $data['variation_description']) : array();
+                $variation_image = isset($data['variation_image']) ? array_map('intval', $data['variation_image']) : array();
+                $enabled_variations = isset($data['enabled_variations']) ? array_map('intval', $data['enabled_variations']) : array();
 
                 // Get the current user
                 $user_id = get_current_user_id();
@@ -70,7 +65,7 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                     // Use a transient to cache the result of this query for a short period
                     $transient_key = 'vendor_product_check_' . $user_id . '_' . $product_id;
                     $product_exists = get_transient($transient_key);
-
+                    $existing_product_id = "";
                     if ($product_exists === false) {
                         // Check if there is a product with the same title and the same vendor
                         $args = array(
@@ -88,6 +83,12 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
 
                         $existing_product = get_posts($args);
                         $product_exists = !empty($existing_product);
+
+                        // Get the existing product id
+                        if ($product_exists) {
+                            $existing_product_id = $existing_product[0]->ID;
+                        }
+
                         // Cache the result for 5 minutes
                         set_transient($transient_key, $product_exists, 5 * MINUTE_IN_SECONDS);
                     }
@@ -103,6 +104,12 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                         // Get the price form product_price field if exists and set it as price
                         if (isset($price[$product_id])) {
                             $clone_product->set_regular_price($price[$product_id]);
+                            $clone_product->save(); // Save the product data
+                        }
+
+                        // Set the description
+                        if (!empty($description)) {
+                            $clone_product->set_description($description[$product_id]);
                             $clone_product->save(); // Save the product data
                         }
 
@@ -126,21 +133,95 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                         wp_set_object_terms($clone_product_id, $categoria_finale, 'product_cat', true);
                         wp_remove_object_terms($clone_product_id, 'default-products', 'product_cat');
 
+                        // Handle variations
+                        if ($product->is_type('variable')) {
+                            $cloned_variations = $clone_product->get_children();
+                            foreach ($cloned_variations as $cloned_variation_id) {
+                                wp_delete_post($cloned_variation_id, true);
+                            }
+
+                            $variations = $product->get_children();
+                            foreach ($variations as $variation_id) {
+                                // Skip disabled variations
+                                if (!in_array($variation_id, $enabled_variations)) {
+                                    continue;
+                                }
+
+                                $variation_wc = wc_get_product($variation_id);
+
+                                // Duplicate the variation
+                                $clone_variation = new WC_Product_Variation();
+                                $clone_variation->set_parent_id($clone_product_id);
+                                $clone_variation->set_attributes($variation_wc->get_attributes());
+
+                                if (isset($variation_price[$variation_id])) {
+                                    $clone_variation->set_regular_price($variation_price[$variation_id]);
+                                }
+
+                                if (isset($variation_description[$variation_id])) {
+                                    $clone_variation->set_description($variation_description[$variation_id]);
+                                }
+
+                                if (isset($variation_image[$variation_id])) {
+                                    $clone_variation->set_image_id($variation_image[$variation_id]);
+                                }
+
+                                $clone_variation->save();
+                            }
+                        }
+
                         $operation_successful = true;
                     } else {
-                        $operation_successful = false;
+                        // Update the existing product with the new price
+                        $existing_product = wc_get_product($existing_product_id);
+                        $existing_product->set_regular_price($price[$product_id]);
+
+                        // Set the description
+                        if (!empty($description)) {
+                            $existing_product->set_description($description[$product_id]);
+                        }
+
+                        $existing_product->save(); // Save the product data
+
+                        // Handle variations
+                        if ($existing_product->is_type('variable')) {
+                            $variations = $existing_product->get_children();
+                            foreach ($variations as $variation_id) {
+                                // Skip disabled variations
+                                if (!in_array($variation_id, $enabled_variations)) {
+                                    continue;
+                                }
+
+                                $existing_variation = wc_get_product($variation_id);
+
+                                if (isset($variation_price[$variation_id])) {
+                                    $existing_variation->set_regular_price($variation_price[$variation_id]);
+                                }
+
+                                if (isset($variation_description[$variation_id])) {
+                                    $existing_variation->set_description($variation_description[$variation_id]);
+                                }
+
+                                if (isset($variation_image[$variation_id])) {
+                                    $existing_variation->set_image_id($variation_image[$variation_id]);
+                                }
+
+                                $existing_variation->save();
+                            }
+                        }
+
+                        $operation_successful = true;
                     }
                 }
-                    // Redirect to prevent form resubmission
-                    if ($operation_successful) {
-                        wp_redirect(add_query_arg(array('operation_result' => 'success'), wp_get_referer()));
-                    } else {
-                        wp_redirect(add_query_arg(array('operation_result' => 'error'), wp_get_referer()));
-                    }
-                    exit;
 
+                // Redirect to prevent form resubmission
+                if (isset($operation_successful) && $operation_successful) {
+                    wp_redirect(add_query_arg(array('operation_result' => 'success'), wp_get_referer()));
+                } else {
+                    wp_redirect(add_query_arg(array('operation_result' => 'error'), wp_get_referer()));
+                }
+                exit;
             }
-
         }
 
 

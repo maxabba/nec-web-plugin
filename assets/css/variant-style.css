@@ -1,11 +1,11 @@
-.vendor-selector {
+.inner_variant_product {
     display: flex;
     flex-wrap: wrap;
     gap: 20px;
     justify-content: center;
 }
 
-.vendor-flex {
+.variant-form {
     flex: 1 1 100%;
     max-width: 100%;
     overflow: hidden;
@@ -13,66 +13,75 @@
     text-align: center;
 }
 
-.vendor-card {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    border-radius: 5px;
-    overflow: hidden;
-    width: auto; /* Adatta la larghezza al contenuto */
-    margin: 0 auto; /* Centra la carta */
+.variant-container {
+    position: relative;
+    padding-top: 50px; /* Altezza della toolbar */
+    width: 100%;
+    max-width: 800px;
+    margin: auto;
+
+
 }
 
-.vendor-flex input[type="radio"] {
+.full-width-form input[type="submit"] {
+    display: block;
+    margin: 25px auto;
+
+}
+
+.inner_variant_product input[type="radio"] {
     position: absolute;
     opacity: 0;
     cursor: pointer;
 }
 
-.vendor-flex input[type="radio"]:checked + label .card {
+.inner_variant_product input[type="radio"]:checked + label .variant-card {
     border: 2px solid #DCBE52;
 }
 
-.card {
-    border: 1px solid #ddd;
+.variant-card {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     border-radius: 5px;
     overflow: hidden;
-    text-align: center;
+    width: auto; /* Adatta la larghezza al contenuto */
+    margin: 0 auto; /* Centra la carta */
+    padding: 20px;
 }
 
-.card img {
+.variant-card img {
     display: block;
     margin: 0 auto;
     max-width: 100%;
     height: auto;
 }
 
-.card-body {
-    padding: 10px;
-}
-
-.card-title {
-    font-size: 16px;
+.variant-card-price{
+    font-size: 14px;
     font-weight: bold;
-    margin: 0;
+    font-family: var(--e-global-typography-text-font-family), Sans-serif;
+}
+.variant-card-description {
+    font-size: 16px;
     font-family: var(--e-global-typography-text-font-family), Sans-serif;
 }
 
 /* Media queries per il layout responsive */
 @media (min-width: 576px) {
-    .vendor-flex {
+    .variant-form {
         flex: 1 1 48%;
         max-width: 48%;
     }
 }
 
 @media (min-width: 768px) {
-    .vendor-flex {
+    .variant-form {
         flex: 1 1 32%;
         max-width: 32%;
     }
 }
 
 @media (min-width: 992px) {
-    .vendor-flex {
+    .variant-form {
         flex: 1 1 24%;
         max-width: 24%;
     }

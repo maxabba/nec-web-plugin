@@ -9,298 +9,191 @@ $user_id = get_current_user_id();
 $store_info = dokan_get_store_info($user_id);
 $user_city = $store_info['address']['city'] ?? '';
 
-$args = (new Dokan_Mods\FiltersClass($user_city))->get_arg_query_Select_product_form();
-$products = get_posts($args);
+$FiltersClass = new Dokan_Mods\FiltersClass($user_city);
 
-$user_id = get_current_user_id();
+$args = $FiltersClass->get_arg_query_Select_product_form();
+$products_not_editable = get_posts($args);
 
-//check if vendor status is enabled
-$disable_form = false;
-if (dokan_is_user_seller($user_id) && !dokan_is_seller_enabled($user_id)) {
-    $disable_form = true;
-}
+$args = $FiltersClass->get_arg_query_Select_product_editable();
+$products_editable =  get_posts($args);
 
-// get the currency symbol of the store
+$disable_form = !dokan_is_user_seller($user_id) || !dokan_is_seller_enabled($user_id);
+
 $currency_symbol = get_woocommerce_currency_symbol();
 
-
-// Includi l'header
 get_header();
-
 $active_menu = 'seleziona-prodotti';
 
-// Include the Dokan dashboard sidebar
+$RenderDokanSelectProducts = new Dokan_Mods\RenderDokanSelectProducts();
 
 ?>
 
-    <main id="content" class="site-main post-58 page type-page status-publish hentry">
+<main id="content" class="site-main post-58 page type-page status-publish hentry">
 
-        <header class="page-header">
-            <h1 class="entry-title"><?php __('Aggiungi i servizi offerti', 'dokan-mod') ?></h1></header>
+    <header class="page-header">
+        <h1 class="entry-title"><?php __('Aggiungi i servizi offerti', 'dokan-mod') ?></h1></header>
 
-        <div class="page-content">
+    <div class="page-content">
 
-            <div class="dokan-dashboard-wrap">
+        <div class="dokan-dashboard-wrap">
 
-                <?php
-                dokan_get_template_part('global/dashboard-nav', '', ['active_menu' => $active_menu]);
-                ?>
+            <?php dokan_get_template_part('global/dashboard-nav', '', ['active_menu' => $active_menu]); ?>
 
-                <div class="dokan-dashboard-content dokan-product-edit">
+            <div class="dokan-dashboard-content dokan-product-edit">
+                <?php do_action('dokan_dashboard_content_inside_before'); ?>
+                <?php do_action('dokan_before_listing_product'); ?>
+
+                <header class="dokan-dashboard-header dokan-clearfix">
+                    <h1 class="entry-title"><?php _e('Aggiungi i servizi offerti', 'dokan-mod'); ?></h1>
+                    <p><?php _e('Scegli quali servizi aggiungere dalla lista sottostante', 'dokan-mod'); ?></p>
                     <?php
-
-                    /**
-                     *  Adding dokan_dashboard_content_before hook
-                     *
-                     * @hooked get_dashboard_side_navigation
-                     *
-                     * @since 2.4
-                     */
-                    do_action('dokan_dashboard_content_inside_before');
-                    do_action('dokan_before_listing_product');
-                    ?>
-                    <header class="dokan-dashboard-header dokan-clearfix">
-
-                        <h1 class="entry-title">
-                            <?php _e('Aggiungi i servizi offerti', 'dokan-mod'); ?> <span
-                                    class="dokan-label  dokan-product-status-label">
-                                            </span>
-                        </h1>
-                        <p><?php _e('Scegli quali servizi aggiungere dalla lista sottostante', 'dokan-mod'); ?></p>
-                        <?php
-                        if (isset($_GET['operation_result'])) {
-                            $operation_result = wp_kses($_GET['operation_result'], array());
-                            if ($operation_result == 'success') {
-                                echo '<div class="alert alert-success">Operazione eseguita con successo.</div>';
-                            } else if ($operation_result == 'error') {
-                                echo '<div class="alert alert-danger">Si è verificato un errore durante l\'operazione.</div>';
-                            }
+                    if (isset($_GET['operation_result'])) {
+                        $operation_result = wp_kses($_GET['operation_result'], array());
+                        if ($operation_result == 'success') {
+                            echo '<div class="alert alert-success">Operazione eseguita con successo.</div>';
+                        } else if ($operation_result == 'error') {
+                            echo '<div class="alert alert-danger">Si è verificato un errore durante l\'operazione.</div>';
                         }
-                        ?>
-                    </header>
+                    }
+                    ?>
+                </header>
 
-                    <div class="product-edit-new-container product-edit-container" style="margin-bottom: 100px">
+                <div class="product-edit-new-container product-edit-container" style="margin-bottom: 100px">
+                    <?php if (!$disable_form): ?>
+                        <form class="dokan-product-edit-form" role="form" method="post"
+                              action="<?php echo admin_url('admin-post.php'); ?>" id="post">
+                            <input type="hidden" name="action" value="add_product_dokan_vendor">
+                            <input type="hidden" name="selected_product_for_vendor" value="1">
 
-                        <!-- if the vendor status is enabled show the form -->
-                        <?php if (!$disable_form) { ?>
-                            <form class="dokan-product-edit-form" role="form" method="post"
-                                  action="<?php echo admin_url('admin-post.php'); ?>" id="post">
-                                <input type="hidden" name="action" value="add_product_dokan_vendor">
-                                <input type="hidden" name="selected_product_for_vendor" value="1">
-                                <?php
-                                //foreach product in the list generate a checkbox with the product title only
-                                foreach ($products as $product) {
-                                    $product_id = $product->ID;
-                                    $citta = get_field('citta', $product_id);
-                                    $provincia = get_field('provincia', $product_id);
-
-
-                                    //get categoria_finale field
-                                    $categoria_finale = get_field('categoria_finale', $product_id);
-
-                                    //check if categoria finale slitted by space is Manifesto
-                                    if (str_contains($categoria_finale, 'Manifesto') && !current_user_can('sell_manifesto')) {
-                                        continue;
-                                    }
-
-                                    if (str_contains($categoria_finale, 'Fiori') && !current_user_can('sell_fiori')) {
-                                        continue;
-                                    }
-
-                                    if (isset($provincia) && $provincia != 'Tutte' && $provincia != $store_info['address']['state']) {
-                                        continue;
-                                    }
-                                    if (isset($citta) && $citta != 'Tutte' && $citta != $user_city) {
-                                        continue;
-                                    }
-
-
-                                    $product_name = $product->post_title;
-                                    $product_wc = wc_get_product($product_id);
-
-                                    // Get the price of the product in decimal format
-                                    $price = $product_wc->get_price();
-                                    $price = number_format($price, 2, '.', '');
-
-
-                                    //get if exist a product by sky composed $product_id . '-' . $user_id and status pending
-                                    $sku = $product_id . '-' . get_current_user_id();
-                                    $args = array(
-                                        'post_type' => 'product',
-                                        'post_status' => 'any',
-                                        'posts_per_page' => 1,
-                                        'meta_query' => array(
-                                            array(
-                                                'key' => '_sku',
-                                                'value' => $sku
-                                            )
-                                        )
-                                    );
-                                    $product_exist = get_posts($args);
-
-                                    $check = '';
-                                    $disabled = '';
-                                    if ($product_exist) {
-                                        //get the price of the product
-                                        $product_wc = wc_get_product($product_exist[0]->ID);
-                                        $price = $product_wc->get_price();
-
-                                        if ($product_exist[0]->post_status == 'pending') {
-                                            $product_name .= __(' (Pending)', 'dokan-mod');
-                                            $disabled = 'disabled';
-                                        } else {
-                                            $product_name .= __(' (Already Added)', 'dokan-mod');
-                                            $check = 'checked';
-                                            $disabled = 'disabled';
-
-                                        }
-                                    }
-
-                                    ?>
-                                    <!-- add header with the product name -->
-                                    <h2><?php echo $product_name; ?></h2>
-                                    <!-- print the description of the product if is present-->
-                                    <?php
-                                    $product_description = $product->post_content;
-                                    if (!empty($product_description)) {
-                                        ?>
-                                        <p>
-                                            <strong><?php _e('Descrizione del servizio:', 'dokan-mod'); ?></strong> <?php echo $product_description; ?>
-                                        </p>
-                                        <?php
-                                    }
-                                    ?>
-                                    <div class="dokan-form-group dokan-product-type-container checkbox-container">
-                                        <input type="checkbox" id="product-<?php echo $product_id; ?>" name="product[]"
-                                               style="width: 20px; height: 20px; margin-right: 10px;"
-                                               value="<?php echo $product_id; ?>" <?php echo $check; ?> <?php echo $disabled; ?> >
-                                        <label for="product-<?php echo $product_id; ?>" style="font-size: 20px">
-                                            <?php _e('Aggiungi alla lista dei servizi', 'dokan-mod'); ?>
-                                        </label>
-                                    </div>
-                                    <?php
-                                    // if the product has the  category editable-price show the price input
-                                    $terms = get_the_terms($product_id, 'product_cat');
-                                    $terms_slug = array_map(function ($term) {
-                                        return $term->slug;
-                                    }, $terms);
-                                    if (in_array('editable-price', $terms_slug)) {
-
-                                        ?>
-                                        <div class="dokan-form-group dokan-product-type-container">
-                                            <label for="product-<?php echo $product_id; ?>-price">Prezzo: <?php echo $currency_symbol; ?></label>
-                                            <input type="number" id="product-<?php echo $product_id; ?>-price"
-                                                   name="product_price[<?php echo $product_id; ?>]" step="0.01" min="0"
-                                                   required value="<?php echo $price ?>" <?php echo $disabled ?> >
-                                        </div>
-
-                                        <!-- add separator line -->
-                                        <hr style="border: 1px solid #f1f1f1; margin: 20px 0;">
-                                        <?php
-                                    } else {
-                                        // print the price of the product
-                                        ?>
-                                        <p>
-                                            <strong><?php _e('Prezzo del servizio:', 'dokan-mod'); ?></strong><?php echo $currency_symbol; ?> <?php echo $price; ?>
-                                        </p>
-                                        <p>Per questo servizio non è prevista la modificha del prezzo, per richiedere
-                                            informazioni o modifiche utilizza l'apposito modulo di contatto</p>
-                                        <?php
-                                    }
-                                    if ($product_exist) {
-                                        ?>
-
-                                        <form action="<?php echo admin_url('admin-post.php'); ?>" method="post">
-                                            <input type="hidden" name="action" value="remove_product_dokan_vendor">
-                                            <input type="hidden" name="remove_product" value="1">
-                                            <input type="hidden" name="product_id"
-                                                   value="<?php echo $product_exist[0]->ID; ?>">
-                                            <input type="submit"
-                                                   value="<?php _e('Rimuovi ' . $product_name, 'dokan-mod'); ?>">
-                                        </form>
-                                    <?php }
-
-                                }
-                                ?>
-                                <input type="submit" value="<?php _e('Add Products', 'dokan-mod'); ?>" style="margin-top:50px">
-                            </form>
-                        <?php } else { ?>
-
-                            <!-- else show a centered icon of deny -->
-                            <div style="display: flex; justify-content: center; align-items: center; height: 250px">
-                                <i class="fas fa-ban" style="font-size: 100px; color: red;"></i>
-                            </div>
-                        <?php } ?>
-
-
-                    </div>
-
-                </div><!-- .dokan-dashboard-content -->
-
-
-            </div><!-- .dokan-dashboard-wrap -->
-
-
-            <div class="post-tags">
+                            <table class="table table-bordered">
+                                <thead>
+                                <tr>
+                                    <th><?php _e('Prodotto', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Descrizione', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Prezzo', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Azione', 'dokan-mod'); ?></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <?php foreach ($products_not_editable as $product): ?>
+                                    <?php echo $RenderDokanSelectProducts->render_product_row($product, $store_info, $user_city, $currency_symbol, $user_id); ?>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            <table class="table table-bordered">
+                                <thead>
+                                <tr>
+                                    <th><?php _e('Prodotto', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Descrizione', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Azione', 'dokan-mod'); ?></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <?php foreach ($products_editable as $product): ?>
+                                    <?php echo $RenderDokanSelectProducts->render_product_row_with_variations($product, $store_info, $user_city, $currency_symbol, $user_id); ?>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            <input type="submit" value="<?php _e('Add Products', 'dokan-mod'); ?>"
+                                   style="margin-top: 50px">
+                        </form>
+                    <?php else: ?>
+                        <div style="display: flex; justify-content: center; align-items: center; height: 250px">
+                            <i class="fas fa-ban" style="font-size: 100px; color: red;"></i>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
 
+        <div class="post-tags"></div>
+    </div>
+</main>
 
-    </main>
-    <style>
-        .dokan-form-group {
-            margin-bottom: 20px;
-        }
+<style>
+    .dokan-form-group {
+        margin-bottom: 20px;
+    }
 
-        .checkbox-container {
-            display: flex;
-            align-items: center;
-        }
+    .checkbox-container {
+        display: flex;
+        align-items: center;
+    }
 
-        .alert {
-            padding: 20px;
-            margin-bottom: 20px;
-            border: 1px solid transparent;
-            border-radius: 5px;
-            box-shadow: 0 2px 1px -1px rgba(0, 0, 0, 0.2), 0 1px 1px 0 rgba(0, 0, 0, 0.14), 0 1px 3px 0 rgba(0, 0, 0, 0.12);
-        }
+    .alert {
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 1px solid transparent;
+        border-radius: 5px;
+        box-shadow: 0 2px 1px -1px rgba(0, 0, 0, 0.2), 0 1px 1px 0 rgba(0, 0, 0, 0.14), 0 1px 3px 0 rgba(0, 0, 0, 0.12);
+    }
 
-        .alert-success {
-            color: #155724;
-            background-color: #d4edda;
-            border-color: #c3e6cb;
-        }
+    .alert-success {
+        color: #155724;
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+    }
 
-        .alert-danger {
-            color: #721c24;
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
-        }
-    </style>
+    .alert-danger {
+        color: #721c24;
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+    }
+</style>
 
-    <script>
-        window.onload = function () {
-            var alerts = document.querySelectorAll('.alert');
-            setTimeout(function () {
-                for (var i = 0; i < alerts.length; i++) {
-                    fadeOut(alerts[i]);
-                }
-            }, 5000);
-        }
+<script>
+    jQuery(document).ready(function ($) {
+        $('.remove-product-button').on('click', function (e) {
+            e.preventDefault();
+            var productId = $(this).data('product-id');
 
-        function fadeOut(element) {
-            var op = 1;  // initial opacity
-            var timer = setInterval(function () {
-                if (op <= 0.1) {
-                    clearInterval(timer);
-                    element.style.display = 'none';
-                }
-                element.style.opacity = op;
-                element.style.filter = 'alpha(opacity=' + op * 100 + ")";
-                op -= op * 0.1;
-            }, 50);
-        }
-    </script>
+            // Creiamo un form nascosto per la submit
+            var $form = $('<form>', {
+                action: '<?php echo admin_url('admin-post.php'); ?>',
+                method: 'POST'
+            }).append($('<input>', {
+                type: 'hidden',
+                name: 'action',
+                value: 'remove_product_dokan_vendor'
+            })).append($('<input>', {
+                type: 'hidden',
+                name: 'remove_product',
+                value: 1
+            })).append($('<input>', {
+                type: 'hidden',
+                name: 'product_id',
+                value: productId
+            }));
+
+            // Appendiamo il form al body e facciamo submit
+            $('body').append($form);
+            $form.submit();
+        });
+    });
+
+    window.onload = function () {
+        var alerts = document.querySelectorAll('.alert');
+        setTimeout(function () {
+            for (var i = 0; i < alerts.length; i++) {
+                fadeOut(alerts[i]);
+            }
+        }, 5000);
+    }
+
+    function fadeOut(element) {
+        var op = 1;  // initial opacity
+        var timer = setInterval(function () {
+            if (op <= 0.1) {
+                clearInterval(timer);
+                element.style.display = 'none';
+            }
+            element.style.opacity = op;
+            element.style.filter = 'alpha(opacity=' + op * 100 + ")";
+            op -= op * 0.1;
+        }, 50);
+    }
+</script>
+
 <?php
-
 get_footer();
+?>

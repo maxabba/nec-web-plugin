@@ -104,25 +104,47 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
                 'post_type' => 'product',
                 'post_status' => 'publish',
                 'posts_per_page' => -1,
+                'orderby' => 'title',
+                'order' => 'ASC',
                 'tax_query' => array(
-                    'relation' => 'OR',
+                    'relation' => 'AND',
                     array(
                         'taxonomy' => 'product_cat',
                         'field' => 'slug',
-                        'terms' => 'default-products', // Products with 'default-products' category
+                        'operator' => 'IN',
+                        'terms' => array('default-products'), // Products with 'default-products' category
                     ),
                     array(
-                        'relation' => 'AND',
-                        array(
-                            'taxonomy' => 'product_cat',
-                            'field' => 'slug',
-                            'terms' => 'default-products', // Products with 'default-products' category
-                        ),
-                        array(
-                            'taxonomy' => 'product_cat',
-                            'field' => 'slug',
-                            'terms' => 'editable-price', // Products with 'editable-price' category
-                        ),
+                        'taxonomy' => 'product_cat',
+                        'field' => 'slug',
+                        'operator' => 'NOT IN',
+                        'terms' => array('editable-price'), // Products with 'editable-price' category
+                    ),
+
+                ),
+            );
+            return $args;
+        }
+
+        public function get_arg_query_Select_product_editable()
+        {
+            $args = array(
+                'post_type' => 'product',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'orderby' => 'title',
+                'order' => 'ASC',
+                'tax_query' => array(
+                    'relation' => 'AND',
+                    array(
+                        'taxonomy' => 'product_cat',
+                        'field' => 'slug',
+                        'terms' => 'editable-price', // Products with 'default-products' category
+                    ),
+                    array(
+                        'taxonomy' => 'product_cat',
+                        'field' => 'slug',
+                        'terms' => 'default-products', // Products with 'editable-price' category
                     ),
                 ),
             );
