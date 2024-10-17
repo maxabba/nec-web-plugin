@@ -14,7 +14,7 @@ $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_ann
 $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
 
 //check if the current user is the autor of the post
-if ($post_id_annuncio !== null && $post_id_annuncio !== 'new_post') {
+if ($post_id_annuncio !== null && $post_id_annuncio != 'new_post') {
     $post_author_id = get_post_field('post_author', $post_id_annuncio);
     if ($post_author_id !== $user_id) {
         //redirect to the dashboard lista-anniversari

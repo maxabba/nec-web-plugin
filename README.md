@@ -14,3 +14,6 @@ predefinito. Ogni venditore viene visualizzato in una scheda con il nome del neg
 negozio.
 [product_title]: Questo shortcode visualizza il titolo del prodotto specificato. L'ID del prodotto può essere passato
 come attributo dello shortcode. Se non viene fornito un ID prodotto, viene utilizzato un valore predefinito.
+
+
+

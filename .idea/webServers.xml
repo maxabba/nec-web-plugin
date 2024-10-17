@@ -2,10 +2,10 @@
 <project version="4">
   <component name="WebServers">
     <option name="servers">
-      <webServer id="4f5868fa-c9cb-435c-80de-d3686067a40c" name="Necrologi" url="https://necrologi.abbattista.pw">
-        <fileTransfer rootFolder="/public_html/wp-content/plugins/dokan-mod" host="necrologi.abbattista.pw" port="21">
+      <webServer id="73c2ebb3-d339-4ae2-b26b-46a478556e6f" name="Necrologi">
+        <fileTransfer rootFolder="/home/necrologi/public_html" accessType="SFTP" host="necrologi.abbattista.cc" port="22" sshConfigId="fea2b447-7a0d-496c-83ff-e3500c5f88ee" sshConfig="necrologi@necrologi.abbattista.cc:22 password">
           <advancedOptions>
-            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
         </fileTransfer>
       </webServer>

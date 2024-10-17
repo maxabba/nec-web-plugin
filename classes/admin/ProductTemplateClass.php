@@ -22,7 +22,7 @@ if (!class_exists(__NAMESPACE__ . '\ProductTemplateClass')) {
                 'manage_options',
                 'product-templates',
                 array($this, 'settings_page'),
-                'dashicons-admin-generic',
+                'dashicons-tagcloud',
                 20
             );
         }

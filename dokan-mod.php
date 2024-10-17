@@ -69,6 +69,8 @@ function dokan_mods_load_and_instantiate_class($class_name, $file_path)
 
 // Includi e istanzia le classi necessarie
 dokan_mods_load_and_instantiate_class('ProductTemplateClass', 'classes/admin/ProductTemplateClass.php');
+dokan_mods_load_and_instantiate_class('MigrationClass', 'classes/admin/MigrationClass.php');
+//dokan_mods_load_and_instantiate_class('ParallelWPCron', 'classes/admin/ParallelWPCron.php');
 dokan_mods_load_and_instantiate_class('Dokan_Select_Products', 'classes/dokan_select_products.php');
 dokan_mods_load_and_instantiate_class('DashboardMenuClass', 'classes/DashboardMenuClass.php');
 dokan_mods_load_and_instantiate_class('Miscellaneous', 'classes/Miscellaneous.php');
@@ -93,6 +95,7 @@ dokan_mods_load_and_instantiate_class('PrintManifestoClass', 'classes/PrintManif
 
 
 dokan_mods_load_and_instantiate_class('ElementorWidgetInit', 'includes/ElementorWidgetInit.php');
+
 
 // Includi FiltersClass senza istanziarla
 if (!class_exists(__NAMESPACE__ . '\FiltersClass')) {

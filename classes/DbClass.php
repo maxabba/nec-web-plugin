@@ -45,7 +45,7 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
                     PRIMARY KEY  (id)
                 ) $charset_collate;";
            $result =  dbDelta($sql);
-           if ($result === false) {
+           if (!$result) {
                error_log('Table creation failed: ' . $wpdb->last_error, 0);
            }else{
                $this->import_data();
@@ -75,10 +75,11 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
                     'cap' => implode(',', $comune['cap']),
                     'popolazione' => $comune['popolazione']
                 ]);
+                if (!$result) {
+                    error_log('Data import failed: ' . $wpdb->last_error, 0);
+                }
             }
-            if ($result === false) {
-                error_log('Data import failed: ' . $wpdb->last_error, 0);
-            }
+
         }
 
         public function get_comuni_by_provincia($provincia)
@@ -117,6 +118,17 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
             $result = $wpdb->get_var($sql);
             return $result;
         }
+
+
+        //search comune by name and get corrispondence name with fulltext search
+        public function search_comune($comune)
+        {
+            global $wpdb;
+            $sql = $wpdb->prepare("SELECT nome FROM $this->table_name WHERE MATCH (nome) AGAINST (%s IN NATURAL LANGUAGE MODE)", $comune);
+            $result = $wpdb->get_results($sql, ARRAY_A);
+            return $result;
+        }
+
 
 
     }
