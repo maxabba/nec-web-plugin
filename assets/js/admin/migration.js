@@ -4,18 +4,74 @@ jQuery(document).ready(function ($) {
     let currentFile = '';
 
     function initializeMigrationWizard() {
-        getNextStep();
+        checkInitialStatus();
     }
 
-    function getNextStep() {
-        console.log('Requesting next step. Current step:', currentStep);
+    function checkInitialStatus() {
+        $.ajax({
+            url: migrationAjax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'check_migration_status',
+                nonce: migrationAjax.nonce
+            },
+            success: function (response) {
+                if (response.success && response.data) {
+                    const data = response.data;
+                    if (data.progress && typeof data.progress === 'object') {
+                        let fileToResume = null;
+                        for (const file in data.progress) {
+                            const progress = data.progress[file];
+                            if (progress.status === 'ongoing' ||
+                                (progress.status === 'not_started' && progress.processed < progress.total) ||
+                                (progress.status === 'completed' && progress.processed < progress.total)) {
+                                fileToResume = file;
+                                break;
+                            }
+                        }
+                        if (fileToResume) {
+                            currentFile = fileToResume;
+                            console.log('Resuming migration from file:', fileToResume);
+                            getNextStep(fileToResume);
+                        } else {
+                            getNextStep();
+                        }
+                    } else {
+                        getNextStep();
+                    }
+
+                    // Initialize progress display
+                    if (typeof data.overall_percentage === 'number') {
+                        updateOverallProgress(data.overall_percentage);
+                    }
+                    if (data.progress) {
+                        updateFileProgresses(data.progress);
+                    }
+                    $('#progress-container').show();
+                } else {
+                    console.error('Error in initial status check:', response);
+                    //alert('Error in initial status check: ' + JSON.stringify(response));
+                    getNextStep();
+                }
+            },
+            error: function (xhr, status, error) {
+                console.error('Initial status check error:', xhr.responseText);
+                alert('Error in initial status check. Details: ' + error);
+                getNextStep();
+            }
+        });
+    }
+
+    function getNextStep(specificFile = null) {
+        console.log('Requesting next step. Current step:', currentStep, 'Specific file:', specificFile);
         $.ajax({
             url: migrationAjax.ajax_url,
             type: 'POST',
             data: {
                 action: 'get_next_step',
                 nonce: migrationAjax.nonce,
-                current_step: currentStep
+                current_step: currentStep,
+                specific_file: specificFile
             },
             success: function (response) {
                 if (response.success) {
@@ -28,6 +84,9 @@ jQuery(document).ready(function ($) {
                         updateStepIndicator();
                         $('#current-step-content').html(response.data.content);
                         initializeStepForm(response.data.current_file);
+                        if (specificFile) {
+                            startProgressCheck();
+                        }
                     }
                 } else {
                     console.error('Error fetching next step:', response.data);
@@ -136,11 +195,14 @@ jQuery(document).ready(function ($) {
     }
 
     function startProgressCheck() {
+        console.log('startProgressCheck called');
         $('#progress-container').show();
         checkStatus();
     }
 
     function checkStatus() {
+        console.log('checkStatus called');
+
         $.ajax({
             url: migrationAjax.ajax_url,
             type: 'POST',
@@ -165,7 +227,7 @@ jQuery(document).ready(function ($) {
                         $('#migration-log').html(data.log.replace(/\n/g, '<br>'));
                     }
 
-                    if (data.overall_percentage < 100) {
+                    if (data.overall_percentage < 99) {
                         setTimeout(checkStatus, 2000); // Check every 2 seconds
                     } else {
                         $('#progress-container').hide();
@@ -266,4 +328,74 @@ jQuery(document).ready(function ($) {
     }
 
     initializeMigrationWizard();
+
+    /*$('#trigger-image-check').on('click', function (e) {
+        e.preventDefault();
+
+        var csvFile = $('#csv-file-input').val();
+
+        if (!csvFile) {
+            alert('Per favore, inserisci il nome del file CSV.');
+            return;
+        }
+
+        // Disabilita il pulsante durante l'elaborazione
+        $(this).prop('disabled', true).text('Elaborazione in corso...');
+
+        // Crea un elemento per mostrare il progresso
+        var progressElement = $('<div id="batch-progress"></div>').insertAfter(this);
+
+        processBatch(csvFile, 0, progressElement);
+    });
+
+    function processBatch(csvFile, offset, progressElement) {
+        $.ajax({
+            url: migrationAjax.ajax_url,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                action: 'trigger_image_check_and_update',
+                csv_file: csvFile,
+                offset: offset,
+            },
+            success: function (response) {
+                if (response.success) {
+                    var result = response.data;
+                    console.log('Processed:', result.processed, 'Total:', result.offset);
+
+                    // Update the progress element
+                    progressElement.text('Elaborati: ' + result.offset + ' record');
+
+                    if (!result.complete) {
+                        // Continue with the next batch
+                        processBatch(csvFile, result.offset, progressElement);
+                    } else {
+                        progressElement.text('Processo completato. Totale record elaborati: ' + result.offset);
+                        alert('Processo completato: ' + result.message);
+                        // Re-enable the button
+                        $('#trigger-image-check').prop('disabled', false).text('Avvia verifica immagini');
+                    }
+                } else {
+                    // Handle server-side errors
+                    var errorMessage = 'Errore: ' + (response.data ? response.data : 'Errore sconosciuto dal server.');
+                    handleError(errorMessage, progressElement);
+                }
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                var errorMessage = 'Si è verificato un errore durante la richiesta: ' + textStatus + ' - ' + errorThrown;
+                handleError(errorMessage, progressElement);
+            }
+        });
+    }
+
+    function handleError(errorMessage, progressElement) {
+        console.error(errorMessage);
+        alert(errorMessage);
+        // Re-enable the button in case of error
+        $('#trigger-image-check').prop('disabled', false).text('Avvia verifica immagini');
+        progressElement.text('Processo interrotto a causa di un errore.');
+    }*/
+
+
+
 });

@@ -19,8 +19,8 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
         {
             parent::__construct($upload_dir, $progress_file, $log_file, $batch_size);
 
-            add_action('dokan_mods_download_images_trigesimo', [$this, 'download_image_cron_job'], 10, 4);
-            add_action('dokan_mods_download_images_anniversario', [$this, 'download_image_cron_job'], 10, 4);
+            add_action('dokan_mods_download_images_trigesimo', [$this, 'download_image_cron_job'], 20, 4);
+            add_action('dokan_mods_download_images_anniversario', [$this, 'download_image_cron_job'], 20, 4);
         }
 
 
@@ -115,7 +115,6 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
             // Batch query existing posts and users
             $existing_posts = $this->get_existing_posts_by_old_ids($batch_post_old_ids);
-            $new_progress = $progress['processed'] + $processed;
             foreach ($batch_data as $data) {
                 $id = $data[array_search('ID', $header)];
 
@@ -159,7 +158,11 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $author_id = $necrologio->post_author;
 
                 // Calcola la data di pubblicazione
-                $pub_date = date('Y-m-d H:i:s', strtotime($necrologio->post_date . ' +30 days'));
+                if( $tipo == 1){
+                    $pub_date = date('Y-m-d H:i:s', strtotime($necrologio->post_date . ' +30 days'));
+                }elseif($tipo == 2){
+                    $pub_date = date('Y-m-d H:i:s', strtotime($necrologio->post_date . ' +'. $anni . ' year'));
+                }
 
                 $post_id = wp_insert_post(array(
                     'post_type' => $post_type,
@@ -212,7 +215,13 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             $execution_time = $end_time - $start_time;
             $this->log("Batch execution time: {$execution_time} seconds");
             $this->set_progess_status($file_name, 'complited');
+            $this->log("Procedo all'esecuzione del download delle immagini, tempo stimato 10 minuti, attendi...");
 
+            //1000 secondi in minuti sono 16.6666666667
+
+
+            $new_progress = $this->get_progress($file_name);
+            $new_progress = $new_progress['processed'];
             return $new_progress >= $total_rows;
         }
 

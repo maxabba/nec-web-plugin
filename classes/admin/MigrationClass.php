@@ -164,6 +164,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 </button>
 
                 <div id="migration-log"></div>
+
             </div>
 
             <style>
@@ -227,6 +228,9 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             </style>
             <?php
         }
+
+        //<input type="text" id="csv-file-input" placeholder="Nome del file CSV">
+        //<button id="trigger-image-check">Verifica e Aggiorna Immagini</button>
 
         private function convert_to_bytes($value)
         {
@@ -388,6 +392,12 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             // Inizializza il file di progresso per questo specifico file
             $this->initialize_progress_file($file);
 
+/*            if ($file == 'accounts.csv') {
+                $completed = $this->accounts_migration_task->migrate_accounts_batch('accounts.csv');
+                return;
+            }*/
+
+
             // Programma il batch ricorrente ogni minuto solo per il file specificato
             if (isset($this->cron_hooks[$file])) {
                 $hook = $this->cron_hooks[$file];
@@ -449,6 +459,12 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 $this->log("Batch cleared for {$file}");
             }
 
+            //dokan_mods_download_images_profile_photo
+            //dokan_mods_download_images_manifesto_image
+
+            wp_unschedule_hook('dokan_mods_download_images_profile_photo');
+            wp_unschedule_hook('dokan_mods_download_images_manifesto_image');
+
             $this->log("Migration stopped by user");
             wp_send_json_success("Migration stopped");
         }
@@ -471,6 +487,13 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             if (!current_user_can('manage_options')) {
                 $this->debug_log("Permessi insufficienti in check_migration_status");
                 wp_send_json_error('Permesso negato.');
+            }
+
+            //check if the progress file exists
+            if (!file_exists($this->progress_file)) {
+                $this->debug_log("Il file di progresso non esiste in check_migration_status");
+                wp_send_json_success('Progress file not found.');
+                return;
             }
 
             $progress = json_decode(file_get_contents($this->progress_file), true);
@@ -517,7 +540,19 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             }
 
             $current_step = isset($_POST['current_step']) ? intval($_POST['current_step']) : 0;
-            $next_step = $current_step + 1;
+            $specific_file = isset($_POST['specific_file']) ? sanitize_text_field($_POST['specific_file']) : null;
+
+            if ($specific_file) {
+                $file_index = array_search($specific_file, $this->allowed_files);
+                if ($file_index !== false) {
+                    $next_step = $file_index + 1;
+                } else {
+                    wp_send_json_error('File specificato non trovato.');
+                    return;
+                }
+            } else {
+                $next_step = $current_step + 1;
+            }
 
             if ($next_step <= count($this->allowed_files)) {
                 $current_file = $this->allowed_files[$next_step - 1];

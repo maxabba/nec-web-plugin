@@ -130,6 +130,19 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
         }
 
 
+        public function get_provincia_by_sigla($sigla)
+        {
+            global $wpdb;
+            $sigla = strtoupper($sigla);
+
+            $sql = $wpdb->prepare("SELECT provincia_nome FROM $this->table_name WHERE sigla = %s", $sigla);
+            $result = $wpdb->get_var($sql);
+
+            if (!$result) {
+                return '';
+            }
+            return $result;
+        }
 
     }
 }
