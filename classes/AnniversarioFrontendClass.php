@@ -76,22 +76,32 @@ if (!class_exists(__NAMESPACE__ . '\AnniversarioFrontendClass')) {
                 // Filtra per provincia
                 $meta_query = array();
                 if (isset($_GET['province']) && !empty($_GET['province'])) {
+                    global $dbClassInstance;
+
+                    // Ottieni l'elenco dei comuni della provincia selezionata
+                    $province = sanitize_text_field($_GET['province']);
+                    $comuni = $dbClassInstance->get_comuni_by_provincia($province);
+
+                    // Aggiungi il valore "Tutte" alla lista dei comuni
+                    $comuni[] = 'Tutte';
+
                     $meta_query = array(
                         'relation' => 'AND',
                         array(
                             'key' => 'provincia',
-                            'value' => sanitize_text_field($_GET['province']),
+                            'value' => $province,
                             'compare' => '='
                         ),
                         array(
                             'key' => 'citta',
-                            'value' => 'Tutte',
-                            'compare' => '='
+                            'value' => $comuni, // Passa l'elenco di comuni come array
+                            'compare' => 'IN'
                         )
                     );
 
                     $query->set('meta_query', $meta_query);
                 }
+
 
                 if (!empty($meta_query)) {
                     $query->set('meta_query', $meta_query);

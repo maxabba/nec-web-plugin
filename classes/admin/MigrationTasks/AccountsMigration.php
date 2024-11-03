@@ -2,6 +2,8 @@
 
 namespace Dokan_Mods\Migration_Tasks;
 
+use RuntimeException;
+use SplFileObject;
 use WP_Query;
 use Dokan_Mods\MigrationClass;
 
@@ -21,28 +23,43 @@ if (!class_exists(__NAMESPACE__ . '\AccountsMigration')) {
 
         public function migrate_accounts_batch($file_name)
         {
+            if ($this->get_progress_status($file_name) == 'finished') {
+                $this->log("Il file $file_name è già stato processato completamente.");
+                return true;
+            }
             $start_time = microtime(true);
-            $this->set_progess_status($file_name, 'ongoing');
+
+            $this->set_progress_status($file_name, 'ongoing');
 
             $csvFile = $this->upload_dir . $file_name;
             $progress = $this->get_progress($file_name);
-            $total_rows = $this->countCsvRows($csvFile);
 
-            // Se il file non può essere aperto, gestisci l'errore
-            if (($file = fopen($csvFile, 'r')) === FALSE) {
-                $this->log("Errore nell'apertura del file di input");
-                $this->set_progess_status($file_name, 'failed');
+            try {
+                $file = new SplFileObject($csvFile);
+                $file->setFlags(SplFileObject::READ_CSV);
+            } catch (RuntimeException $e) {
+                $this->log("Errore nell'apertura del file di input: " . $e->getMessage());
+                $this->set_progress_status($file_name, 'failed');
                 return false;
             }
-            $header = fgetcsv($file);
+
+            $total_rows = $this->countCsvRows($file);
+
+            // Ottieni l'header
+            $file->rewind();
+            $header = $file->fgetcsv();
 
             // Salta le righe già processate
-            for ($i = 0; $i < $progress['processed']; $i++) {
-                fgetcsv($file);
-            }
+            $file->seek($progress['processed']);
 
             $processed = 0;
-            while (($data = fgetcsv($file)) !== FALSE && $processed < $this->batch_size) {
+            while (!$file->eof() && $processed < $this->batch_size) {
+                $data = $file->fgetcsv();
+                if (!$data || $file->key() == 0) {
+                    // Salta righe vuote o l'header
+                    continue;
+                }
+
                 $id = $data[array_search('ID', $header)];
                 $username = $data[array_search('Username', $header)];
                 $email = $data[array_search('Email', $header)];
@@ -65,7 +82,6 @@ if (!class_exists(__NAMESPACE__ . '\AccountsMigration')) {
                         $existing_user->add_role($new_role);
                         $this->log("Ruolo $new_role aggiunto all'utente esistente con email $email (ID: {$existing_user->ID})");
                     } elseif ($new_role == 'subscriber') {
-                        // Se il ruolo derivato da tipologia non è valido, non fare nulla
                         $this->log("Ruolo non valido per l'utente con email $email, nessuna azione eseguita.");
                     } else {
                         // Se l'email esiste ma non c'è differenza di ruoli, modifica l'email
@@ -110,16 +126,15 @@ if (!class_exists(__NAMESPACE__ . '\AccountsMigration')) {
                 $processed++;
             }
 
-            fclose($file);
-
             $new_progress = $progress['processed'] + $processed;
             $this->update_progress($file_name, $new_progress, $total_rows);
             $execution_time = microtime(true) - $start_time;
             $this->log("Batch execution time: {$execution_time} seconds");
-            $this->set_progess_status($file_name, 'complited');
+            $this->set_progress_status($file_name, $new_progress >= $total_rows ? 'finished' : 'ongoing');
 
-            return $new_progress >= $total_rows;
+            return [$new_progress >= $total_rows, $execution_time];
         }
+
 
         private function get_role_from_tipologia($tipologia)
         {

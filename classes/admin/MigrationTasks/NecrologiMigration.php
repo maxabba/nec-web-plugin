@@ -3,6 +3,8 @@
 namespace Dokan_Mods\Migration_Tasks;
 
 use Exception;
+use RuntimeException;
+use SplFileObject;
 use WP_Error;
 use WP_Query;
 use Dokan_Mods\Migration_Tasks\MigrationTasks;
@@ -15,514 +17,486 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
     class NecrologiMigration extends MigrationTasks
     {
 
-        private string $image_cron_hook = 'dokan_mods_download_images';
+        //private string $image_cron_hook = 'dokan_mods_download_images';
 
+        private string $image_queue_file = 'image_download_queue.csv';
+        private int $max_retries = 5;
+        private int $images_per_cron = 500;
 
         public function __construct(String $upload_dir, String $progress_file, String $log_file, Int $batch_size)
         {
             parent::__construct($upload_dir, $progress_file, $log_file, $batch_size);
 
+            add_action('dokan_mods_process_image_queue', [$this, 'process_image_queue']);
 
-            add_action('dokan_mods_download_images_profile_photo', [$this, 'download_image_cron_job'], 10, 4);
-            add_action('dokan_mods_download_images_manifesto_image', [$this, 'download_image_cron_job'], 10, 4);
+            add_filter('cron_schedules', function ($schedules) {
+                // Controlla se l'intervallo 'every_one_minute' non esiste già
+                if (!isset($schedules['every_one_minute'])) {
+                    $schedules['every_one_minute'] = array(
+                        'interval' => 60, // ogni 60 secondi
+                        'display' => __('Ogni minuto')
+                    );
+                }
+                return $schedules;
+            });
 
-            //add_action('wp_ajax_trigger_image_check_and_update', [$this, 'ajax_trigger_image_check_and_update']);
 
         }
 
+        private function schedule_image_processing()
+        {
+
+            // Programma l'evento se non è già programmato
+            if (!wp_next_scheduled('dokan_mods_process_image_queue')) {
+                $this->log('Scheduling image processing event.');
+                wp_schedule_event(time(), 'every_one_minute', 'dokan_mods_process_image_queue');
+            } else {
+                $this->log('Image processing event already scheduled.');
+            }
+        }
 
 
         public function migrate_necrologi_batch($file_name)
         {
-            $start_time = microtime(true);
-            $this->set_progess_status($file_name, 'ongoing');
 
-            $progress = $this->get_progress($file_name);
-            $csvFile = $this->upload_dir . $file_name;
-            $total_rows = $this->countCsvRows($csvFile);
+            if($this->get_progress_status($file_name) == 'finished'){
+                $this->schedule_image_processing();
 
-            $file = fopen($this->upload_dir . $file_name, 'r');
-            if ($file === FALSE) {
-                $this->log("Errore nell'apertura del file di input");
-                $this->set_progess_status($file_name, 'failed');
-                return false;
-            }
-            $header = fgetcsv($file);
-
-
-            if($progress['processed'] == $total_rows){
-                $this->log("Tutti i record sono già stati processati");
-                fclose($file);
-                $this->set_progess_status($file_name, 'complited');
+                $this->log("Il file $file_name è già stato processato completamente.");
                 return true;
             }
 
-            if ($progress['processed'] == 0) {
-                //make a list of all the old ids
-                $old_ids = [];
-                while (($data = fgetcsv($file)) !== FALSE) {
-                    $old_ids[] = $data[array_search('ID', $header)];
-                }
-                $existing_posts = $this->get_existing_posts_by_old_ids($old_ids);
+            $start_time = microtime(true);
+            $this->set_progress_status($file_name, 'ongoing');
 
-                //get the index of the last existing post
-                $last_existing_post_index = array_search(end($old_ids), array_keys($existing_posts));
-                fclose($file);
-                $file = fopen($this->upload_dir . $file_name, 'r');
-                $header = fgetcsv($file);
-                if ($last_existing_post_index === false) {
-                    //close the file and reopen it
-                    $this->log("No existing posts found");
-                } else {
-                    $this->log("Last existing post index: $last_existing_post_index");
-                    for ($i = 0; $i < $last_existing_post_index; $i++) {
-                        fgetcsv($file);
-                    }
-                    $processed = $progress['processed'] + $last_existing_post_index;
-                    $this->update_progress($file_name, $processed, $total_rows);
-
-                }
-            }elseif ($progress['processed'] > 0) {
-                $skip_records = $progress['processed'];
-                for ($i = 0; $i < $skip_records; $i++) {
-                    fgetcsv($file);
-                }
+            if(!$file = $this->load_file($file_name)){
+                return false;
             }
 
-            $processed = 0;
-            $batch_post_old_ids = [];
-            $batch_user_old_ids = [];
+            if (!$progress = $this->first_call_check($file)) {
+                return false;
+            }
+
+            $processed = $progress['processed'];
+            $total_rows = $progress['total'];
+
+            $header = $file->fgetcsv();             // Leggi l'header
+
+            $file->seek($processed);                // Salta le righe già processate
+
             $batch_data = [];
+            $batch_user_old_ids = [];
+            $batch_post_old_ids = [];
+            $id_account_index = array_search('IdAccount', $header);
 
-            // Collect data for the current batch
-            while (($data = fgetcsv($file)) !== FALSE && $processed < $this->batch_size) {
-                $id = $data[array_search('ID', $header)];
-                $id_account = $data[array_search('IdAccount', $header)];
+            // Raccolta dati batch
+            while (!$file->eof() && count($batch_data) < $this->batch_size) {
+                $data = $file->fgetcsv();
+                if (empty($data)) continue;
 
-                $batch_post_old_ids[] = $id;
-                $batch_user_old_ids[] = $id_account;
                 $batch_data[] = $data;
-
-                $processed++;
+                $batch_user_old_ids[] = $data[$id_account_index];
+                $batch_post_old_ids[] = $data[array_search('ID', $header)];
             }
 
-            fclose($file);
-            $progress = $this->get_progress($file_name);
+            // Ottimizzazione: pre-fetch degli utenti esistenti
+            $existing_posts = $this->get_existing_posts_by_old_ids(array_unique($batch_post_old_ids));
+            $existing_users = $this->get_existing_users_by_old_ids(array_unique($batch_user_old_ids));
+            unset($batch_user_old_ids); // Libera memoria
+            unset($batch_post_old_ids); // Libera memoria
 
-            // Batch query existing posts and users
-            $existing_posts = $this->get_existing_posts_by_old_ids($batch_post_old_ids);
-            $existing_users = $this->get_existing_users_by_old_ids($batch_user_old_ids);
+            $image_queue = [];
 
+            // Process batch
             foreach ($batch_data as $data) {
+                $this->log("Ram Usage start: " . $this->get_memory_usage());
 
-                $id = $data[array_search('ID', $header)];
-                if (isset($existing_posts[$id])) {
-                    $new_progress = ++$progress['processed'];
-                    $this->update_progress($file_name, $new_progress, $total_rows);
-
-                    $this->log("Annuncio di morte già esistente: ID {$existing_posts[$id]}");
-                    continue;
-                }
-
-                $id_account = $data[array_search('IdAccount', $header)];
-                $nome = $data[array_search('Nome', $header)];
-                $cognome = $data[array_search('Cognome', $header)];
-                $anni = $data[array_search('Anni', $header)];
-                $data_morte = $data[array_search('DataMorte', $header)];
-                $foto = $data[array_search('Foto', $header)];
-                $testo = $data[array_search('Testo', $header)];
-                $pubblicato = $data[array_search('Pubblicato', $header)];
-                $luogo = $data[array_search('Luogo', $header)];
-                $data_funerale = $data[array_search('DataFunerale', $header)];
-                $immagine_manifesto = $data[array_search('ImmagineManifesto', $header)];
-                $alt_testo = $data[array_search('AltTesto', $header)];
-
-                $author_id = $existing_users[$id_account] ?? 1;
-
-                // Check if post already exists
-
-                $post_id = wp_insert_post(array(
-                    'post_type' => 'annuncio-di-morte',
-                    'post_status' => $pubblicato == 1 ? 'publish' : 'draft',
-                    'post_title' => $nome . ' ' . $cognome,
-                    'post_author' => $author_id ?: 1, // Use default author if not found
-                    //publish date equal to $data_morte
-                    'post_date' => date('Y-m-d H:i:s', strtotime($data_morte)),
-                ));
-
-                if (!is_wp_error($post_id)) {
-                    update_field('field_670d4e008fc23', $id, $post_id);
-                    update_field('field_6641d54cb4d9f', $nome, $post_id);
-                    update_field('field_6641d566b4da0', $cognome, $post_id);
-                    update_field('field_666ac79ed3c4e', intval($anni), $post_id);
-                    update_field('field_6641d588b4da2', $data_morte, $post_id);
-                    update_field('field_6641d6d7cc550', $testo ?: $alt_testo, $post_id);
-                    update_field('field_662ca58a35da3', $this->format_luogo($luogo), $post_id);
-                    update_field('field_6641d694cc548', $data_funerale, $post_id);
-
-                    // Handle profile photo
-                    // Delegare il download della foto del profilo
-                    if ($foto & $post_id & $author_id) {
-                        $foto_id = $this->get_image_id_by_url($foto);
-                        if (!$foto_id) {
-                            $this->schedule_image_download('profile_photo', $foto, $post_id, $author_id);
-                        }
-                    }
-
-                    // Delegare il download dell'immagine del manifesto
-                    if ($immagine_manifesto & $post_id & $author_id) {
-                        $manifesto_id = $this->get_image_id_by_url($immagine_manifesto);
-                        if (!$manifesto_id) {
-                            $this->schedule_image_download('manifesto_image', $immagine_manifesto, $post_id, $author_id);
-                        }
-                    }
-                    //get the current row index
-                    $this->log("Annuncio di morte creato: ID $post_id, Nome $nome $cognome");
-
-
-                } else {
-                    $this->log("Errore nella creazione dell'annuncio di morte: " . $post_id->get_error_message());
-                }
-                $new_progress = ++$progress['processed'];
-                $this->update_progress($file_name, $new_progress, $total_rows);
+                $this->process_single_record(
+                    $data,
+                    $header,
+                    $existing_posts,
+                    $existing_users,
+                    $image_queue
+                );
+                $this->log("Ram Usage end: " . $this->get_memory_usage());
+                $processed++;
+                $this->update_progress($file_name, $processed, $total_rows);
             }
 
+            // Cleanup
+            unset($batch_data);
+            $file = null; // Chiude il file
 
+            // Processamento immagini
+            if (!empty($image_queue)) {
+                $this->image_queue($image_queue);
+            }
+            unset($image_queue);
 
             $end_time = microtime(true);
             $execution_time = $end_time - $start_time;
             $this->log("Batch execution time: {$execution_time} seconds");
-            $this->set_progess_status($file_name, 'complited');
 
-            return $new_progress >= $total_rows;
+            $this->set_progress_status($file_name, 'completed');
+
+            if ($processed >= $total_rows) {
+                $this->set_progress_status($file_name, 'finished');
+                $this->schedule_image_processing();
+            }
+
+            return $processed >= $total_rows;
         }
 
-/*        public function ajax_trigger_image_check_and_update()
+
+
+        private function process_single_record($data, $header, $existing_posts, $existing_users, &$image_queue)
         {
-            // Security check: Verify the AJAX nonce
+            static $field_indexes = null;
 
-            // Permission check: Ensure the user has the required capability
-            if (!current_user_can('manage_options')) {
-                wp_send_json_error('Non hai i permessi per eseguire questa azione.');
-                wp_die();
-            }
-
-            // Retrieve and sanitize input parameters
-            $csv_file = isset($_POST['csv_file']) ? sanitize_text_field($_POST['csv_file']) : '';
-            $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
-
-            if (empty($csv_file)) {
-                wp_send_json_error('Nome del file CSV non fornito.');
-                wp_die();
-            }
-
-            // Execute the batch processing function
-            $result = $this->batch_check_and_update_missing_images($csv_file, $offset);
-
-            // Handle errors returned from the batch processing
-            if (is_wp_error($result)) {
-                wp_send_json_error($result->get_error_message());
-            } else {
-                wp_send_json_success($result);
-            }
-
-            wp_die();
-        }
-
-        public function batch_check_and_update_missing_images($csv_file, $offset = 0, $batch_size = 50)
-        {
-            $this->log("Iniziando la verifica e l'aggiornamento delle immagini mancanti (batch $offset)");
-
-            // Construct the full path to the CSV file
-            $csv_file_path = $this->upload_dir . $csv_file;
-
-            // Verify that the file exists and is readable
-            if (!file_exists($csv_file_path) || !is_readable($csv_file_path)) {
-                $this->log("Errore: Il file CSV non esiste o non è leggibile");
-                return new WP_Error('csv_file_error', "Errore nell'apertura del file CSV");
-            }
-
-            // Open the CSV file
-            if (($file = fopen($csv_file_path, 'r')) === FALSE) {
-                $this->log("Errore nell'apertura del file CSV");
-                return new WP_Error('csv_file_error', "Errore nell'apertura del file CSV");
-            }
-
-            // Read the header row
-            $header = fgetcsv($file);
-            if ($header === FALSE) {
-                fclose($file);
-                $this->log("Errore: Il file CSV è vuoto o non contiene dati");
-                return new WP_Error('csv_file_error', "Il file CSV è vuoto o non contiene dati");
-            }
-
-            // Remove Byte Order Mark (BOM) if present
-            $bom = pack('H*', 'EFBBBF');
-            $header[0] = preg_replace('/^' . $bom . '/', '', $header[0]);
-
-            // Map header columns to indices
-            $id_index = array_search("ID", $header);
-            $foto_index = array_search("Foto", $header);
-            $immagine_manifesto_index = array_search("ImmagineManifesto", $header);
-
-            $this->log("Header CSV: " . implode(", ", $header));
-            $this->log("Indici trovati - ID: $id_index, Foto: $foto_index, ImmagineManifesto: $immagine_manifesto_index");
-
-            // Ensure required columns are present
-            if ($id_index === false || $foto_index === false || $immagine_manifesto_index === false) {
-                $this->log("Errore: Colonne necessarie non trovate nel CSV");
-                fclose($file);
-                return new WP_Error('csv_header_error', "Errore: Colonne necessarie non trovate nel CSV");
-            }
-
-            // Skip lines up to the current offset
-            $current_line = 0;
-            while ($current_line < $offset && ($data = fgetcsv($file)) !== FALSE) {
-                $current_line++;
-            }
-
-            $csv_data = [];
-            $count = 0;
-
-            // Read up to batch_size records
-            while (($data = fgetcsv($file)) !== FALSE && $count < $batch_size) {
-                $id = $data[$id_index];
-                $foto = $data[$foto_index];
-                $immagine_manifesto = $data[$immagine_manifesto_index];
-
-                // Skip records where both 'foto' and 'immagine_manifesto' are empty
-                if (empty($foto) && empty($immagine_manifesto)) {
-                    $current_line++;
-                    continue;
-                }
-
-                $csv_data[$id] = [
-                    'foto' => $foto !== '-' ? $foto : '',
-                    'immagine_manifesto' => $immagine_manifesto !== '-' ? $immagine_manifesto : ''
-                ];
-                $count++;
-                $current_line++;
-            }
-
-            // Determine if the end of the file has been reached
-            $complete = feof($file);
-
-            // Close the CSV file
-            fclose($file);
-
-            if (empty($csv_data)) {
-                $this->log("Nessun dato da elaborare nel batch corrente.");
-                return [
-                    'complete' => $complete,
-                    'offset' => $current_line,
-                    'processed' => 0,
-                    'message' => 'Nessun dato da elaborare nel batch corrente.'
+            // Cache degli indici dei campi
+            if ($field_indexes === null) {
+                $field_indexes = [
+                    'ID' => array_search('ID', $header),
+                    'IdAccount' => array_search('IdAccount', $header),
+                    'Nome' => array_search('Nome', $header),
+                    'Cognome' => array_search('Cognome', $header),
+                    'Anni' => array_search('Anni', $header),
+                    'DataMorte' => array_search('DataMorte', $header),
+                    'Foto' => array_search('Foto', $header),
+                    'Testo' => array_search('Testo', $header),
+                    'Pubblicato' => array_search('Pubblicato', $header),
+                    'Luogo' => array_search('Luogo', $header),
+                    'DataFunerale' => array_search('DataFunerale', $header),
+                    'ImmagineManifesto' => array_search('ImmagineManifesto', $header),
+                    'AltTesto' => array_search('AltTesto', $header)
                 ];
             }
 
-            // Query posts matching the IDs from the CSV data
-            $args = [
+            //check if ID is in array $existing_posts
+            if (isset($existing_posts[$data[$field_indexes['ID']]])) {
+                $this->log("Annuncio di morte già esistente: ID {$data[$field_indexes['ID']]}");
+                return false;
+            }
+
+            $author_id = $existing_users[$data[$field_indexes['IdAccount']]] ?? 1;
+
+            $post_id = wp_insert_post([
                 'post_type' => 'annuncio-di-morte',
-                'posts_per_page' => -1,
-                'fields' => 'ids',
-                'meta_query' => [
-                    [
-                        'key' => 'id_old',
-                        'value' => array_keys($csv_data),
-                        'compare' => 'IN'
-                    ]
-                ]
-            ];
-            $query = new WP_Query($args);
+                'post_status' => $data[$field_indexes['Pubblicato']] == 1 ? 'publish' : 'draft',
+                'post_title' => $data[$field_indexes['Nome']] . ' ' . $data[$field_indexes['Cognome']],
+                'post_author' => $author_id,
+                'post_date' => date('Y-m-d H:i:s', strtotime($data[$field_indexes['DataMorte']]))
+            ]);
 
-            $processed = 0;
-            foreach ($query->posts as $post_id) {
-                $old_id = get_field('id_old', $post_id);
+            if (!is_wp_error($post_id)) {
+                $this->update_post_fields($post_id, $data, $field_indexes);
 
-                if (!isset($csv_data[$old_id])) {
-                    continue;
+                // Gestione immagini
+                if ($data[$field_indexes['Foto']]) {
+                    $image_queue[] = ['profile_photo', $data[$field_indexes['Foto']], $post_id, $author_id];
                 }
 
-                try {
-                    $this->check_and_update_image($post_id, 'field_key_for_foto', $csv_data[$old_id]['foto'], 'profile_photo');
-                    $this->check_and_update_image($post_id, 'field_key_for_immagine_manifesto', $csv_data[$old_id]['immagine_manifesto'], 'manifesto_image');
-                    $processed++;
-                } catch (Exception $e) {
-                    $this->log("Errore nell'elaborazione del post ID $post_id: " . $e->getMessage());
-                    // Continue processing the next post despite the error
-                }
-            }
-
-            $this->log("Verifica e aggiornamento delle immagini mancanti completato per il batch $offset. Elaborati: $processed");
-
-            return [
-                'complete' => $complete,
-                'offset' => $current_line,
-                'processed' => $processed,
-                'message' => $complete ? 'Processo completato' : 'Batch elaborato con successo'
-            ];
-        }
-
-        private function check_and_update_image($post_id, $acf_field_key, $image_path, $image_type)
-        {
-            try {
-                $current_image = get_field($acf_field_key, $post_id);
-                if (!$current_image && $image_path) {
-                    $author_id = get_post_field('post_author', $post_id);
-                    $this->log("Programmazione download immagine: post_id=$post_id, tipo=$image_type, percorso=$image_path");
-                    $this->schedule_image_download($image_type, $image_path, $post_id, $author_id);
-                    $this->log("Programmato il download dell'immagine $image_type per il post ID $post_id");
-                } else {
-                    $this->log("Immagine non aggiornata: post_id=$post_id, tipo=$image_type, immagine_corrente=" . ($current_image ? 'presente' : 'assente') . ", nuovo_percorso=" . ($image_path ?: 'assente'));
-                }
-            } catch (Exception $e) {
-                $this->log("Errore durante l'aggiornamento dell'immagine per il post ID $post_id: " . $e->getMessage());
-                // Rethrow the exception to be handled in the calling function
-                throw $e;
-            }
-        }*/
-
-        private function schedule_image_download($image_type, $image_url, $post_id, $author_id)
-        {
-            // Use the appropriate hook based on the image type
-            $hook = 'dokan_mods_download_images_' . $image_type;
-
-            // Schedule the job only if it doesn't already exist for this specific post and image type
-            if (!wp_next_scheduled($hook, [$image_type, $image_url, $post_id, $author_id])) {
-                wp_schedule_single_event(time() +10, $hook, [$image_type, $image_url, $post_id, $author_id]);
-            }
-        }
-
-
-        public function download_image_cron_job($image_type, $image_url, $post_id, $author_id)
-        {
-            //$this->log("Inizio download dell'immagine $image_type per il post ID $post_id");
-
-            // Scarica e carica l'immagine
-            $image_id = $this->download_and_upload_image($image_url, $post_id, $author_id);
-
-            if ($image_id) {
-                // Aggiorna il post con l'ID dell'immagine
-                if ($image_type === 'profile_photo') {
-                    update_field('field_6641d593b4da3', $image_id, $post_id); // Campo per la foto del profilo
-                } elseif ($image_type === 'manifesto_image') {
-                    update_field('field_6641d6eecc551', $image_id, $post_id); // Campo per il manifesto
+                if ($data[$field_indexes['ImmagineManifesto']]) {
+                    $image_queue[] = ['manifesto_image', $data[$field_indexes['ImmagineManifesto']], $post_id, $author_id];
                 }
 
-                //$this->log("Download dell'immagine $image_type completato per il post ID $post_id");
+                $this->log("Annuncio di morte creato: ID $post_id, Nome {$data[$field_indexes['Nome']]} {$data[$field_indexes['Cognome']]}");
             } else {
-                $this->log("Errore nel download dell'immagine $image_type per il post ID $post_id");
+                $this->log("Errore nella creazione dell'annuncio di morte: " . $post_id->get_error_message());
+            }
+
+            return $post_id;
+        }
+
+        private function update_post_fields($post_id, $data, $field_indexes)
+        {
+            $fields = [
+                'field_670d4e008fc23' => $data[$field_indexes['ID']],
+                'field_6641d54cb4d9f' => $data[$field_indexes['Nome']],
+                'field_6641d566b4da0' => $data[$field_indexes['Cognome']],
+                'field_666ac79ed3c4e' => intval($data[$field_indexes['Anni']]),
+                'field_6641d588b4da2' => $data[$field_indexes['DataMorte']],
+                'field_6641d6d7cc550' => $data[$field_indexes['Testo']] ?: $data[$field_indexes['AltTesto']],
+                'field_662ca58a35da3' => $this->format_luogo($data[$field_indexes['Luogo']]),
+                'field_6641d694cc548' => $data[$field_indexes['DataFunerale']]
+            ];
+
+            foreach ($fields as $field_key => $value) {
+                update_field($field_key, $value, $post_id);
             }
         }
 
-        // New helper function to get image ID by URL
-        private function get_image_id_by_url($image_url)
+        private function image_queue($image_queue)
+        {
+            // Prepariamo un array di tutti gli URL per fare una singola query SQL
+            $image_urls = array_map(function ($image) {
+                return 'https://necrologi.sciame.it/necrologi/' . $image[1];
+            }, $image_queue);
+
+            // Otteniamo tutti gli ID delle immagini esistenti con una singola query
+            $existing_images = $this->get_images_ids_by_urls($image_urls);
+
+            // Prepariamo il file per la coda una sola volta
+            $queue_file = $this->upload_dir . $this->image_queue_file;
+
+            try {
+                // Leggiamo il contenuto esistente della coda
+                $existing_queue = [];
+                if (file_exists($queue_file)) {
+                    $read_file = new SplFileObject($queue_file, 'r');
+                    $read_file->setFlags(SplFileObject::READ_CSV);
+                    foreach ($read_file as $data) {
+                        if (!$data || count($data) < 4) continue;
+                        $key = implode('|', array_slice($data, 0, 4));
+                        $existing_queue[$key] = true;
+                    }
+                    $read_file = null;
+                }
+
+                // Apriamo il file per la scrittura
+                $write_file = new SplFileObject($queue_file, 'a');
+
+                foreach ($image_queue as $image) {
+                    $image_type = $image[0];
+                    $image_path = $image[1];
+                    $post_id = $image[2];
+                    $author_id = $image[3];
+
+                    if($image_path == ''){
+                        continue;
+                    }
+                    $image_url = 'https://necrologi.sciame.it/necrologi/' . $image_path;
+
+                    // Controlliamo se l'immagine esiste già nella libreria
+                    $existing_image_id = isset($existing_images[$image_url]) ? $existing_images[$image_url] : null;
+
+                    if ($existing_image_id) {
+                        $this->log("Image already exists in media library: $image_url");
+                        // Aggiorniamo i campi necessari
+                        if ($image_type === 'profile_photo') {
+                            update_field('field_6641d593b4da3', $existing_image_id, $post_id);
+                        } elseif ($image_type === 'manifesto_image') {
+                            update_field('field_6641d6eecc551', $existing_image_id, $post_id);
+                        }
+                        continue;
+                    }
+
+                    // Controlliamo se l'immagine è già in coda
+                    $queue_key = implode('|', [$image_type, $image_url, $post_id, $author_id]);
+                    if (isset($existing_queue[$queue_key])) {
+                        $this->log("Image already in queue: $image_url");
+                        continue;
+                    }
+
+                    // Aggiungiamo alla coda
+                    $write_file->fputcsv([$image_type, $image_url, $post_id, $author_id, 0]);
+                    $this->log("Image added to queue: $image_url");
+                }
+
+                // Chiudiamo il file
+                $write_file = null;
+
+                return true;
+            } catch (RuntimeException $e) {
+                $this->log("Errore nella gestione del file di coda delle immagini: " . $e->getMessage());
+                return false;
+            }
+        }
+
+        private function get_images_ids_by_urls($image_urls)
         {
             global $wpdb;
-            // Rimuoviamo eventuali percorsi completi per cercare solo il nome del file
-            $image_filename = basename($image_url);
 
-            // Cerchiamo il nome del file nel campo guid
-            $query = $wpdb->prepare(
-                "SELECT ID FROM $wpdb->posts WHERE guid LIKE %s",
-                '%' . $wpdb->esc_like($image_filename) . '%'
-            );
+            if (empty($image_urls)) {
+                return [];
+            }
 
-            $attachment = $wpdb->get_col($query);
+            // Prepariamo i filename per la ricerca
+            $filenames = array_map('basename', $image_urls);
 
-            // Restituiamo l'ID se lo troviamo, altrimenti null
-            return $attachment ? $attachment[0] : null;
+            // Costruiamo la query dinamicamente con un'operazione di corrispondenza esatta
+            $placeholders = implode(',', array_fill(0, count($filenames), '%s'));
+
+            // Eseguiamo la query
+            $query = "
+                SELECT ID, guid 
+                FROM $wpdb->posts 
+                WHERE guid IN ($placeholders)";
+
+            // Prepariamo i parametri per la query
+            $prepared_query = $wpdb->prepare($query, ...$filenames);
+            $results = $wpdb->get_results($prepared_query);
+
+            // Creiamo un array associativo url => ID
+            $url_to_id = [];
+            foreach ($results as $result) {
+                $url_to_id[basename($result->guid)] = $result->ID;
+            }
+
+            // Mappiamo gli URL originali agli ID
+            $final_mapping = [];
+            foreach ($image_urls as $url) {
+                $filename = basename($url);
+                if (isset($url_to_id[$filename])) {
+                    $final_mapping[$url] = $url_to_id[$filename];
+                }
+            }
+
+            return $final_mapping;
         }
 
-
-        private function download_and_upload_image($image_path, $post_id, $author_id)
+        public function process_image_queue()
         {
-            $image_url = 'https://necrologi.sciame.it/necrologi/' . $image_path;
-            $upload_dir = wp_upload_dir();
-            $max_retries = 5;
-            $retry_count = 0;
-            $success = false;
-            $attach_id = false;
+            $queue_file = $this->upload_dir . $this->image_queue_file;
+            $this->log("Ram Usage start: " . $this->get_memory_usage());
 
-            while ($retry_count < $max_retries && !$success) {
-                $this->log("Tentativo di download dell'immagine ($retry_count): $image_url");
-                $image_data = file_get_contents($image_url);
+            if ($this->get_progress_status($this->image_queue_file) === 'finished') {
+                $this->log("Image processing finished. Removing schedule.");
+                wp_clear_scheduled_hook('dokan_mods_process_image_ricorrenze_queue');
+                return;
+            }
 
-                if ($image_data === false) {
-                    $this->log("Errore nel download dell'immagine al tentativo $retry_count: $image_url");
-                    $retry_count++;
-                    continue; // Retry
+            if (!file_exists($queue_file)) {
+                $this->log("Queue file does not exist");
+                return;
+            }
+
+            if ($this->get_progress_status($this->image_queue_file) === 'ongoing') {
+                $this->log("Image processing already in progress");
+                return;
+            }
+
+            try {
+                $file = new SplFileObject($queue_file, 'r');
+                $file->setFlags(SplFileObject::READ_CSV);
+
+                // Conta il numero totale di righe
+                $file->seek(PHP_INT_MAX);
+                $total_rows = $file->key();
+                $file->rewind();
+
+                if ($total_rows === 0) {
+                    unlink($queue_file);
+                    $this->log("Empty queue file removed");
+                    return;
                 }
 
-                $filename = basename($image_path);
-                $unique_filename = wp_unique_filename($upload_dir['path'], $filename);
-                $upload_file = $upload_dir['path'] . '/' . $unique_filename;
+                $this->set_progress_status($this->image_queue_file, 'ongoing');
 
-                if (file_put_contents($upload_file, $image_data) === false) {
-                    $this->log("Errore nel salvare l'immagine al tentativo $retry_count: $upload_file");
-                    $retry_count++;
-                    continue; // Retry
+                // Inizializza il tracking del progresso
+                $progress = $this->get_progress($this->image_queue_file);
+                $processed = $progress['processed'];
+
+                $batch_count = 0;  // Contatore per il numero di immagini processate in questo batch
+
+                foreach ($file as $index => $data) {
+                    $this->log("Ram Usage foreach: " . $this->get_memory_usage());
+
+                    // Se la riga è vuota o mancano campi, saltala
+                    if (empty($data) || count($data) < 5) continue;
+
+                    // Salta le righe già processate
+                    if ($index < $processed) continue;
+
+                    // Verifica se abbiamo raggiunto il limite del batch
+                    if ($batch_count >= $this->images_per_cron) {
+                        break; // Esci dal ciclo, il batch è completo
+                    }
+
+                    list($image_type, $image_url, $post_id, $author_id, $retry_count) = $data;
+
+                    // Prova a scaricare e allegare l'immagine
+                    if ($this->download_and_attach_image($image_type, $image_url, $post_id, $author_id)) {
+                        $processed = $index + 1;  // Aggiorna il numero di righe processate
+                        $batch_count++;  // Incrementa il contatore del batch
+                        $this->update_progress($this->image_queue_file, $processed, $total_rows);  // Aggiorna lo stato del progresso
+                    } else {
+                        $retry_count++;
+                        // Non riscrivi la riga qui, il file rimane intatto e puoi tentare di nuovo nei batch successivi
+                    }
                 }
 
-                $wp_filetype = wp_check_filetype($filename, null);
-                $attachment = array(
-                    'post_mime_type' => $wp_filetype['type'],
+                // Chiudi il file
+                $file = null;
+
+                // Se abbiamo completato tutte le righe, possiamo segnare il progresso come "finished"
+                if ($processed >= $total_rows) {
+                    $this->set_progress_status($this->image_queue_file, 'finished');
+                } else {
+                    $this->set_progress_status($this->image_queue_file, 'completed');
+                }
+
+            } catch (Exception $e) {
+                $this->log("Error: " . $e->getMessage());
+                $this->set_progress_status($this->image_queue_file, 'error');
+            }
+        }
+
+        private function download_and_attach_image($image_type, $image_url, $post_id, $author_id)
+        {
+            try {
+                $ch = curl_init($image_url);
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_TIMEOUT => 30
+                ]);
+
+                $image_data = curl_exec($ch);
+                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($http_code !== 200 || !$image_data) {
+                    throw new RuntimeException("Download failed with HTTP code: $http_code");
+                }
+
+                $upload_dir = wp_upload_dir();
+                $filename = wp_unique_filename($upload_dir['path'], basename($image_url));
+                $upload_file = $upload_dir['path'] . '/' . $filename;
+
+                if (!file_put_contents($upload_file, $image_data)) {
+                    throw new RuntimeException("Failed to save image");
+                }
+
+                $attachment = [
+                    'post_mime_type' => wp_check_filetype($filename, null)['type'],
                     'post_title' => sanitize_file_name($filename),
-                    'post_content' => '',
                     'post_status' => 'inherit',
-                    'post_author' => $author_id ?: 1, // Use default author if not found
-                );
+                    'post_author' => $author_id ?: 1,
+                ];
 
                 $attach_id = wp_insert_attachment($attachment, $upload_file, $post_id);
                 if (is_wp_error($attach_id)) {
-                    $this->log("Errore nell'inserimento dell'allegato al tentativo $retry_count: " . $attach_id->get_error_message());
-                    $retry_count++;
-                    continue; // Retry
+                    throw new RuntimeException($attach_id->get_error_message());
                 }
 
                 require_once(ABSPATH . 'wp-admin/includes/image.php');
-                $attach_data = wp_generate_attachment_metadata($attach_id, $upload_file);
-                wp_update_attachment_metadata($attach_id, $attach_data);
+                wp_update_attachment_metadata(
+                    $attach_id,
+                    wp_generate_attachment_metadata($attach_id, $upload_file)
+                );
 
-                $success = true; // Success if all operations pass
-            }
+                update_field(
+                    $image_type === 'profile_photo' ? 'field_6641d593b4da3' : 'field_6641d6eecc551',
+                    $attach_id,
+                    $post_id
+                );
 
-            if (!$success) {
-                $this->log("Impossibile scaricare e caricare l'immagine dopo $max_retries tentativi: $image_url");
+                return true;
+
+            } catch (Exception $e) {
+                $this->log("Error processing $image_url: " . $e->getMessage());
                 return false;
             }
-
-            // Verifica finale che tutte le operazioni siano state completate
-            if (!file_exists($upload_file) || !$attach_id || is_wp_error($attach_id)) {
-                $this->log("Errore: l'immagine non è stata correttamente salvata o allegata.");
-                return false;
-            }
-
-            $this->log("Immagine scaricata e allegata con successo: $image_url");
-            return $attach_id;
         }
 
 
+
         // New helper function to get post by old ID
-        private function get_existing_posts_by_old_ids($old_ids)
+        protected function get_existing_posts_by_old_ids($old_ids, $post_types = ['annuncio-di-morte'])
         {
-            global $wpdb;
-            $placeholders = implode(',', array_fill(0, count($old_ids), '%s'));
-            $sql = "
-            SELECT pm.post_id, pm.meta_value
-            FROM {$wpdb->postmeta} pm
-            INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-            WHERE pm.meta_key = 'id_old'
-            AND pm.meta_value IN ($placeholders)
-            AND p.post_type = 'annuncio-di-morte'
-        ";
-            $prepared_sql = $wpdb->prepare($sql, $old_ids);
-            $results = $wpdb->get_results($prepared_sql, ARRAY_A);
-            $existing_posts = [];
-            foreach ($results as $row) {
-                $existing_posts[$row['meta_value']] = $row['post_id'];
-            }
-            return $existing_posts;
+            // Chiama il metodo della classe base
+            return parent::get_existing_posts_by_old_ids($old_ids, $post_types);
         }
 
 
@@ -570,6 +544,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
 
             return $luogo;
         }
+
 
 
     }

@@ -9,6 +9,13 @@
           </advancedOptions>
         </fileTransfer>
       </webServer>
+      <webServer id="ca77d618-b0a9-4c8f-b43b-9b51075de47b" name="ddd">
+        <fileTransfer rootFolder="/home/necrologi/public_html" accessType="SFTP" host="necrologi.abbattista.cc" port="22" sshConfigId="fea2b447-7a0d-496c-83ff-e3500c5f88ee" sshConfig="necrologi@necrologi.abbattista.cc:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
     </option>
   </component>
 </project>

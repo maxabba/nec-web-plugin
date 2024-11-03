@@ -1,0 +1,17 @@
+{
+    "name": "marcoabbattista/dokan-mod",
+    "require": {
+        "tecnickcom/tcpdf": "^6.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Marcoabbattista\\DokanMod\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "marcoabbattista",
+            "email": "abbattista.marco@gmail.com"
+        }
+    ]
+}
