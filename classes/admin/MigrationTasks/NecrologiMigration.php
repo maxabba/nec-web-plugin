@@ -209,14 +209,14 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
         private function update_post_fields($post_id, $data, $field_indexes)
         {
             $fields = [
-                'field_670d4e008fc23' => $data[$field_indexes['ID']],
-                'field_6641d54cb4d9f' => $data[$field_indexes['Nome']],
-                'field_6641d566b4da0' => $data[$field_indexes['Cognome']],
-                'field_666ac79ed3c4e' => intval($data[$field_indexes['Anni']]),
-                'field_6641d588b4da2' => $data[$field_indexes['DataMorte']],
-                'field_6641d6d7cc550' => $data[$field_indexes['Testo']] ?: $data[$field_indexes['AltTesto']],
-                'field_662ca58a35da3' => $this->format_luogo($data[$field_indexes['Luogo']]),
-                'field_6641d694cc548' => $data[$field_indexes['DataFunerale']]
+                'id_old' => $data[$field_indexes['ID']],
+                'nome' => $data[$field_indexes['Nome']],
+                'cognome' => $data[$field_indexes['Cognome']],
+                'eta' => intval($data[$field_indexes['Anni']]),
+                'data_di_morte' => $data[$field_indexes['DataMorte']],
+                'testo_annuncio_di_morte' => $data[$field_indexes['Testo']] ?: $data[$field_indexes['AltTesto']],
+                'citta' => $this->format_luogo($data[$field_indexes['Luogo']]),
+                'funerale_data' => $data[$field_indexes['DataFunerale']]
             ];
 
             foreach ($fields as $field_key => $value) {
@@ -272,9 +272,9 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                         $this->log("Image already exists in media library: $image_url");
                         // Aggiorniamo i campi necessari
                         if ($image_type === 'profile_photo') {
-                            update_field('field_6641d593b4da3', $existing_image_id, $post_id);
+                            update_field('fotografia', $existing_image_id, $post_id);
                         } elseif ($image_type === 'manifesto_image') {
-                            update_field('field_6641d6eecc551', $existing_image_id, $post_id);
+                            update_field('immagine_annuncio_di_morte', $existing_image_id, $post_id);
                         }
                         continue;
                     }

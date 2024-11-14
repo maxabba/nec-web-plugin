@@ -153,14 +153,14 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
 
             if (!is_wp_error($post_id)) {
                 // Aggiorna i campi ACF
-                update_field('field_671a68742fc07', $data[$field_indexes['ID']], $post_id); // id_old
+                update_field('id_old', $data[$field_indexes['ID']], $post_id); // id_old
                 if ($necrologio_id) {
-                    update_field('field_6666bf025040a', $necrologio_id, $post_id); // IdNecrologio
+                    update_field('annuncio_di_morte_relativo', $necrologio_id, $post_id); // IdNecrologio
                 }
 
-                update_field('field_6666c03e5040c', $this->cleanText($data[$field_indexes['Testo']]), $post_id); // Testo
-                update_field('field_6666bf6b5040b', $author_id, $post_id); // IdAccount
-                update_field('field_6669ea01b516d', 'silver', $post_id); // Imposta il tipo come "silver"
+                update_field('testo_manifesto', $this->cleanText($data[$field_indexes['Testo']]), $post_id); // Testo
+                update_field('vendor_id', $author_id, $post_id); // IdAccount
+                update_field('tipo_manifesto', 'silver', $post_id); // Imposta il tipo come "silver"
 
                 $this->log("Manifesto creato: ID $post_id");
             } else {

@@ -138,7 +138,7 @@ if (!class_exists(__NAMESPACE__ . '\RingraziamentiMigration')) {
             }
 
             // Get città from necrologio and get provincia based on città
-            $citta = get_field('field_662ca58a35da3', $necrologio_id);
+            $citta = get_field('citta', $necrologio_id);
 
             // Get provincia using the città
             global $dbClassInstance;
@@ -158,10 +158,10 @@ if (!class_exists(__NAMESPACE__ . '\RingraziamentiMigration')) {
             if (!is_wp_error($post_id)) {
                 // Update ACF fields
                 $fields_to_update = [
-                    'field_666c0006827cd' => $necrologio_id,                // IdNecrologio
-                    'field_666c0032827ce' => $data[$field_indexes['Testo']], // Testo
-                    'field_662ca58a35da3' => $citta,                        // Città
-                    'field_6638e3e77ffa0' => $provincia,                    // Provincia
+                    'annuncio_di_morte' => $necrologio_id,                // IdNecrologio
+                    'testo_ringraziamento' => $data[$field_indexes['Testo']], // Testo
+                    'citta' => $citta,                        // Città
+                    'provincia' => $provincia,                    // Provincia
                 ];
 
                 foreach ($fields_to_update as $field_key => $value) {
@@ -219,7 +219,7 @@ if (!class_exists(__NAMESPACE__ . '\RingraziamentiMigration')) {
                     $existing_image_id = $existing_images[$image_url] ?? null;
 
                     if ($existing_image_id) {
-                        update_field('field_6731f274afd80', $existing_image_id, $post_id);
+                        update_field('immagine_ringraziamento', $existing_image_id, $post_id);
                         $this->log("Image already exists in media library: $image_url");
                         continue;
                     }
@@ -393,7 +393,7 @@ if (!class_exists(__NAMESPACE__ . '\RingraziamentiMigration')) {
                 wp_update_attachment_metadata($attach_id, $attach_data);
 
                 // Set the image as the ringraziamento image
-                update_field('field_6731f274afd80', $attach_id, $post_id);
+                update_field('immagine_ringraziamento', $attach_id, $post_id);
 
                 $this->log("Image successfully attached: $image_url to post $post_id");
                 return true;

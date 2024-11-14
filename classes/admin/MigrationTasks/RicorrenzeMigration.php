@@ -198,7 +198,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             }
 
             // Recupero città
-            $citta = get_field('field_662ca58a35da3', $necrologio->ID);
+            $citta = get_field('citta', $necrologio->ID);
 
             // Determina tipo di post e autore
             $post_type = $tipo == 1 ? 'trigesimo' : 'anniversario';
@@ -231,7 +231,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 }
 
                 if ($citta) {
-                    update_field('field_662ca58a35da3', $citta, $post_id);
+                    update_field('citta', $citta, $post_id);
                 }
 
                 // Gestione immagine
@@ -295,10 +295,10 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                     if ($existing_image_id) {
                         $this->log("Image already exists in media library: $image_url");
                         // Aggiorniamo i campi necessari
-                        if ($image_type === 'profile_photo') {
-                            update_field('field_6641d593b4da3', $existing_image_id, $post_id);
-                        } elseif ($image_type === 'manifesto_image') {
-                            update_field('field_6641d6eecc551', $existing_image_id, $post_id);
+                        if ($image_type === 'trigesimo') {
+                            update_field('immagine_annuncio_trigesimo', $existing_image_id, $post_id);
+                        } elseif ($image_type === 'anniversario') {
+                            update_field('immagine_annuncio_anniversario', $existing_image_id, $post_id);
                         }
                         continue;
                     }
@@ -539,7 +539,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                         update_field('immagine_annuncio_trigesimo', $attach_id, $post_id);
                         break;
                     case 'anniversario':
-                        update_field('field_665ec95bc666c', $attach_id, $post_id);
+                        update_field('immagine_annuncio_anniversario', $attach_id, $post_id);
                         break;
                     default:
                         $this->log("Tipo di immagine non riconosciuto: $image_type");

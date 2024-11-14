@@ -837,10 +837,10 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
             // Array dei post types e dei loro campi ACF
             $post_types = array(
-                'ringraziamento' => 'field_666c0006827cd',
-                'anniversario' => 'field_665ec95bc65ad',
-                'manifesto' => 'field_6666bf025040a',
-                'trigesimo' => 'field_66570739481f1'
+                'ringraziamento' => 'annuncio_di_morte',
+                'anniversario' => 'annuncio_di_morte',
+                'manifesto' => 'annuncio_di_morte_relativo',
+                'trigesimo' => 'annuncio_di_morte'
             );
 
             // Controlla se il tipo di post attuale è valido
@@ -866,8 +866,8 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             $continue = !empty($post_ids);
 
             foreach ($post_ids as $post_id) {
-                $city = get_field('field_662ca58a35da3', $post_id);
-                $province = get_field('field_6638e3e77ffa0', $post_id);
+                $city = get_field('citta', $post_id);
+                $province = get_field('provincia', $post_id);
 
                 if ($city && $province && $dbClassInstance->is_a_valid_comune($city) && $dbClassInstance->is_a_valid_provincia($province)) {
                     $updated++;
@@ -883,7 +883,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                         continue;
                     }
 
-                    $city = get_field('field_662ca58a35da3', $necrologio_id);
+                    $city = get_field('citta', $necrologio_id);
                     if (!$city || !$dbClassInstance->is_a_valid_comune($city)) {
                         $author_id = get_post_field('post_author', $post_id);
                         $user_city = get_user_meta($author_id, 'dokan_profile_settings', true);
@@ -904,12 +904,12 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                         continue;
                     }
 
-                    if (!get_field('field_6638e3e77ffa0', $necrologio_id)) {
-                        update_field('field_6638e3e77ffa0', $province, $necrologio_id);
+                    if (!get_field('provincia', $necrologio_id)) {
+                        update_field('provincia', $province, $necrologio_id);
                     }
 
-                    update_field('field_662ca58a35da3', $city, $post_id);
-                    update_field('field_6638e3e77ffa0', $province, $post_id);
+                    update_field('citta', $city, $post_id);
+                    update_field('provincia', $province, $post_id);
 
                     $updated++;
                     $processed++;
@@ -991,7 +991,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                     }
 
                     // Tentativi di creazione di oggetto DateTime da $date_field con vari formati
-                    $date_field = get_field('field_6641d588b4da2', $necrologio_id) ?: get_the_date('Y-m-d', $necrologio_id);
+                    $date_field = get_field('data_di_morte', $necrologio_id) ?: get_the_date('Y-m-d', $necrologio_id);
                     $date_formats = ['Y-m-d', 'd/m/Y', 'm/d/Y', 'Ymd', 'd.m.Y'];
                     $date_obj = null;
 

@@ -16,16 +16,6 @@ if (!class_exists(__NAMESPACE__ . '\ProductTemplateClass')) {
 
         public function create_menu()
         {
-            // Crea la voce principale "Dokan Mods" senza renderla cliccabile
-            add_menu_page(
-                'Dokan Mods',
-                'Dokan Mods',
-                'manage_options',
-                'dokan-mod',
-                array($this, 'settings_page'),  // Rimuove la funzione callback, quindi non c'è una pagina principale associata
-                'dashicons-tagcloud',
-                20
-            );
 
 
 

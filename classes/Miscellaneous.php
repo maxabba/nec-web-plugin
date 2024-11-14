@@ -23,7 +23,7 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             add_filter('elementor_pro/display_conditions/dynamic_tags/custom_fields_meta_limit', array($this, 'custom_custom_fields_meta_limit'));
             add_action('plugins_loaded', array($this, 'trasferisci_azione_dokan_seller'));
 
-            //add_filter('acf/load_value/key=field_662ca58a35da3', array($this, 'auto_fill_acf_field_based_on_user'), 10, 3);
+            //add_filter('acf/load_value/key=citta', array($this, 'auto_fill_acf_field_based_on_user'), 10, 3);
             add_filter('acf/load_field/key=field_6638e3e77ffa0', array($this, 'load_province_choices'));
             //add_filter('acf/load_field/name=city', array($this, 'load_city_choices'));
 

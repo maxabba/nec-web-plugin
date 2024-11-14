@@ -100,6 +100,35 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
             return $result;
         }
 
+
+        public function get_comune_by_typing($search){
+            global $wpdb;
+            $results = $wpdb->get_results(
+                $wpdb->prepare("SELECT nome FROM $this->table_name WHERE nome LIKE %s ORDER BY nome ASC", '%' . $wpdb->esc_like($search) . '%'),
+                ARRAY_A
+            );
+
+            $comuni = array_map(function ($results) {
+                return ['id' => $results['nome'], 'text' => $results['nome']];
+            }, $results);
+
+            return $comuni;
+        }
+
+        public function get_all_comuni()
+        {
+            global $wpdb;
+            $sql = "SELECT nome FROM $this->table_name ORDER BY nome ASC";
+            $result = $wpdb->get_results($sql, ARRAY_A);
+
+            //map the result to get only the name of the comune
+            $result = array_map(function ($comune) {
+                return $comune['nome'];
+            }, $result);
+
+            return $result;
+        }
+
         public function get_all_Province()
         {
             global $wpdb;
