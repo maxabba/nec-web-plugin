@@ -16,14 +16,27 @@ if (!class_exists(__NAMESPACE__ . '\ProductTemplateClass')) {
 
         public function create_menu()
         {
+            // Crea la voce principale "Dokan Mods" senza renderla cliccabile
             add_menu_page(
+                'Dokan Mods',
+                'Dokan Mods',
+                'manage_options',
+                'dokan-mod',
+                array($this, 'settings_page'),  // Rimuove la funzione callback, quindi non c'è una pagina principale associata
+                'dashicons-tagcloud',
+                20
+            );
+
+
+
+            // Aggiunge un altro sottomenu, se necessario
+            add_submenu_page(
+                'dokan-mod',
                 'Product Templates',
                 'Product Templates',
                 'manage_options',
                 'product-templates',
-                array($this, 'settings_page'),
-                'dashicons-tagcloud',
-                20
+                array($this, 'settings_page')
             );
         }
 
@@ -81,6 +94,9 @@ if (!class_exists(__NAMESPACE__ . '\ProductTemplateClass')) {
                 }
             }
         }
+
+
+
 
 
         public function settings_page()
@@ -172,6 +188,10 @@ if (!class_exists(__NAMESPACE__ . '\ProductTemplateClass')) {
             </div>
             <?php
         }
+
+
+
+
 
     }
 }

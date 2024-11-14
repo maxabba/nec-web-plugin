@@ -503,7 +503,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
                     ob_start();
                     ?>
-                    <div class="col-12 custom-col-lg-5" style="margin-bottom: 25px; ">
+                    <div class="col-12 flex-item" style="margin-bottom: 25px; ">
                         <div class="text-editor-background" style="background-image: none"
                              data-postid="<?php echo $post_id; ?>" data-vendorid="<?php echo $vendor_id; ?>">
                             <div class="custom-text-editor">
@@ -541,7 +541,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             ob_start();
             ?>
 
-            <div id="manifesto-container-<?php echo $instance; ?>" class="manifesto-container row g-2" style="justify-content: center;"
+            <div id="manifesto-container-<?php echo $instance; ?>" class="manifesto-container flex-container row g-2" style="justify-content: center;"
                  data-postid="<?php echo $post_id; ?>" data-tipo="<?php echo $attrs['tipo_manifesto']; ?>"></div>
             <div class="loader manifesto-loader" id="manifesto-loader-<?php echo $instance; ?>"></div>
 

@@ -109,7 +109,6 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
 
             // Process batch
             foreach ($batch_data as $data) {
-                $this->log("Ram Usage start: " . $this->get_memory_usage());
 
                 $this->process_single_record(
                     $data,
@@ -118,7 +117,6 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                     $existing_users,
                     $image_queue
                 );
-                $this->log("Ram Usage end: " . $this->get_memory_usage());
                 $processed++;
                 $this->update_progress($file_name, $processed, $total_rows);
             }
@@ -348,7 +346,6 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
         public function process_image_queue()
         {
             $queue_file = $this->upload_dir . $this->image_queue_file;
-            $this->log("Ram Usage start: " . $this->get_memory_usage());
 
             if ($this->get_progress_status($this->image_queue_file) === 'finished') {
                 $this->log("Image processing finished. Removing schedule.");
@@ -390,7 +387,6 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                 $batch_count = 0;  // Contatore per il numero di immagini processate in questo batch
 
                 foreach ($file as $index => $data) {
-                    $this->log("Ram Usage foreach: " . $this->get_memory_usage());
 
                     // Se la riga è vuota o mancano campi, saltala
                     if (empty($data) || count($data) < 5) continue;
@@ -500,7 +496,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
         }
 
 
-        private function get_existing_users_by_old_ids($old_ids)
+/*        private function get_existing_users_by_old_ids($old_ids)
         {
             global $wpdb;
             $placeholders = implode(',', array_fill(0, count($old_ids), '%s'));
@@ -516,7 +512,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                 $existing_users[$row['meta_value']] = $row['user_id'];
             }
             return $existing_users;
-        }
+        }*/
 
 
         private function format_luogo($luogo)

@@ -144,6 +144,23 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
             return $result;
         }
 
+
+        public function is_a_valid_comune($comune)
+        {
+            global $wpdb;
+            $sql = $wpdb->prepare("SELECT COUNT(*) FROM $this->table_name WHERE nome = %s", $comune);
+            $result = $wpdb->get_var($sql);
+            return $result > 0;
+        }
+
+        public function is_a_valid_provincia($provincia)
+        {
+            global $wpdb;
+            $sql = $wpdb->prepare("SELECT COUNT(*) FROM $this->table_name WHERE provincia_nome = %s", $provincia);
+            $result = $wpdb->get_var($sql);
+            return $result > 0;
+        }
+
     }
 }
 

@@ -22,6 +22,13 @@ if (!in_array('dokan-lite/dokan.php', apply_filters('active_plugins', get_option
     return;
 }
 
+add_action('wp', function () {
+    if (defined('DOING_CRON') && DOING_CRON) {
+        $_GET['XDEBUG_SESSION'] = 'PHPSTORM'; // Aggiunge il parametro di sessione
+        ini_set('xdebug.start_with_request', 'yes'); // Forza Xdebug per questa richiesta
+    }
+});
+
 
 // Definizione delle costanti del plugin
 define('DOKAN_SELECT_PRODUCTS_PLUGIN_PATH', plugin_dir_path(__FILE__));
@@ -29,7 +36,6 @@ define('DOKAN_SELECT_PRODUCTS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('DOKAN_MOD_MAIN_FILE', __FILE__);
 
 require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'vendor/autoload.php';
-
 
 // Includi e istanzia DbClass solo se non esiste già
 if (!class_exists(__NAMESPACE__ . '\DbClass')) {
@@ -71,6 +77,7 @@ function dokan_mods_load_and_instantiate_class($class_name, $file_path)
 dokan_mods_load_and_instantiate_class('ProductTemplateClass', 'classes/admin/ProductTemplateClass.php');
 dokan_mods_load_and_instantiate_class('MigrationClass', 'classes/admin/MigrationClass.php');
 //dokan_mods_load_and_instantiate_class('ParallelWPCron', 'classes/admin/ParallelWPCron.php');
+dokan_mods_load_and_instantiate_class('CloudFlareGeo', 'classes/CloudFlareGeoClass.php');
 dokan_mods_load_and_instantiate_class('Dokan_Select_Products', 'classes/dokan_select_products.php');
 dokan_mods_load_and_instantiate_class('DashboardMenuClass', 'classes/DashboardMenuClass.php');
 dokan_mods_load_and_instantiate_class('Miscellaneous', 'classes/Miscellaneous.php');

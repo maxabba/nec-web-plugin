@@ -1,53 +1,60 @@
-
+/* Utility per il loader */
 .loader {
-    border: 8px solid #f3f3f3; /* Light grey */
-    border-top: 8px solid #3498db; /* Blue */
+    --loader-size: clamp(40px, 5vw, 60px);
+    --border-width: clamp(4px, 0.5vw, 8px);
+
+    border: var(--border-width) solid #f3f3f3;
+    border-top: var(--border-width) solid #3498db;
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
+    width: var(--loader-size);
+    height: var(--loader-size);
     animation: spin 2s linear infinite;
-    display: none; /* Nascosto inizialmente */
-    margin: 20px auto;
+    display: none;
+    margin: clamp(10px, 2vh, 30px) auto;
 }
 
 @keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
+    to {
         transform: rotate(360deg);
     }
 }
 
-.full-width-form input[type="submit"] {
-    display: block;
-    margin: 0 auto;
-}
-
+/* Layout del form */
 .full-width-form {
-    width: 100%;
+    display: grid;
+    width: min(100%, 1200px);
+    margin-inline: auto;
+    gap: 1rem;
 }
 
+.full-width-form input[type="submit"] {
+    justify-self: center;
+}
+
+/* Container principale dell'editor */
 .text-editor-container {
+    --padding: clamp(10px, 2vw, 20px);
+
     position: relative;
-    padding: 20px;
-    width: 100%;
-    max-width: 800px;
-    margin: auto;
+    padding: var(--padding);
+    width: min(100% - 2 * var(--padding), 800px);
+    margin-inline: auto;
 }
 
 .text-editor-background {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    height: clamp(300px, 50vh, 600px);
+    width: 100%;
     background-size: contain;
     background-position: center;
-    height: 50vh; /* Usare vh per altezza responsiva */
-    width: 100%; /* Usare larghezza completa */
-    max-width: 100%;
-    position: relative;
-    margin: auto;
+    margin-inline: auto;
     overflow: hidden;
 }
 
 .custom-text-editor {
+    --font-size: clamp(14px, 1.5vw, 16px);
+
     width: 100%;
     height: 100%;
     border: none;
@@ -57,16 +64,18 @@
     box-sizing: border-box;
     outline: none;
     overflow: visible;
-    font-size: 14px; /* Dimensione del font reattiva e leggermente più piccola di 16px */
+    font-size: var(--font-size);
     font-family: var(--e-global-typography-text-font-family), Sans-serif;
     font-weight: var(--e-global-typography-text-font-weight);
 }
 
 .editor-toolbar {
+    --toolbar-padding: clamp(5px, 1vw, 10px);
+
     position: absolute;
     background: #fff;
     border: 1px solid #ccc;
-    padding: 5px;
+    padding: var(--toolbar-padding);
     display: none;
     z-index: 1000;
     border-radius: 5px;
@@ -74,36 +83,31 @@
 }
 
 .editor-toolbar button {
+    --button-size: clamp(24px, 3vw, 32px);
+
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 16px;
+    font-size: clamp(14px, 1.5vw, 16px);
     margin: 0 2px;
-    padding: 2px 5px;
+    padding: calc(var(--button-size) / 8);
+    transition: background-color 0.2s ease;
 }
 
 .editor-toolbar button:hover {
     background: #f0f0f0;
 }
 
-@media (max-width: 768px) {
-    .text-editor-container {
-        padding: 10px;
-    }
-
-    .editor-toolbar {
-        font-size: 14px;
-    }
-
-    .custom-text-editor {
-        font-size: 14px; /* Dimensione del font reattiva per schermi piccoli */
-    }
+/* Grid system moderno */
+.flex-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    width: 100%;
 }
 
-@media (min-width: 992px) {
-
-    .custom-col-lg-5{
-        flex: 0 0 auto;
-        width: 20%;
-    }
+.flex-item {
+    flex: 1 1 clamp(
+            calc((100% - 4rem) / 5), /* min: dimensione per 5 colonne */ calc((600px - 4rem) / 3), /* valore preferito: dimensione per 3 colonne */ 100% /* max: dimensione per 1 colonna */
+    );
 }

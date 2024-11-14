@@ -2,7 +2,8 @@
 <module type="WEB_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
-      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" packagePrefix="Marcoabbattista\DokanMod\" />
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" packagePrefix="Dokan_Mods\" />
+      <sourceFolder url="file://$MODULE_DIR$/src/traits" isTestSource="false" packagePrefix="Dokan_Mods\Traits\" />
       <excludeFolder url="file://$MODULE_DIR$/.idea/copilot" />
       <excludeFolder url="file://$MODULE_DIR$/.idea/copilot/chatSessions" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/composer" />

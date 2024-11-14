@@ -15,6 +15,11 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
         public function __construct()
         {
 
+
+/*            add_action('init', function () {
+                add_action('elementor/query/tutti_necrologi', [new FiltersClass(), 'customize_elementor_query']);
+            }, 0);*/
+
             add_filter('elementor_pro/display_conditions/dynamic_tags/custom_fields_meta_limit', array($this, 'custom_custom_fields_meta_limit'));
             add_action('plugins_loaded', array($this, 'trasferisci_azione_dokan_seller'));
 
@@ -24,9 +29,11 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
 
             add_filter('dokan_vendor_own_product_purchase_restriction', array($this, 'dokan_vendor_own_product_purchase_restriction'), 1, 2);
 
-            add_action('init', array($this, 'set_city_filter'));
+            //add_action('init', array($this, 'set_city_filter'));
+            add_action('init', array($this, 'handle_filter_form_submission'));
+
             add_action('init', array($this, 'register_shortcodes'));
-            add_action('pre_get_posts', array($this, 'apply_city_filter'));
+            add_action('pre_get_posts', array($this, 'apply_city_filter'),5,1);
 
 
 
@@ -108,6 +115,9 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
         {
             add_shortcode('show_acf_select_values', array($this, 'show_acf_select_values')); // Registra lo shortcode per mostrare i valori di un campo ACF select as [show_acf_select_values field_key="nome_campo"]
             add_shortcode('acf_gmaps_link', array($this, 'generate_google_maps_link')); // Registra lo shortcode per generare un link a Google Maps come [acf_gmaps_link acf_field="nome_campo"]
+            add_shortcode('dokan_store_name_print', array($this, 'dokan_store_name_print')); // Registra lo shortcode per stampare il nome del negozio come [dokan_store_name_print]
+            add_shortcode('show_selected_location', array($this, 'show_selected_location_shortcode'));
+
         }
 
 
@@ -152,8 +162,62 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             return ob_get_clean();
         }
 
+        public function dokan_store_name_print()
+        {
+            $autor_id = get_the_author_meta('ID');
+            $store_info = dokan_get_store_info($autor_id);
+            if ($store_info) {
+                return $store_info['store_name'];
+            }
+            return '';
+        }
 
-        public function set_city_filter()
+
+        public function show_selected_location_shortcode($atts)
+        {
+            // Merge degli attributi di default con quelli forniti
+            $atts = shortcode_atts(array(
+                'default_text' => 'Seleziona Città',
+                'template' => 'Annunci in {city},{province}', // {city} e {province} sono placeholder
+                'all_cities_text' => 'Tutte le città', // testo da usare quando è selezionato "Tutte"
+                'wrapper_class' => 'selected-location-text',
+                'highlight_class' => 'location-highlight'
+            ), $atts);
+
+            // Recupera i valori dai transient
+            $city = get_transient('city_filter_' . session_id());
+            $province = get_transient('province' . session_id());
+
+            // Se non ci sono valori nei transient, ritorna il testo di default
+            if (empty($city) && empty($province)) {
+                return sprintf('<div class="%s">%s</div>',
+                    esc_attr($atts['wrapper_class']),
+                    esc_html($atts['default_text'])
+                );
+            }
+
+            // Prepara il testo della città
+            $city_text = $city === 'Tutte' ? $atts['all_cities_text'] : $city;
+
+            // Prepara il testo completo
+            $location_text = str_replace(
+                ['{city}', '{province}'],
+                [
+                    $city_text ? sprintf('<span class="%s">%s</span>', esc_attr($atts['highlight_class']), esc_html($city_text)) : '',
+                    $province ? sprintf('<span class="%s">%s</span>', esc_attr($atts['highlight_class']), esc_html($province)) : ''
+                ],
+                $atts['template']
+            );
+
+            // Restituisci il testo formattato
+            return sprintf('<div class="%s">%s</div>',
+                esc_attr($atts['wrapper_class']),
+                $location_text
+            );
+        }
+
+
+/*        public function set_city_filter()
         {
             if (!empty($_POST['province'])) {
                 // Imposta un transient per memorizzare la provincia scelta con una durata di 1 giorno
@@ -170,7 +234,7 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
                 delete_transient('city_filter_' . session_id());
             }
 
-        }
+        }*/
 
         public function apply_city_filter($query)
         {
@@ -180,10 +244,14 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
                 if (!empty($province) || !empty($city_filter)) {
                     $meta_query = (new FiltersClass($city_filter, $province))->get_city_filter_meta_query();
                     $query->set('meta_query', $meta_query);
+                }else{
+                    $meta_query = (new FiltersClass())->get_city_filter_meta_query();
+                    $query->set('meta_query', $meta_query);
                 }
 
             }
         }
+
 
         public function load_province_choices($field)
         {
@@ -287,98 +355,124 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
         public function show_acf_select_values($field)
         {
             global $dbClassInstance;
-
-            // Get all provinces
             $all_provinces = $dbClassInstance->get_all_Province();
+
+            // Get current URL
+            $current_url = remove_query_arg(['province', 'city_filter']); // Remove existing params
+
             $city_filter = get_transient('city_filter_' . session_id());
             $province_filter = get_transient('province' . session_id());
-            // Start output
+
             $random_id = uniqid();
-            $output = '<div id="' . $random_id . '" style="display: flex; flex-direction: column; align-items: center; width: 80%; margin: auto;">';
-            $output .= '<form action="" method="POST" style="width: 100%;">';
-            $output .= '<label for="province" style="text-align: center;">Seleziona una provincia:</label>';
 
-            // Province select input
-            $output .= '<select class="select2" name="province" style="width: 100%;">';
-            $output .= '<option value="">Scegli una provincia...</option>';
-            foreach ($all_provinces as $province) {
-                if ($province['provincia_nome'] == $province_filter) {
-                    $output .= '<option value="' . $province['provincia_nome'] . '" selected>' . $province['provincia_nome'] . '</option>';
-                } else {
-                    $output .= '<option value="' . $province['provincia_nome'] . '">' . $province['provincia_nome'] . '</option>';
-                }
-            }
-            $output .= '</select>';
-            $output .= '<label for="city_filter" style="text-align: center;">Seleziona una città:</label>';
+            ob_start();
+            ?>
+            <div id="<?= $random_id ?>"
+                 style="display: flex; flex-direction: column; align-items: center; width: 80%; margin: auto;">
+                <form action="<?php echo esc_url($current_url); ?>" method="POST" style="width: 100%;">
+                    <!-- Add hidden input for current page URL -->
+                    <input type="hidden" name="redirect_to" value="<?php echo esc_url($current_url); ?>">
 
-            // City select input
+                    <label for="province" style="text-align: center;">Seleziona una provincia:</label>
+                    <select class="select2" name="province" style="width: 100%;">
+                        <option value="">Scegli una provincia...</option>
+                        <?php foreach ($all_provinces as $province): ?>
+                            <option value="<?= $province['provincia_nome'] ?>" <?= $province['provincia_nome'] == $province_filter ? 'selected' : '' ?>>
+                                <?= $province['provincia_nome'] ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
 
-            if ($province_filter) {
-                $output .= '<select class="select2" name="city_filter" style="width: 100%;" >';
-                $cities = $dbClassInstance->get_comuni_by_provincia($province_filter);
-                $output .= '<option value="Tutte">Tutte</option>';
-                foreach ($cities as $city) {
-                    if ($city == $city_filter) {
-                        $output .= '<option value="' . $city . '" selected>' . $city . '</option>';
-                    } else {
-                        $output .= '<option value="' . $city . '">' . $city . '</option>';
-                    }
-                }
-            } else {
-                $output .= '<select class="select2" name="city_filter" style="width: 100%;" disabled>';
-                $output .= '<option value="">Scegli una città...</option>';
-            }
-            $output .= '</select>';
-            $output .= '<input type="submit" value="Cerca" style="width: 100%; margin-top: 10px;">';
+                    <label for="city_filter" style="text-align: center;">Seleziona una città:</label>
+                    <?php if ($province_filter): ?>
+                        <select class="select2" name="city_filter" style="width: 100%;">
+                            <option value="Tutte">Tutte</option>
+                            <?php
+                            $cities = $dbClassInstance->get_comuni_by_provincia($province_filter);
+                            foreach ($cities as $city): ?>
+                                <option value="<?= $city ?>" <?= $city == $city_filter ? 'selected' : '' ?>><?= $city ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    <?php else: ?>
+                        <select class="select2" name="city_filter" style="width: 100%;" disabled>
+                            <option value="">Scegli una città...</option>
+                        </select>
+                    <?php endif; ?>
+                    <input type="submit" value="Cerca" style="width: 100%; margin-top: 10px;">
+                </form>
 
-            $output .= '</form>';
-            $output .= '<form action="" method="POST" style="width: 100%;">';
-            $output .= '<input type="hidden" name="province" value="">';
-            $output .= '<input type="hidden" name="city_filter" value="">';
-            $output .= '<input type="submit" value="Reset" style="width: 100%; margin-top: 10px;">';
-            $output .= '</form>';
-            $output .= '</div>';
-            //add a reset form button
-
-            // Add script to handle city select input population based on selected province
-            $output .= '<script>
-            jQuery(document).ready(function($) {
-                $("select[name=\'province\']").change(function() {
-                    var selectedProvince = $(this).val();
-                    $.ajax({
-                        url: ajax_object.ajax_url, // WordPress defines this variable for you, it points to /wp-admin/admin-ajax.php
-                        type: "POST",
-                        data: {
-                            action: "get_comuni_by_provincia", // this is the part of the action hook name after wp_ajax_
-                            province: selectedProvince
-                        },
-                        //on load add a loading spinner
-                        beforeSend: function() {
-                            $("select[name=\'city_filter\']").attr("disabled", true);
-                            $("select[name=\'city_filter\']").html(\'<option value="">Loading...</option>\');
-                        },
-                        success: function(data) {
-                            console.log(data);
-                            var cities = JSON.parse(data);
-                            var options = \'<option value="Tutte">Tutte</option>\';
-                            for (var i = 0; i < cities.length; i++) {
-                                if (cities[i].nome == "' . $city_filter . '") {
-                                    options += \'<option value="\' + cities[i] + \'" selected>\' + cities[i] + \'</option>\';
-                                } else {
-                                options += \'<option value="\' + cities[i] + \'">\' + cities[i] + \'</option>\';
+                <!-- Reset form -->
+                <form action="<?php echo esc_url($current_url); ?>" method="POST" style="width: 100%;">
+                    <input type="hidden" name="redirect_to" value="<?php echo esc_url($current_url); ?>">
+                    <input type="hidden" name="province" value="">
+                    <input type="hidden" name="city_filter" value="">
+                    <input type="submit" value="Reset" style="width: 100%; margin-top: 10px;">
+                </form>
+            </div>
+            <!-- Rest of JavaScript code remains the same -->
+            <script>
+                jQuery(document).ready(function ($) {
+                    $("select[name='province']").change(function () {
+                        var selectedProvince = $(this).val();
+                        $.ajax({
+                            url: ajax_object.ajax_url,
+                            type: "POST",
+                            data: {
+                                action: "get_comuni_by_provincia",
+                                province: selectedProvince
+                            },
+                            beforeSend: function () {
+                                $("select[name='city_filter']").attr("disabled", true);
+                                $("select[name='city_filter']").html('<option value="">Loading...</option>');
+                            },
+                            success: function (data) {
+                                console.log(data);
+                                var cities = JSON.parse(data);
+                                var options = '<option value="Tutte">Tutte</option>';
+                                for (var i = 0; i < cities.length; i++) {
+                                    if (cities[i].nome == "<?= $city_filter ?>") {
+                                        options += '<option value="' + cities[i] + '" selected>' + cities[i] + '</option>';
+                                    } else {
+                                        options += '<option value="' + cities[i] + '">' + cities[i] + '</option>';
+                                    }
                                 }
+                                $("select[name='city_filter']").html(options);
+                                $("select[name='city_filter']").attr("disabled", false);
                             }
-                            $("select[name=\'city_filter\']").html(options);
-                            $("select[name=\'city_filter\']").attr("disabled", false);
-                        }
+                        });
                     });
                 });
-            });
-            </script>';
-
-            return $output;
+            </script>
+            <?php
+            return ob_get_clean();
         }
 
+        public function handle_filter_form_submission()
+        {
+            if (isset($_POST['redirect_to'])) {
+                $redirect_url = wp_validate_redirect($_POST['redirect_to'], home_url());
+
+                // Set transients
+                if (isset($_POST['province'])) {
+                    if (!empty($_POST['province'])) {
+                        set_transient('province' . session_id(), sanitize_text_field($_POST['province']), DAY_IN_SECONDS);
+                    } else {
+                        delete_transient('province' . session_id());
+                    }
+                }
+
+                if (isset($_POST['city_filter'])) {
+                    if (!empty($_POST['city_filter'])) {
+                        set_transient('city_filter_' . session_id(), sanitize_text_field($_POST['city_filter']), DAY_IN_SECONDS);
+                    } else {
+                        delete_transient('city_filter_' . session_id());
+                    }
+                }
+
+                wp_safe_redirect($redirect_url);
+                exit;
+            }
+        }
 
         #[NoReturn] function get_comuni_by_provincia_callback(): void
         {

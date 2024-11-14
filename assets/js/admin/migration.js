@@ -150,12 +150,27 @@ jQuery(document).ready(function ($) {
                         $('#migration-log').html(data.log.replace(/\n/g, '<br>'));
                     }
 
-                    if (data.progress[currentFile] && data.progress[currentFile].status !== 'finished' ) {
-                        setTimeout(checkStatus, 1000); // Check every 2 seconds
+                    // Check if there's progress data for the current file
+                    if (data.progress[currentFile]) {
+                        const fileStatus = data.progress[currentFile].status;
+
+                        // Continue checking if status is 'ongoing' or 'completed'
+                        if (fileStatus === 'ongoing' || fileStatus === 'completed') {
+                            setTimeout(checkStatus, 1000);
+                        }
+                        // Only proceed to next step if status is 'finished'
+                        else if (fileStatus === 'finished') {
+                            $('#progress-container').hide();
+                            $('#stop-migration, #resume-migration').hide();
+                            getNextStep();
+                        }
+                        // If status is undefined or unknown, keep checking
+                        else {
+                            console.warn('Unknown status for file:', currentFile);
+                            setTimeout(checkStatus, 1000);
+                        }
                     } else {
-                        $('#progress-container').hide();
-                        $('#stop-migration, #resume-migration').hide();
-                        getNextStep();
+                        console.error('No progress data for current file:', currentFile);
                     }
                 } else {
                     handleWPError(response);

@@ -2,10 +2,12 @@
 
 namespace Dokan_Mods;
 
+use DateTime;
 use Dokan_Mods\Migration_Tasks\ManifestiMigration;
 use Dokan_Mods\Migration_Tasks\NecrologiMigration;
 use Dokan_Mods\Migration_Tasks\AccountsMigration;
 use Dokan_Mods\Migration_Tasks\RicorrenzeMigration;
+use Dokan_Mods\Migration_Tasks\RingraziamentiMigration;
 use Exception;
 use SplFileObject;
 
@@ -17,7 +19,13 @@ if (!defined('ABSPATH')) {
 if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
     class MigrationClass
     {
-        private $allowed_files = ['accounts.csv', 'necrologi.csv', 'ricorrenze.csv','manifesti.csv'];
+        private $allowed_files = [
+            'accounts.csv',
+            'necrologi.csv',
+            'ricorrenze.csv',
+            'manifesti.csv',
+            'ringraziamenti.csv'  // Aggiunto nuovo file
+        ];
         private $upload_dir;
         private $log_file;
         private $debug_log_file;
@@ -73,6 +81,13 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 ];
                 return $schedules;
             });
+
+            add_action('wp_ajax_update_locations', array($this, 'handle_update_locations'));
+            add_action('wp_ajax_nopriv_update_locations', array($this, 'handle_update_locations'));
+
+            add_action('wp_ajax_bulk_update_anniversario_trigesimo', array($this,'bulk_update_anniversario_trigesimo'));
+            add_action('wp_ajax_nopriv_bulk_update_anniversario_trigesimo', array($this,'bulk_update_anniversario_trigesimo'));
+
         }
 
         private function loadMigrationFiles(): void
@@ -85,7 +100,8 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 'NecrologiMigration.php',
                 'AccountsMigration.php',
                 'RicorrenzeMigration.php',
-                'ManifestiMigration.php'
+                'ManifestiMigration.php',
+                'RingraziamentiMigration.php'  // Aggiunto nuovo file
             ];
 
             foreach ($task_files as $file) {
@@ -112,7 +128,9 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 'necrologi' => new NecrologiMigration(...$common_params),
                 'accounts' => new AccountsMigration(...$common_params),
                 'ricorrenze' => new RicorrenzeMigration(...$common_params),
-                'manifesti' => new ManifestiMigration(...$common_params)
+                'manifesti' => new ManifestiMigration(...$common_params),
+                'ringraziamenti' => new RingraziamentiMigration(...$common_params)  // Aggiunta nuova istanza
+
             ];
         }
 
@@ -137,11 +155,11 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
         public function add_submenu()
         {
             add_submenu_page(
-                'product-templates',
+                'dokan-mod',
                 'Migrazione',
                 'Migrazione',
                 'manage_options',
-                'product-templates-migration',
+                'dokan-migration',
                 array($this, 'migration_page')
             );
             $this->debug_log("Sottomenu aggiunto");
@@ -169,7 +187,8 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 $this->convert_to_bytes(ini_get('post_max_size'))
             );
             $max_upload_size_formatted = $this->format_bytes($max_upload_size);
-            ?>
+                ?>
+
             <div class="wrap">
                 <h1>Data Migration</h1>
                 <p>Maximum allowed upload size: <?php echo esc_html($max_upload_size_formatted); ?></p>
@@ -194,6 +213,148 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 </button>
 
                 <div id="migration-log"></div>
+
+
+                <div class="postbox">
+                    <h2 class="hndle"><span><?php _e('Update Locations', 'dokan-mod'); ?></span></h2>
+                    <div class="inside">
+                        <p><?php _e('Select the post type and click the button below to update cities and provinces for all posts.', 'dokan-mod'); ?></p>
+
+                        <!-- Aggiungi un menu a tendina per selezionare il tipo di post -->
+                        <label for="post-type-select"><?php _e('Post Type:', 'dokan-mod'); ?></label>
+                        <select id="post-type-select">
+                            <option value="ringraziamento"><?php _e('Ringraziamento', 'dokan-mod'); ?></option>
+                            <option value="anniversario"><?php _e('Anniversario', 'dokan-mod'); ?></option>
+                            <option value="manifesto"><?php _e('Manifesto', 'dokan-mod'); ?></option>
+                            <option value="trigesimo"><?php _e('Trigesimo', 'dokan-mod'); ?></option>
+                        </select>
+
+                        <button id="update-locations" class="button button-primary">Update Locations</button>
+
+                        <div id="update-progress" style="display:none;">
+                            <progress value="0" max="100"></progress>
+                            <span class="percentage">0%</span>
+                        </div>
+
+                        <div id="update-log"></div>
+                    </div>
+                </div>
+
+
+                <div class="postbox">
+                    <h2 class="hndle">
+                        <span><?php _e('Bulk Update for Anniversario or Trigesimo', 'dokan-mod'); ?></span></h2>
+                    <div class="inside">
+                        <p><?php _e('Select "Anniversario" or "Trigesimo" and click the button below to perform a bulk update.', 'dokan-mod'); ?></p>
+                        <label for="bulk-type-select"><?php _e('Bulk Type:', 'dokan-mod'); ?></label>
+                        <select id="bulk-type-select">
+                            <option value="anniversario"><?php _e('Anniversario', 'dokan-mod'); ?></option>
+                            <option value="trigesimo"><?php _e('Trigesimo', 'dokan-mod'); ?></option>
+                        </select>
+                        <button id="bulk-update" class="button button-primary">Bulk Update</button>
+                        <div id="bulk-update-progress" style="display:none;">
+                            <progress value="0" max="100"></progress>
+                            <span class="percentage">0%</span>
+                        </div>
+                        <div id="bulk-update-log"></div>
+                    </div>
+                </div>
+
+                <script>
+
+                    jQuery(document).ready(function ($) {
+                        $('#bulk-update').on('click', function () {
+                            $(this).prop('disabled', true);
+                            $('#bulk-update-progress').show();
+
+                            const bulkType = $('#bulk-type-select').val();
+                            performBulkUpdate(0, 0, bulkType);
+                        });
+
+                        function performBulkUpdate(offset, processed, bulkType) {
+                            $.ajax({
+                                url: ajaxurl,
+                                type: 'POST',
+                                data: {
+                                    action: 'bulk_update_anniversario_trigesimo',
+                                    nonce: '<?php echo wp_create_nonce("bulk_update_nonce"); ?>',
+                                    offset: offset,
+                                    processed: processed,
+                                    bulk_type: bulkType
+                                },
+                                success: function (response) {
+                                    if (response.success) {
+                                        $('#bulk-update-log').append('<p class="success">' + response.data.message + '</p>');
+
+                                        if (response.data.continue) {
+                                            performBulkUpdate(response.data.offset, response.data.processed, response.data.bulk_type);
+                                        } else {
+                                            $('#bulk-update-progress progress').val(100);
+                                            $('#bulk-update-progress .percentage').text('100%');
+                                            $('#bulk-update').prop('disabled', false);
+                                        }
+                                    } else {
+                                        $('#bulk-update-log').append('<p class="error">' + response.data.message + '</p>');
+                                        $('#bulk-update').prop('disabled', false);
+                                    }
+                                },
+                                error: function () {
+                                    $('#bulk-update-log').append('<p class="error">An error occurred.</p>');
+                                    $('#bulk-update').prop('disabled', false);
+                                }
+                            });
+                        }
+                    });
+
+
+
+                    jQuery(document).ready(function ($) {
+                        $('#update-locations').on('click', function () {
+                            $(this).prop('disabled', true);
+                            $('#update-progress').show();
+
+                            // Ottieni il tipo di post selezionato
+                            const postType = $('#post-type-select').val();
+                            updateLocations(0, 0, postType);
+                        });
+
+                        function updateLocations(offset, processed, postType) {
+                            $.ajax({
+                                url: ajaxurl,
+                                type: 'POST',
+                                data: {
+                                    action: 'update_locations',
+                                    nonce: '<?php echo wp_create_nonce("update_locations_nonce"); ?>',
+                                    offset: offset,
+                                    processed: processed,
+                                    post_type: postType // Passa il tipo di post
+                                },
+                                success: function (response) {
+                                    if (response.success) {
+                                        $('#update-log').append('<p class="success">' + response.data.message + '</p>');
+
+                                        if (response.data.continue) {
+                                            updateLocations(response.data.offset, response.data.processed, response.data.post_type);
+                                        } else {
+                                            $('#update-progress progress').val(100);
+                                            $('#update-progress .percentage').text('100%');
+                                            $('#update-locations').prop('disabled', false);
+                                        }
+                                    } else {
+                                        $('#update-log').append('<p class="error">' + response.data.message + '</p>');
+                                        $('#update-locations').prop('disabled', false);
+                                    }
+                                },
+                                error: function () {
+                                    $('#update-log').append('<p class="error">An error occurred.</p>');
+                                    $('#update-locations').prop('disabled', false);
+                                }
+                            });
+                        }
+                    });
+
+                </script>
+
 
             </div>
 
@@ -374,6 +535,9 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                         break;
                     case 'manifesti.csv':
                         $completed = $this->migration_tasks['manifesti']->migrate_manifesti_batch('manifesti.csv');
+                        break;
+                    case 'ringraziamenti.csv':
+                        $completed = $this->migration_tasks['ringraziamenti']->migrate_ringraziamenti_batch('ringraziamenti.csv');
                         break;
                     default:
                         $this->log("Errore: Il file {$file} non è riconosciuto per la migrazione.");
@@ -654,6 +818,244 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             return round($bytes, $precision) . ' ' . $units[$pow];
         }
 
+        public function handle_update_locations()
+        {
+            check_ajax_referer('update_locations_nonce', 'nonce');
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error(array('message' => 'Insufficient permissions'));
+                return;
+            }
+
+            $batch_size = 5000; // Numero di post da processare per volta
+            $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+            $processed = isset($_POST['processed']) ? intval($_POST['processed']) : 0;
+            $current_post_type = isset($_POST['post_type']) ? sanitize_text_field($_POST['post_type']) : null;
+
+            global $dbClassInstance;
+            $errors = array();
+
+            // Array dei post types e dei loro campi ACF
+            $post_types = array(
+                'ringraziamento' => 'field_666c0006827cd',
+                'anniversario' => 'field_665ec95bc65ad',
+                'manifesto' => 'field_6666bf025040a',
+                'trigesimo' => 'field_66570739481f1'
+            );
+
+            // Controlla se il tipo di post attuale è valido
+            if (!$current_post_type || !array_key_exists($current_post_type, $post_types)) {
+                wp_send_json_error(array('message' => 'Invalid post type'));
+                return;
+            }
+
+            $acf_field = $post_types[$current_post_type];
+            $args = array(
+                'post_type' => $current_post_type,
+                'posts_per_page' => $batch_size,
+                'offset' => $offset,
+                'post_status' => 'any',
+                'fields' => 'ids',
+                'no_found_rows' => true,
+                'update_post_meta_cache' => false,
+                'update_post_term_cache' => false,
+            );
+
+            $post_ids = get_posts($args);
+            $updated = 0;
+            $continue = !empty($post_ids);
+
+            foreach ($post_ids as $post_id) {
+                $city = get_field('field_662ca58a35da3', $post_id);
+                $province = get_field('field_6638e3e77ffa0', $post_id);
+
+                if ($city && $province && $dbClassInstance->is_a_valid_comune($city) && $dbClassInstance->is_a_valid_provincia($province)) {
+                    $updated++;
+                    $processed++;
+                    continue;
+                }
+
+                try {
+                    $necrologio_id = get_field($acf_field, $post_id);
+
+                    if (!$necrologio_id) {
+                        $errors[] = "No necrologio ID found for {$current_post_type} {$post_id}";
+                        continue;
+                    }
+
+                    $city = get_field('field_662ca58a35da3', $necrologio_id);
+                    if (!$city || !$dbClassInstance->is_a_valid_comune($city)) {
+                        $author_id = get_post_field('post_author', $post_id);
+                        $user_city = get_user_meta($author_id, 'dokan_profile_settings', true);
+                        $address = $user_city['address'];
+                        $user_city = $address['city'];
+
+                        if (isset($user_city) && $user_city) {
+                            $city = $user_city;
+                        } else {
+                            $errors[] = "No city found for author of {$current_post_type} {$post_id}";
+                            continue;
+                        }
+                    }
+
+                    $province = $dbClassInstance->get_provincia_by_comune($city);
+                    if (!$province) {
+                        $errors[] = "No province found for city {$city}";
+                        continue;
+                    }
+
+                    if (!get_field('field_6638e3e77ffa0', $necrologio_id)) {
+                        update_field('field_6638e3e77ffa0', $province, $necrologio_id);
+                    }
+
+                    update_field('field_662ca58a35da3', $city, $post_id);
+                    update_field('field_6638e3e77ffa0', $province, $post_id);
+
+                    $updated++;
+                    $processed++;
+                } catch (Exception $e) {
+                    $errors[] = "Error processing {$current_post_type} {$post_id}: " . $e->getMessage();
+                }
+
+                wp_cache_flush();
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
+
+            $message = sprintf(
+                'Processed %d posts %s in this batch. Total processed: %d. %s',
+                $updated,
+                $current_post_type,
+                $processed,
+                !empty($errors) ? "\nErrors encountered: " . implode("\n", array_slice($errors, -5)) : ''
+            );
+
+            wp_send_json_success(array(
+                'continue' => $continue,
+                'offset' => $offset + $batch_size,
+                'processed' => $processed,
+                'message' => $message,
+                'post_type' => $current_post_type
+            ));
+        }
+
+        public function bulk_update_anniversario_trigesimo()
+        {
+            check_ajax_referer('bulk_update_nonce', 'nonce');
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error(array('message' => 'Insufficient permissions'));
+                return;
+            }
+
+            $batch_size = 1000;
+            $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+            $processed = isset($_POST['processed']) ? intval($_POST['processed']) : 0;
+            $current_post_type = isset($_POST['bulk_type']) ? sanitize_text_field($_POST['bulk_type']) : null;
+
+            $post_types = array(
+                'anniversario' => 'annuncio_di_morte',
+                'trigesimo' => 'annuncio_di_morte'
+            );
+
+            if (!$current_post_type || !array_key_exists($current_post_type, $post_types)) {
+                wp_send_json_error(array('message' => 'Invalid post type'));
+                return;
+            }
+
+            $acf_field = $post_types[$current_post_type];
+
+            $args = array(
+                'post_type' => $current_post_type,
+                'posts_per_page' => $batch_size,
+                'offset' => $offset,
+                'post_status' => 'any',
+                'fields' => 'ids',
+                'no_found_rows' => true,
+                'update_post_meta_cache' => false,
+                'update_post_term_cache' => false,
+            );
+
+            $post_ids = get_posts($args);
+            $updated = 0;
+            $continue = !empty($post_ids);
+            $errors = array();
+
+            foreach ($post_ids as $post_id) {
+                try {
+                    $necrologio_id = get_field($acf_field, $post_id);
+                    if (!$necrologio_id) {
+                        $errors[] = "No necrologio ID found for {$current_post_type} {$post_id}";
+                        continue;
+                    }
+
+                    // Tentativi di creazione di oggetto DateTime da $date_field con vari formati
+                    $date_field = get_field('field_6641d588b4da2', $necrologio_id) ?: get_the_date('Y-m-d', $necrologio_id);
+                    $date_formats = ['Y-m-d', 'd/m/Y', 'm/d/Y', 'Ymd', 'd.m.Y'];
+                    $date_obj = null;
+
+                    foreach ($date_formats as $format) {
+                        $date_obj = DateTime::createFromFormat($format, $date_field);
+                        if ($date_obj !== false) {
+                            break;
+                        }
+                    }
+
+                    // Se $date_obj è ancora null, logga un errore e passa al prossimo post
+                    if (!$date_obj) {
+                        $errors[] = "Invalid date format for {$current_post_type} {$post_id} - date: {$date_field}";
+                        continue;
+                    }
+
+                    $date_str = $date_obj->format('Y-m-d');
+
+                    if ($current_post_type === 'trigesimo') {
+                        $trigesimo_field = get_field('trigesimo_data', $post_id);
+                        if (!$trigesimo_field || $trigesimo_field < strtotime('1980-01-01')) {
+                            $new_date = $date_obj->modify('+1 month')->format('Y-m-d');
+                            update_field('trigesimo_data', $new_date, $post_id);
+                        }
+                    } elseif ($current_post_type === 'anniversario') {
+                        $anniversario_field = get_field('anniversario_n_anniversario', $post_id);
+                        if (!$anniversario_field) {
+                            $years_to_add = get_field('anniversario_data', $post_id);
+                            if ($years_to_add) {
+                                $new_date = $date_obj->modify("+$years_to_add years")->format('Y-m-d');
+                                update_field('anniversario_data', $new_date, $post_id);
+                            } else {
+                                $errors[] = "Missing years to add for anniversario {$post_id}";
+                            }
+                        }
+                    }
+
+                    $updated++;
+                    $processed++;
+                } catch (Exception $e) {
+                    $errors[] = "Error processing {$current_post_type} {$post_id}: " . $e->getMessage();
+                }
+
+                wp_cache_flush();
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
+
+            $message = sprintf(
+                'Processed %d posts in this batch. Total processed: %d. %s',
+                $updated,
+                $processed,
+                !empty($errors) ? "\nErrors encountered: " . implode("\n", array_slice($errors, -5)) : ''
+            );
+
+            wp_send_json_success(array(
+                'continue' => $continue,
+                'offset' => $offset + $batch_size,
+                'processed' => $processed,
+                'message' => $message,
+                'bulk_type' => $current_post_type
+            ));
+        }
 
     }
 }

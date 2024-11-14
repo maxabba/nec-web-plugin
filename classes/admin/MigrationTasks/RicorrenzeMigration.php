@@ -219,16 +219,15 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
             if (!is_wp_error($post_id)) {
                 // Aggiornamento campi
-                $id_field = $tipo == 1 ? 'field_66570739481f1' : 'field_665ec95bc65ad';
-                update_field($id_field, $necrologio->ID, $post_id);
+                update_field('annuncio_di_morte', $necrologio->ID, $post_id);
 
                 if ($tipo == 1) { // Trigesimo
-                    update_field('field_6657095c5cdbc', $data[$field_indexes['Data']], $post_id);
-                    update_field('field_6657670ab5c2a', $data[$field_indexes['Testo']], $post_id);
+                    update_field('trigesimo_data', $data[$field_indexes['Data']], $post_id);
+                    update_field('testo_annuncio_trigesimo', $data[$field_indexes['Testo']], $post_id);
                 } else { // Anniversario
-                    update_field('field_665ec95bca23d', $data[$field_indexes['Data']], $post_id);
-                    update_field('field_665ec95bc662a', $data[$field_indexes['Testo']], $post_id);
-                    update_field('field_665ec9c7037b2', $data[$field_indexes['Anni']], $post_id);
+                    update_field('anniversario_data', $data[$field_indexes['Data']], $post_id);
+                    update_field('testo_annuncio_anniversario', $data[$field_indexes['Testo']], $post_id);
+                    update_field('anniversario_n_anniversario', $data[$field_indexes['Anni']], $post_id);
                 }
 
                 if ($citta) {
@@ -443,7 +442,6 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $batch_count = 0;  // Contatore per il numero di immagini processate in questo batch
 
                 foreach ($file as $index => $data) {
-                    $this->log("Ram Usage foreach: " . $this->get_memory_usage());
 
                     // Se la riga è vuota o mancano campi, saltala
                     if (empty($data) || count($data) < 5) continue;
@@ -538,7 +536,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 // Aggiornamento dei campi ACF in base al tipo di immagine
                 switch ($image_type) {
                     case 'trigesimo':
-                        update_field('field_66576726b5c2b', $attach_id, $post_id);
+                        update_field('immagine_annuncio_trigesimo', $attach_id, $post_id);
                         break;
                     case 'anniversario':
                         update_field('field_665ec95bc666c', $attach_id, $post_id);

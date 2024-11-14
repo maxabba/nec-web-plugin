@@ -2,6 +2,7 @@
 
 namespace Dokan_Mods\Migration_Tasks;
 
+use Exception;
 use RuntimeException;
 use SplFileObject;
 use WP_Query;
@@ -65,6 +66,50 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
         }
 
 
+        // In classes/admin/MigrationTasks/MigrationTasks.php
+
+        protected function get_existing_users_by_old_ids($old_ids)
+        {
+            if (empty($old_ids)) {
+                return [];
+            }
+
+            global $wpdb;
+
+            try {
+                // Crea i placeholder per la query preparata
+                $placeholders = implode(',', array_fill(0, count($old_ids), '%s'));
+
+                // Prepara la query
+                $sql = $wpdb->prepare(
+                    "SELECT um.user_id, um.meta_value 
+            FROM {$wpdb->usermeta} um 
+            WHERE um.meta_key = 'id_old' 
+            AND um.meta_value IN ($placeholders)",
+                    $old_ids
+                );
+
+                // Esegui la query
+                $results = $wpdb->get_results($sql, ARRAY_A);
+
+                if ($wpdb->last_error) {
+                    throw new RuntimeException("Database error: " . $wpdb->last_error);
+                }
+
+                // Crea un array associativo id_old => user_id
+                $existing_users = [];
+                foreach ($results as $row) {
+                    $existing_users[$row['meta_value']] = $row['user_id'];
+                }
+
+                return $existing_users;
+
+            } catch (Exception $e) {
+                $this->log("Errore nel recupero degli utenti esistenti: " . $e->getMessage());
+                return [];
+            }
+        }
+
         protected function first_call_check(SplFileObject $file)
         {
             $file_name = $file->getFilename();
@@ -77,7 +122,9 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                 $total_rows = $this->countCsvRows($file);
                 $this->update_progress($file->getFilename(), 0, $total_rows);
                 $header = $file->fgetcsv();
-                $this->process_existing_posts($file, $header, $processed, $total_rows, $file_name);
+                if ($file_name != 'accounts.csv') {
+                    $this->process_existing_posts($file, $header, $processed, $total_rows, $file_name);
+                }
                 //set status completed
                 $this->set_progress_status($file_name, 'completed');
                 return false;

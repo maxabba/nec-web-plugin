@@ -77,6 +77,7 @@
                                 var newElement = $(item.html);
                                 container.parent().parent().parent().parent().find('.manifesto_divider').show();
                                 container.append(newElement);
+                                console.log(item.vendor_data);
                                 updateEditorBackground(item.vendor_data, newElement);
                             });
 

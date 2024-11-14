@@ -18,7 +18,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
     {
         public function __construct(string $upload_dir, string $progress_file, string $log_file, int $batch_size)
         {
-            parent::__construct($upload_dir, $progress_file, $log_file, $batch_size);
+            parent::__construct($upload_dir, $progress_file, $log_file, $batch_size * 2);
         }
 
         public function migrate_manifesti_batch($file_name)
@@ -78,7 +78,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
 
             // Process batch
             foreach ($batch_data as $data) {
-                $this->log("Ram Usage start: " . $this->get_memory_usage());
 
                 $this->process_single_record(
                     $data,
@@ -88,7 +87,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
                     $existing_necrologi
                 );
 
-                $this->log("Ram Usage end: " . $this->get_memory_usage());
                 $processed++;
                 $this->update_progress($file_name, $processed, $total_rows);
             }
@@ -159,7 +157,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
                 if ($necrologio_id) {
                     update_field('field_6666bf025040a', $necrologio_id, $post_id); // IdNecrologio
                 }
-                update_field('field_6669ea01b516d', $data[$field_indexes['Testo']], $post_id); // Testo
+
+                update_field('field_6666c03e5040c', $this->cleanText($data[$field_indexes['Testo']]), $post_id); // Testo
                 update_field('field_6666bf6b5040b', $author_id, $post_id); // IdAccount
                 update_field('field_6669ea01b516d', 'silver', $post_id); // Imposta il tipo come "silver"
 
@@ -171,7 +170,63 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
             return $post_id;
         }
 
-        private function get_existing_users_by_old_ids($old_ids)
+
+        function cleanText(string $text): string
+        {
+            // Tag permessi
+            $allowedTags = '<strong><em><br><div>';
+
+            $patterns = [
+                // Rimuovi heading vuoti o con solo &nbsp;
+                ['pattern' => '/<h[1-6][^>]*>(\s|&nbsp;)*<\/h[1-6]>/i', 'replacement' => '<br>'],
+
+                // Converti heading non vuoti in div
+                ['pattern' => '/<h[1-6][^>]*>(.*?)<\/h[1-6]>/is', 'replacement' => '<div>$1</div>'],
+
+                // Converti paragrafi in div o br se vuoti
+                ['pattern' => '/<p[^>]*>(\s|&nbsp;)*<\/p>/i', 'replacement' => '<br>'],
+                ['pattern' => '/<p[^>]*>(.*?)<\/p>/is', 'replacement' => '<div>$1</div>'],
+
+                // Gestione degli spazi HTML
+                ['pattern' => '/&nbsp;/', 'replacement' => ' '],
+
+                // Normalizza gli spazi multipli
+                ['pattern' => '/\s+/', 'replacement' => ' '],
+
+                // Gestione degli a capo multipli
+                ['pattern' => '/(<br>\s*){2,}/', 'replacement' => '<br><br>'],
+
+                // Spazi intorno ai tag strong/em quando necessario
+                ['pattern' => '/(<\/(?:strong|em)>)([a-zA-Z0-9])/', 'replacement' => '$1 $2'],
+                ['pattern' => '/([a-zA-Z0-9])(<(?:strong|em)>)/', 'replacement' => '$1 $2'],
+
+                // Gestione div vuoti
+                ['pattern' => '/<div>\s*<\/div>/', 'replacement' => '<br>'],
+
+                // Normalizza spazi tra div
+                ['pattern' => '/<\/div>\s*<div>/', 'replacement' => "</div><br><br><div>"],
+
+                // Pulizia finale br
+                ['pattern' => '/(<br>)+$/', 'replacement' => ''],
+                ['pattern' => '/^(<br>)+/', 'replacement' => ''],
+                ['pattern' => '/(<br>){3,}/', 'replacement' => '<br><br>']
+            ];
+
+            // Applica le trasformazioni
+            foreach ($patterns as $pattern) {
+                $text = preg_replace($pattern['pattern'], $pattern['replacement'], $text);
+            }
+
+            // Rimuovi tutti i tag non permessi
+            $text = strip_tags($text, $allowedTags);
+
+            // Pulizia finale
+            $text = trim($text);
+
+            return $text;
+        }
+
+/*        private function get_existing_users_by_old_ids($old_ids)
         {
             global $wpdb;
             $placeholders = implode(',', array_fill(0, count($old_ids), '%s'));
@@ -187,6 +242,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
                 $existing_users[$row['meta_value']] = $row['user_id'];
             }
             return $existing_users;
-        }
+        }*/
     }
 }

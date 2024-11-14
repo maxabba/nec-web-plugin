@@ -5,7 +5,8 @@
     },
     "autoload": {
         "psr-4": {
-            "Marcoabbattista\\DokanMod\\": "src/"
+            "Dokan_Mods\\": "src/",
+            "Dokan_Mods\\Traits\\": "src/traits/"
         }
     },
     "authors": [
