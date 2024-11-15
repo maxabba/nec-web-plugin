@@ -29,7 +29,6 @@ add_action('wp', function () {
     }
 });
 
-
 // Definizione delle costanti del plugin
 define('DOKAN_SELECT_PRODUCTS_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('DOKAN_SELECT_PRODUCTS_PLUGIN_URL', plugin_dir_url(__FILE__));
