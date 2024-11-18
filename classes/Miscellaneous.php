@@ -449,6 +449,11 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
 
         public function handle_filter_form_submission()
         {
+            // Skip if it's a login page request
+            if (strpos($_SERVER['REQUEST_URI'], 'wp-login.php') !== false) {
+                return;
+            }
+
             if (isset($_POST['redirect_to'])) {
                 $redirect_url = wp_validate_redirect($_POST['redirect_to'], home_url());
 

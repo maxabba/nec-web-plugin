@@ -187,7 +187,6 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
             foreach ($this->pages as $query_var => $template_id) {
                 add_rewrite_rule('^' . $query_var . '/?$', 'index.php?' . $query_var . '=1', 'top');
                 add_rewrite_tag('%' . $query_var . '%', '([^&]+)');
-
             }
         }
 

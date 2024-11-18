@@ -22,12 +22,6 @@ if (!in_array('dokan-lite/dokan.php', apply_filters('active_plugins', get_option
     return;
 }
 
-add_action('wp', function () {
-    if (defined('DOING_CRON') && DOING_CRON) {
-        $_GET['XDEBUG_SESSION'] = 'PHPSTORM'; // Aggiunge il parametro di sessione
-        ini_set('xdebug.start_with_request', 'yes'); // Forza Xdebug per questa richiesta
-    }
-});
 
 // Definizione delle costanti del plugin
 define('DOKAN_SELECT_PRODUCTS_PLUGIN_PATH', plugin_dir_path(__FILE__));
@@ -56,14 +50,15 @@ if (!class_exists(__NAMESPACE__ . '\Templates_MiscClass')) {
     require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/Templates_MiscClass.php';
 }
 
+// Funzione per caricare e istanziare le classi
+if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
+    require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/ClassEnabler.php';
+    new ClassEnabler();
+}
+
 // Includi FiltersClass senza istanziarla
 if (!class_exists(__NAMESPACE__ . '\FiltersClass')) {
     require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/FiltersClass.php';
 }
 
 
-// Funzione per caricare e istanziare le classi
-if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
-    require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/ClassEnabler.php';
-    new ClassEnabler();
-}

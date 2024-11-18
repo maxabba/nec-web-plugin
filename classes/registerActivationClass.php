@@ -29,7 +29,7 @@ class registerActivationClass
 
     public function add_custom_rewrite_rules()
     {
-        $this->utils->dynamic_page_init();
+       $this->utils->dynamic_page_init();
     }
 
     public function dynamic_page_deactivate()
