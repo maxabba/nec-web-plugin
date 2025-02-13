@@ -105,7 +105,7 @@ $active_menu = '';
 
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
-                            <a href="<?php echo esc_url(home_url('/dashboard/crea-manifesto?post_id_annuncio=' . $post_id_annuncio)); ?>"
+                            <a href="<?php echo esc_url(home_url('/dashboard/crea-manifesto/?post_id_annuncio=' . $post_id_annuncio)); ?>"
                                class="custom-widget-button" style="margin-bottom: 15px">
                             <i class="fas fa-plus"></i> <?php _e('Aggiungi Partecipazione', 'dokan-mod'); ?>
                             </a>

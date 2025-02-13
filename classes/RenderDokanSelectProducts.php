@@ -27,6 +27,10 @@ if (!class_exists(__NAMESPACE__ . '\RenderDokanSelectProducts')) {
             $sku = $product_id . '-' . $user_id;
             $product_description = $product->post_content;
 
+            if ($product_wc->is_type('variable')) {
+                return '';
+            }
+
             // Caching the result of the product existence check
             $product_exist = wp_cache_get($sku, 'product_exist');
             if (false === $product_exist) {

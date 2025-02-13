@@ -120,7 +120,7 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                         $new_product_title = $product_title . ' - ' . $vendor_store_name;
                         wp_update_post(array(
                             'ID' => intval($clone_product_id),
-                            'post_status' => $product_status,
+                            'post_status' => 'pending',
                             'post_title' => $new_product_title
                         ));
 

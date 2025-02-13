@@ -36,7 +36,5 @@ if (!class_exists(__NAMESPACE__ . 'RingraziamentoClass')) {
             update_field('citta', $citta, $post_id);
         }
 
-
-
     }
 }

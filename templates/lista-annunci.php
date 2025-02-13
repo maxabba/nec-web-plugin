@@ -45,6 +45,18 @@ $args = array(
     's' => get_query_var('s'),
 );
 
+$filter_my_posts = isset($_GET['my_posts']) ? $_GET['my_posts'] : false;
+
+if ($filter_my_posts) {
+    $args['meta_query'] = array(
+        array(
+            'key' => 'vendor_id',
+            'value' => $user_id,
+            'compare' => '=',
+        )
+    );
+}
+
 // Execute the query
 
 // Includi l'header
@@ -83,12 +95,24 @@ $active_menu = 'annunci/lista-annunci';
                     do_action('dokan_before_listing_product');
                     ?>
                     <header class="dokan-dashboard-header dokan-clearfix">
-
-                        <h1 class="entry-title">
-                            <?php _e('Lista Annunci di Morte', 'dokan-mod'); ?> <span
-                                    class="dokan-label  dokan-product-status-label">
-                                            </span>
-                        </h1>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h1 class="entry-title">
+                                <?php _e('Lista Annunci di Morte', 'dokan-mod'); ?>
+                            </h1>
+                            <div>
+                                <?php if ($filter_my_posts): ?>
+                                    <a href="<?php echo esc_url(home_url('/dashboard/lista-annunci')); ?>"
+                                       class="dokan-btn dokan-btn-theme">
+                                        <?php _e('Tutti gli Annunci', 'dokan-mod'); ?>
+                                    </a>
+                                <?php else: ?>
+                                    <a href="<?php echo esc_url(add_query_arg('my_posts', '1')); ?>"
+                                       class="dokan-btn dokan-btn-theme">
+                                        <?php _e('I tuoi Annunci', 'dokan-mod'); ?>
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        </div>
                         <?php
                         if (isset($_GET['operation_result'])) {
                             $operation_result = wp_kses($_GET['operation_result'], array());
@@ -151,7 +175,7 @@ $active_menu = 'annunci/lista-annunci';
                                                 <a href="<?php echo home_url('/dashboard/lista-manifesti?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
                                             </td>
                                             <td>
-                                                <a <?php echo $modify_post_url_disabled ? '' : 'href=' ?>"<?php echo $modify_post_url_disabled ? '' : home_url('/dashboard/trigesimo-add?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Aggingi/Modifica', 'dokan-mod'); ?></a>
+                                                <a <?php echo $modify_post_url_disabled ? '' : 'href=' ?>"<?php echo $modify_post_url_disabled ? '' : home_url('/dashboard/trigesimo-add?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Aggiungi/Modifica', 'dokan-mod'); ?></a>
                                             </td>
                                             <td>
                                                 <a <?php echo $modify_post_url_disabled ? '' : 'href=' ?>"<?php echo $modify_post_url_disabled ? '' : home_url('/dashboard/lista-anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
@@ -231,6 +255,30 @@ $active_menu = 'annunci/lista-annunci';
 
     </main>
     <style>
+
+        .dokan-btn {
+            display: inline-block;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .dokan-btn-theme {
+            background-color: #f2f2f2;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .dokan-btn-theme:hover {
+            background-color: #e6e6e6;
+            color: #333;
+            text-decoration: none;
+        }
+
         .dokan-form-group {
             margin-bottom: 20px;
         }

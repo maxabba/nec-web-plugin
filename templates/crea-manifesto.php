@@ -22,6 +22,15 @@ $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
 
 
 $form = $template_class->render_post_state_form_and_handle($post_id);
+$redirect_to = isset($_GET['redirect_to']) ? $_GET['redirect_to'] : null;
+
+//se redirect non è null il link di redirect è il redirect_to
+if ($redirect_to !== null) {
+    $redirect_to = $redirect_to;
+}else{
+    $redirect_to = home_url('/dashboard/lista-manifesti/?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success');
+}
+
 
 $add_edit_text = $post_id === 'new_post' ? 'Crea' : 'Modifica';
 
@@ -93,7 +102,7 @@ $active_menu = 'add-annuncio';
 
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
-                            <?php if ($post_id !== 'new_post') {
+                            <?php if ($post_id !== 'new_post' and !isset($_GET['redirect_to'])) {
                                 echo $form;
                             } ?>
                             <?php
@@ -132,39 +141,62 @@ $active_menu = 'add-annuncio';
                             add_filter('acf/prepare_field/key=field_6666bf6b5040b', 'set_annuncio_di_morte_field');
 
 
-                        function manifesto_Render($field) {
-                            $user_id = get_current_user_id();
-                            $manifesto_background = get_user_meta($user_id, 'manifesto_background', true) !== '' ? get_user_meta($user_id, 'manifesto_background', true) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/img/default.jpg';
-                            $alignment = get_user_meta($user_id, 'manifesto_alignment', true) !== '' ? get_user_meta($user_id, 'manifesto_alignment', true) : 'center';
-                            ob_start();
-                            ?>
-                            <div id="image_container"
-                                 style="background-image: url('<?php echo $manifesto_background; ?>');
-                                         background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; margin: 0 auto;">
-                                <div id="inner_container"
-                                     style="position: absolute; font-size: 14px; text-align: <?php echo $alignment; ?>; ">
+                            function manifesto_Render($field)
+                            {
+                                $user_id = get_current_user_id();
+                                $manifesto_background = get_user_meta($user_id, 'manifesto_background', true) !== '' ? get_user_meta($user_id, 'manifesto_background', true) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/img/default.jpg';
+                                $alignment = get_user_meta($user_id, 'manifesto_alignment', true) !== '' ? get_user_meta($user_id, 'manifesto_alignment', true) : 'center';
 
+                                // Get the post ID from URL parameter
+                                $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
+
+                                // Get existing manifesto content if editing
+                                $existing_content = '';
+                                if ($post_id !== 'new_post') {
+                                    $existing_content = get_field('testo_manifesto', $post_id);
+                                }
+
+                                ob_start();
+                                ?>
+                                <div id="image_container"
+                                     style="background-image: url('<?php echo $manifesto_background; ?>');
+                                             background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; margin: 0 auto;">
+                                    <div id="inner_container"
+                                         style="position: absolute; font-size: 14px; text-align: <?php echo $alignment; ?>;">
+                                        <?php echo $existing_content; ?>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <?php
-                            //print the ob content
-                            echo ob_get_clean();
-                        }
+                                <?php
+                                echo ob_get_clean();
+                            }
                             add_action('acf/render_field/name=testo_manifesto', 'manifesto_Render');
 
+                            function set_manifesto_field($field)
+                            {
 
+                                // Check if it's our post type
+                                if ($field['key'] == 'field_6669ea01b516d') {
+
+                                    $field['value'] = 'online';
+                                    $field['readonly'] = true;
+                                    $field['wrapper']['style'] = 'display: none;';
+
+                                }
+                                return $field;
+                            }
+
+                            add_filter('acf/prepare_field/key=field_6669ea01b516d', 'set_manifesto_field');
 
 
                             $form_args = array(
                                 'post_id' => $post_id,
                                 'new_post' => array(
                                     'post_type' => 'manifesto',
-                                    'post_status' => 'publish',
+                                    'post_status' => isset($_GET['redirect_to']) ? 'draft' : 'publish', // Set status based on redirect_to
                                 ),
                                 'field_groups' => array('group_6666bf01a488b'),
                                 'submit_value' => __($add_edit_text, 'Dokan-mod'),
-                                'return' => home_url('/dashboard/lista-manifesti?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success'),
+                                'return' => $redirect_to,
                             );
 
                             acf_form($form_args);

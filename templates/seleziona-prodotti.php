@@ -85,6 +85,21 @@ $RenderDokanSelectProducts = new Dokan_Mods\RenderDokanSelectProducts();
                                 <tr>
                                     <th><?php _e('Prodotto', 'dokan-mod'); ?></th>
                                     <th><?php _e('Descrizione', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Prezzo', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Azione', 'dokan-mod'); ?></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <?php foreach ($products_editable as $product): ?>
+                                    <?php echo $RenderDokanSelectProducts->render_product_row($product, $store_info, $user_city, $currency_symbol, $user_id); ?>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            <table class="table table-bordered">
+                                <thead>
+                                <tr>
+                                    <th><?php _e('Prodotto', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Descrizione', 'dokan-mod'); ?></th>
                                     <th><?php _e('Azione', 'dokan-mod'); ?></th>
                                 </tr>
                                 </thead>

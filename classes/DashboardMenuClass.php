@@ -63,7 +63,11 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
 
         public function add_dashboard_menu($urls)
         {
+
+            $urls['settings']['submenu']['store']['title'] = __('Informazioni Agenzia Funebre', 'dokan-mod');
+
             unset($urls['products']);
+            unset($urls['withdraw']);
             $urls['seleziona-prodotti'] = array(
                 'title' => __('Aggiungi Servizi', 'dokan-mod'),
                 'icon' => '<i class="fas fa-briefcase"></i>',
@@ -99,7 +103,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
             }
             if (isset($urls['settings'])) {
                 $urls['settings']['submenu']['customize'] = array(
-                    'title' => __('Personalizza', 'dokan-mod'),
+                    'title' => __('Personalizza layout partecipazione', 'dokan-mod'),
                     'icon' => '<i class="fas fa-wrench"></i>',
                     'url' => site_url('/dashboard/customize'),
                     'pos' => 100,

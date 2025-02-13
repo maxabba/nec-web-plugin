@@ -140,7 +140,7 @@ $active_menu = 'add-annuncio';
                                     ),
                                     'field_groups' => array('group_6657073924698'),
                                     'submit_value' => __($add_edit_text, 'Dokan-mod'),
-                                    'return' => home_url('/dashboard/annunci'),
+                                    'return' => home_url('/dashboard/lista-annunci'),
                                 );
 
                                 acf_form($form_args);

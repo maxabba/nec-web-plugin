@@ -16,11 +16,16 @@ $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
 //check if the current user is the autor of the post
 if ($post_id_annuncio !== null && $post_id_annuncio != 'new_post') {
     $post_author_id = get_post_field('post_author', $post_id_annuncio);
-    if ($post_author_id !== $user_id) {
+    $post_author_id = intval($post_author_id);
+    if ($post_author_id !== $user_id ) {
         //redirect to the dashboard lista-anniversari
-        wp_redirect(home_url('/dashboard/lista-anniversari'));
+        wp_redirect(home_url('/dashboard/lista-anniversari/?post_id_annuncio=' . $post_id_annuncio));
+        exit; // Aggiungiamo exit dopo il redirect
     }
 }
+
+
+
 
 $form = $template_class->render_post_state_form_and_handle($post_id);
 
@@ -122,10 +127,10 @@ $active_menu = 'add-annuncio';
                                         return $field;
                                     }
 
+
                                     // Apply to fields named "annuncio_di_morte".
                                     add_filter('acf/prepare_field/key=field_665ec95bc65ad', 'set_annuncio_di_morte_field');
                                     add_filter('acf/prepare_field/key=field_665ec9c7037b2', 'set_annuncio_di_morte_field');
-
                                 }
 
                                 $form_args = array(
@@ -136,7 +141,7 @@ $active_menu = 'add-annuncio';
                                     ),
                                     'field_groups' => array('group_665ec95bbe9ab'),
                                     'submit_value' => __($add_edit_text, 'Dokan-mod'),
-                                    'return' => home_url('/dashboard/lista-anniversari?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success'),
+                                    'return' => home_url('/dashboard/lista-anniversari/?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success'),
                                 );
 
                                 acf_form($form_args);

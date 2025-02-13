@@ -213,26 +213,28 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                         'post_type' => 'manifesto',
                     );
 
-
-                    $post_id = wp_insert_post($post);
-                    if ($post_id) {
+                    $manifesto_id = wp_insert_post($post);
+                    if ($manifesto_id) {
                         //set acf fields annuncio_di_morte_relativo with the post_id
                         update_field('annuncio_di_morte_relativo', $post_id, $product_id);
                         //vendor_id
-                        update_field('vendor_id', get_post_field('post_author', $product_id), $post_id);
+                        update_field('vendor_id', get_post_field('post_author', $product_id), $manifesto_id);
                         //testo_manifesto
-                        update_field('testo_manifesto', $manifesto_html, $post_id);
+                        update_field('testo_manifesto', $manifesto_html, $manifesto_id);
                         //tipo_manifesto
-                        update_field('tipo_manifesto', $tipo_manifesto, $post_id);
+                        update_field('tipo_manifesto', $tipo_manifesto, $manifesto_id);
                         //provincia e citta
-                        update_field('provincia', $citta, $post_id);
-                        update_field('citta', $provincia, $post_id);
-                        //add meta data to $post_id with the id of the order
-                        add_post_meta($post_id, 'order_id', $order_id);
-                        add_post_meta($post_id, 'product_id', $product_id);
+                        update_field('provincia', $citta, $manifesto_id);
+                        update_field('citta', $provincia, $manifesto_id);
+                        //add meta data to $manifesto_id with the id of the order
+                        add_post_meta($manifesto_id, 'order_id', $order_id);
+                        add_post_meta($manifesto_id, 'product_id', $product_id);
+
+                        // Add the manifesto post ID to the order item metadata
+                        $item->add_meta_data('_manifesto_id', $manifesto_id);
+                        $item->save(); // Save the order item to persist the new metadata
                     }
                 }
-
             }
         }
 

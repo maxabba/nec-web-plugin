@@ -163,7 +163,7 @@ $active_menu = '';
                                 else :
                                     ?>
                                     <tr>
-                                        <td colspan="4"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
+                                        <td colspan="5"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
                                     </tr>
                                 <?php
                                 endif;

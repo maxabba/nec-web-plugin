@@ -53,28 +53,39 @@ if (!class_exists(__NAMESPACE__ . '\TrigesimiClass')) {
             }
         }
 
-        public function trigesimi_save_post($post_id){
-
+        public function trigesimi_save_post($post_id)
+        {
             if (get_post_type($post_id) !== 'trigesimo') {
                 return;
             }
 
             $post_id_annuncio = get_field('annuncio_di_morte', $post_id);
-            //set the title post of $post_id as Trigesimo - $post_title
+
+            // Get the title for the trigesimo
             $post_title = get_the_title($post_id_annuncio);
+
+            // Create post data array with both title and name (slug)
             $post_data = array(
                 'ID' => $post_id,
-                'post_title' => $post_title
+                'post_title' => $post_title,
+                'post_name' => sanitize_title($post_title) // This ensures the proper permalink structure
             );
+
+            // Remove the current hook to prevent infinite loop
+            remove_action('acf/save_post', array($this, 'trigesimi_save_post'), 20);
+
+            // Update the post
             wp_update_post($post_data);
 
+            // Re-add the hook
+            add_action('acf/save_post', array($this, 'trigesimi_save_post'), 20);
 
+            // Update city and province meta
             $provincia = get_field('provincia', $post_id_annuncio);
             $citta = get_field('citta', $post_id_annuncio);
 
             update_field('provincia', $provincia, $post_id);
             update_field('citta', $citta, $post_id);
-
         }
 
         public function filter_annunci_post_for_trigesimi_by_user($args, $field, $post)

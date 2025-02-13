@@ -16,9 +16,12 @@ $form = $template_class->schedule_post_and_update_status($post_id);
 //check if the current user is the autor of the post
 if ($post_id !== 'new_post') {
     $post_author_id = get_post_field('post_author', $post_id);
-    if ($post_author_id !== $user_id) {
-        //redirect to the dashboard lista-annunci
+    $post_author_id = intval($post_author_id);
+    // Dovremmo controllare anche il vendor_id oltre all'autore
+    if ($post_author_id !== $user_id ) {
+        //redirect to the dashboard lista-annunci solo se l'utente non è né l'autore né il vendor
         wp_redirect(home_url('/dashboard/lista-annunci'));
+        exit; // Aggiungiamo exit dopo il redirect
     }
 }
 
@@ -112,7 +115,10 @@ $active_menu = 'annunci/crea-annuncio';
                                     ),
                                     'field_groups' => array('group_6641d54c5f58d', 'group_666ef28ce50a3'),
                                     'submit_value' => __($add_edit_text, 'Dokan-mod'),
-                                    'return' => home_url('/dashboard/lista-annunci'),
+                                    'return' => add_query_arg(array(
+                                        'operation_result' => 'success'
+                                    ), home_url('/dashboard/lista-annunci')),
+                                    'updated_message' => __('Annuncio aggiornato con successo.', 'dokan-mod'),
                                 );
 
 

@@ -12,16 +12,23 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
         protected $province;
         protected $geolocator;
 
-        public function __construct($city = null, $province = null)
+/*        public function __construct($city = null, $province = null)
         {
-            $this->geolocator = new CloudFlareGeo();
+            $class_name = 'CloudFlareGeo';
 
-            // Se città e provincia non sono specificate, prova la geolocalizzazione
-            if ($city === null && $province === null) {
-                $location = $this->get_geolocation();
-                $this->city = $location['city'] ?? null;
-                $this->province = $location['province'] ?? null;
-            } else {
+            if (empty(get_option('dokan_mods_deactivate_' . strtolower($class_name)))) {
+                $this->geolocator = new CloudFlareGeo();
+            }
+
+            // Se è presente un filtro GET per la provincia, non applicare la geolocalizzazione o i transient
+            if (!empty($_GET['province'])) {
+                $this->city = null;
+                $this->province = null;
+                return;
+            }
+
+            // Se sono forniti città e provincia come parametri, usali
+            if ($city !== null || $province !== null) {
                 $this->city = $city;
                 if ($province == null) {
                     global $dbClassInstance;
@@ -29,13 +36,88 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
                 } else {
                     $this->province = $province;
                 }
+
+                if ($this->city == 'Tutte') {
+                    global $dbClassInstance;
+                    $this->city = $dbClassInstance->get_comuni_by_provincia($province);
+                }
+            } // Altrimenti prova la geolocalizzazione
+            else {
+                $location = $this->get_geolocation();
+                $this->city = $location['city'] ?? null;
+                $this->province = $location['province'] ?? null;
+            }
+        }*/
+
+
+        public function __construct($city = null, $province = null)
+        {
+            // Inizializza il geolocator se abilitato
+            $class_name = 'CloudFlareGeo';
+            if (empty(get_option('dokan_mods_deactivate_' . strtolower($class_name)))) {
+                $this->geolocator = new CloudFlareGeo();
             }
 
-            if ($this->city == 'Tutte') {
+            // Se sono forniti parametri espliciti, usali
+            if ($city !== null || $province !== null) {
+                $this->setLocation($city, $province);
+                return;
+            }
+
+            // Altrimenti, cerca una localizzazione esistente o usa la geolocalizzazione
+            $this->initializeLocation();
+        }
+
+
+        private function get_transient_key($type)
+        {
+            return (new UtilsAMClass())->get_transient_key($type);
+        }
+
+        private function setLocation($city, $province)
+        {
+            $this->city = $city;
+
+            if ($province === null && $city !== null) {
                 global $dbClassInstance;
-                $this->city = $dbClassInstance->get_comuni_by_provincia($province);
+                $this->province = $dbClassInstance->get_provincia_by_comune($city);
+            } else {
+                $this->province = $province;
+            }
+
+            if ($this->city === 'Tutte' && $this->province) {
+                global $dbClassInstance;
+                $this->city = $dbClassInstance->get_comuni_by_provincia($this->province);
             }
         }
+
+        private function initializeLocation()
+        {
+            // Prova prima a recuperare dai transient
+            $city = get_transient($this->get_transient_key('city'));
+            $province = get_transient($this->get_transient_key('province'));
+
+            if ($city || $province) {
+                $this->setLocation($city, $province);
+                return;
+            }
+
+            // Se non ci sono transient e il geolocator è disponibile, usa la geolocalizzazione
+            if ($this->geolocator) {
+                $location = $this->geolocator->get_location();
+                if (!isset($location['error']) && $location['city'] !== 'N/A') {
+                    $this->setLocation($location['city'], null);
+
+                    // Salva in transient
+                    set_transient($this->get_transient_key('city'), $this->city, WEEK_IN_SECONDS);
+                    set_transient($this->get_transient_key('province'), $this->province, WEEK_IN_SECONDS);
+                }
+            }
+        }
+
+
+
+
 
         private function get_geolocation()
         {
@@ -51,25 +133,27 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
             }
 
             // Altrimenti usa la geolocalizzazione
-            $location = $this->geolocator->get_location();
-            if (!isset($location['error'])) {
+            if ($this->geolocator) {
+                $location = $this->geolocator->get_location();
+                if (!isset($location['error'])) {
 
-                if($location['city'] == 'N/A') {
-                    return ['city' => null, 'province' => null];
+                    if ($location['city'] == 'N/A') {
+                        return ['city' => null, 'province' => null];
+                    }
+
+                    global $dbClassInstance;
+                    $city = $location['city'];
+                    $province = $dbClassInstance->get_provincia_by_comune($city);
+
+                    // Salva temporaneamente la localizzazione automatica
+                    set_transient($this->get_transient_key('city'), $city, DAY_IN_SECONDS);
+                    set_transient($this->get_transient_key('province'), $province, DAY_IN_SECONDS);
+
+                    return [
+                        'city' => $city,
+                        'province' => $province
+                    ];
                 }
-
-                global $dbClassInstance;
-                $city = $location['city'];
-                $province = $dbClassInstance->get_provincia_by_comune($city);
-
-                // Salva temporaneamente la localizzazione automatica
-                set_transient('city_filter_' . session_id(), $city, DAY_IN_SECONDS);
-                set_transient('province' . session_id(), $province, DAY_IN_SECONDS);
-
-                return [
-                    'city' => $city,
-                    'province' => $province
-                ];
             }
 
             return ['city' => null, 'province' => null];
@@ -150,31 +234,99 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
         }
 
 
-
-       public function get_city_filter_meta_query()
+/*        public function get_city_filter_meta_query()
         {
             $city_filter = $this->city;
             $province_filter = $this->province;
 
-            // Array base per meta_query
-            $meta_query = array(
-                'relation' => 'OR',
-                array(
+            // Base meta query array
+            $meta_query = array('relation' => 'OR');
+
+            // Se abbiamo una città specifica
+            if ($city_filter && $city_filter !== 'Tutte') {
+                if (is_array($city_filter)) {
+                    $meta_query[] = array(
+                        'key' => 'citta',
+                        'value' => $city_filter,
+                        'compare' => 'IN'
+                    );
+                } else {
+                    $meta_query[] = array(
+                        'key' => 'citta',
+                        'value' => $city_filter,
+                        'compare' => '='
+                    );
+                }
+            }
+
+            // Se abbiamo una provincia o la città è impostata su "Tutte"
+            if ($province_filter || ($city_filter === 'Tutte' && $province_filter)) {
+                $meta_query[] = array(
+                    'relation' => 'OR',
+                    array(
+                        'key' => 'provincia',
+                        'value' => $province_filter,
+                        'compare' => '='
+                    ),
+                    array(
+                        'key' => 'citta',
+                        'value' => 'Tutte',
+                        'compare' => '='
+                    )
+                );
+            }
+
+            // Se non abbiamo né città né provincia, mostra tutti i post
+            if (empty($city_filter) && empty($province_filter)) {
+                $meta_query = array(); // Reset meta query to show all posts
+            }
+
+            return $meta_query;
+        }*/
+
+
+        public function get_city_filter_meta_query()
+        {
+            $city_filter = $this->city;
+            $province_filter = $this->province;
+
+            if (empty($city_filter) && empty($province_filter)) {
+                return array();
+            }
+
+            $meta_query = array('relation' => 'OR');
+            if(is_array($city_filter)){
+                if ($province_filter) {
+                    $meta_query[] = array(
+                        'key' => 'provincia',
+                        'value' => $province_filter,
+                        'compare' => '='
+                    );
+                }
+                $meta_query[] = array(
                     'key' => 'citta',
                     'value' => $city_filter,
-                    'compare' => is_array($city_filter) ? 'IN' : '='
-                ),
-                array(
-                    'key' => 'provincia',
-                    'value' => "Tutte",
-                    'compare' => '='
-                )
+                    'compare' => 'IN'
+                );
+            }else{
+                if ($city_filter && $city_filter !== 'Tutte') {
+                    $meta_query[] = array(
+                        'key' => 'citta',
+                        'value' =>  $city_filter,
+                        'compare' => '='
+                    );
+                }
+            }
+
+            // Aggiungi sempre la condizione per "Tutte"
+            $meta_query[] = array(
+                'key' => 'citta',
+                'value' => 'Tutte',
+                'compare' => '='
             );
+
             return $meta_query;
         }
-
-
-
 
         public function get_arg_query_Select_product_form()
         {
@@ -230,7 +382,7 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
         }
 
 
-        function custom_filter_query($query)
+        /*function custom_filter_query($query)
         {
             // Verifica che non siamo nella dashboard e che questa sia la query principale
             if (!is_admin()) {
@@ -314,8 +466,102 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
                     $query->set('meta_query', $meta_query);
                 }
             }
+        }*/
+        function custom_filter_query($query)
+        {
+            // Verifica che non siamo nella dashboard e che sia la query principale
+            if (!is_admin()) {
+
+                // Estrai i filtri da GET
+                $province = !empty($_GET['province']) ? sanitize_text_field($_GET['province']) : null;
+                $city = !empty($_GET['city_filter']) ? sanitize_text_field($_GET['city_filter']) : null;
+
+                if($city == null && !empty($province))
+                {
+                    global $dbClassInstance;
+                    $city = $dbClassInstance->get_comuni_by_provincia($province);
+                }
+
+
+                // Se almeno uno dei filtri è presente, costruisci la meta_query
+                if (!empty($city) || !empty($province)) {
+                    $meta_query = ['relation' => 'OR'];
+
+                    if (is_array($city)) {
+                        if (!empty($province)) {
+                            $meta_query[] = [
+                                'key' => 'provincia',
+                                'value' => $province,
+                                'compare' => '='
+                            ];
+                        }
+                        $meta_query[] = [
+                            'key' => 'citta',
+                            'value' => $city,
+                            'compare' => 'IN'
+                        ];
+                    } elseif (!empty($city) && $city !== 'Tutte') {
+                        $meta_query[] = [
+                            'key' => 'citta',
+                            'value' => $city,
+                            'compare' => '='
+                        ];
+                    }
+
+                    // Aggiungi sempre la condizione per "Tutte"
+                    $meta_query[] = [
+                        'key' => 'citta',
+                        'value' => 'Tutte',
+                        'compare' => '='
+                    ];
+
+                    $query->set('meta_query', $meta_query);
+                }
+
+                // Filtra per periodo (invariato)
+                if (isset($_GET['date_filter']) && $_GET['date_filter'] !== 'all') {
+                    $date_filter = $_GET['date_filter'];
+                    $date_query = [];
+
+                    switch ($date_filter) {
+                        case 'today':
+                            $date_query = [
+                                [
+                                    'after' => date('Y-m-d', strtotime('today')),
+                                    'inclusive' => true,
+                                ],
+                            ];
+                            break;
+                        case 'yesterday':
+                            $date_query = [
+                                [
+                                    'after' => date('Y-m-d', strtotime('yesterday')),
+                                    'before' => date('Y-m-d', strtotime('today')),
+                                    'inclusive' => true,
+                                ],
+                            ];
+                            break;
+                        case 'last_week':
+                            $date_query = [
+                                [
+                                    'after' => date('Y-m-d', strtotime('-1 week')),
+                                    'inclusive' => true,
+                                ],
+                            ];
+                            break;
+                        case 'last_month':
+                            $date_query = [
+                                [
+                                    'after' => date('Y-m-d', strtotime('-1 month')),
+                                    'inclusive' => true,
+                                ],
+                            ];
+                            break;
+                    }
+
+                    $query->set('date_query', $date_query);
+                }
+            }
         }
-
-
     }
 }

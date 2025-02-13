@@ -53,8 +53,39 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             add_action('wp_ajax_nopriv_get_current_citta_value_if_is_set', array($this, 'get_current_citta_value_if_is_set'));
 
             add_action('dokan_order_detail_after_order_items', array($this, 'display_post_title_in_order_detail'), 10, 1);
-        }
 
+            add_filter('acf/prepare_field/key=field_670d4e008fc23', array($this, 'hide_id_old'));
+            add_filter('acf/prepare_field/key=field_671a68742fc07', array($this, 'hide_id_old'));
+
+
+            add_action('dokan_seller_wizard_after_payment_setup_form', function ($setup_wizard) {
+                ?>
+                <div class="dokan-payment-setup-info"
+                     style="margin-top: 30px; padding: 20px; background: #f5f5f5; border-left: 4px solid #0073aa;">
+                    <p style="margin-bottom: 15px;">
+                        Per garantire una corretta e tempestiva erogazione dei pagamenti relativi alle vendite
+                        effettuate sulla nostra piattaforma Necrologiweb, è fondamentale inserire le proprie coordinate
+                        bancarie all'interno del proprio profilo Agenzia Funebre.
+                    </p>
+
+                    <p style="margin-bottom: 15px;">
+                        Queste informazioni sono necessarie esclusivamente per permetterci di effettuare i bonifici a
+                        suo favore in modo sicuro e trasparente.
+                    </p>
+
+                    <p style="margin-bottom: 15px;">
+                        Senza di esse, non sarà possibile procedere con l'accredito degli importi maturati.
+                    </p>
+
+                    <p style="margin-bottom: 0;">
+                        Per qualsiasi dubbio o necessità contattaci alla mail <a href="mailto:info@necrologiweb.it">info@necrologiweb.it</a>
+                    </p>
+                </div>
+                <?php
+            });
+
+
+        }
 
         function custom_custom_fields_meta_limit($limit)
         {
@@ -184,9 +215,13 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
                 'highlight_class' => 'location-highlight'
             ), $atts);
 
+            $utilsAMClass = new UtilsAMClass();
+            $city_key = $utilsAMClass->get_transient_key('city');
+            $province_key = $utilsAMClass->get_transient_key('province');
+
             // Recupera i valori dai transient
-            $city = get_transient('city_filter_' . session_id());
-            $province = get_transient('province' . session_id());
+            $city = get_transient($city_key);
+            $province = get_transient($province_key);
 
             // Se non ci sono valori nei transient, ritorna il testo di default
             if (empty($city) && empty($province)) {
@@ -199,12 +234,31 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             // Prepara il testo della città
             $city_text = $city === 'Tutte' ? $atts['all_cities_text'] : $city;
 
-            // Prepara il testo completo
+            // Prepara gli elementi del template
+            $template_parts = [];
+
+            // Aggiungi la parte della città se non vuota
+            if ($city_text) {
+                $template_parts[] = sprintf('<span class="%s">%s</span>',
+                    esc_attr($atts['highlight_class']),
+                    esc_html($city_text)
+                );
+            }
+
+            // Aggiungi la parte della provincia se non vuota
+            if ($province) {
+                $template_parts[] = sprintf('<span class="%s">%s</span>',
+                    esc_attr($atts['highlight_class']),
+                    esc_html($province)
+                );
+            }
+
+            // Costruisci il testo del template
             $location_text = str_replace(
-                ['{city}', '{province}'],
+                ['{city}', ',{province}'],
                 [
-                    $city_text ? sprintf('<span class="%s">%s</span>', esc_attr($atts['highlight_class']), esc_html($city_text)) : '',
-                    $province ? sprintf('<span class="%s">%s</span>', esc_attr($atts['highlight_class']), esc_html($province)) : ''
+                    $city_text ? $city_text : '',
+                    $province ? ', ' . $province : ''
                 ],
                 $atts['template']
             );
@@ -215,6 +269,9 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
                 $location_text
             );
         }
+
+
+
 
 
 /*        public function set_city_filter()
@@ -236,19 +293,22 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
 
         }*/
 
+
         public function apply_city_filter($query)
         {
             if (!is_admin() && $query->is_main_query()) {
-                $city_filter = get_transient('city_filter_' . session_id()) ?? null;
-                $province = get_transient('province' . session_id()) ?? null;
-                if (!empty($province) || !empty($city_filter)) {
-                    $meta_query = (new FiltersClass($city_filter, $province))->get_city_filter_meta_query();
-                    $query->set('meta_query', $meta_query);
-                }else{
-                    $meta_query = (new FiltersClass())->get_city_filter_meta_query();
+                $utilsAMClass = new UtilsAMClass();
+                $city_key = $utilsAMClass->get_transient_key('city');
+                $province_key = $utilsAMClass->get_transient_key('province');
+
+                $city_filter = get_transient($city_key);
+                $province = get_transient($province_key);
+
+                $meta_query = (new FiltersClass($city_filter, $province))->get_city_filter_meta_query();
+
+                if (!empty($meta_query)) {
                     $query->set('meta_query', $meta_query);
                 }
-
             }
         }
 
@@ -360,8 +420,12 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             // Get current URL
             $current_url = remove_query_arg(['province', 'city_filter']); // Remove existing params
 
-            $city_filter = get_transient('city_filter_' . session_id());
-            $province_filter = get_transient('province' . session_id());
+            $utilsAMClass = new UtilsAMClass();
+            $city_key = $utilsAMClass->get_transient_key('city');
+            $province_key = $utilsAMClass->get_transient_key('province');
+
+            $city_filter = get_transient($city_key);
+            $province_filter = get_transient($province_key);
 
             $random_id = uniqid();
 
@@ -457,20 +521,26 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             if (isset($_POST['redirect_to'])) {
                 $redirect_url = wp_validate_redirect($_POST['redirect_to'], home_url());
 
-                // Set transients
+                $utilsAMClass = new UtilsAMClass();
+
+                // Set transients using the new method
                 if (isset($_POST['province'])) {
                     if (!empty($_POST['province'])) {
-                        set_transient('province' . session_id(), sanitize_text_field($_POST['province']), DAY_IN_SECONDS);
+                        $province_key = $utilsAMClass->get_transient_key('province');
+                        set_transient($province_key, sanitize_text_field($_POST['province']), WEEK_IN_SECONDS);
                     } else {
-                        delete_transient('province' . session_id());
+                        $province_key = $utilsAMClass->get_transient_key('province');
+                        delete_transient($province_key);
                     }
                 }
 
                 if (isset($_POST['city_filter'])) {
                     if (!empty($_POST['city_filter'])) {
-                        set_transient('city_filter_' . session_id(), sanitize_text_field($_POST['city_filter']), DAY_IN_SECONDS);
+                        $city_key = $utilsAMClass->get_transient_key('city');
+                        set_transient($city_key, sanitize_text_field($_POST['city_filter']), WEEK_IN_SECONDS);
                     } else {
-                        delete_transient('city_filter_' . session_id());
+                        $city_key = $utilsAMClass->get_transient_key('city');
+                        delete_transient($city_key);
                     }
                 }
 
@@ -479,7 +549,7 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             }
         }
 
-        #[NoReturn] function get_comuni_by_provincia_callback(): void
+            #[NoReturn] function get_comuni_by_provincia_callback(): void
         {
             $province_name = $_POST['province'];
             if (empty($province_name)) {
@@ -493,14 +563,19 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
         }
 
 
-        public function display_post_title_in_order_detail($order_id)
+        public function display_post_title_in_order_detail($order)
         {
-            $order = wc_get_order($order_id);
+            $order = wc_get_order($order);
             $items = $order->get_items();
             foreach ($items as $item) {
                 $post_id = $item->get_meta('_post_id');
                 if ($post_id) {
                     $post_title = get_the_title($post_id);
+                    $manifesto_id = $item->get_meta('_manifesto_id');
+                    //url di redirect per tornare all'ordine con wpnonce
+                    $redirect_url = home_url('/dashboard/orders/?order_id=' . $order->get_id(). '&_wpnonce=' . wp_create_nonce('dokan_view_order'));
+
+                    $manifesto_url = home_url('/dashboard/crea-manifesto/?post_id=' . $manifesto_id . '&post_id_annuncio=' . $post_id . '&redirect_to=' . urlencode($redirect_url));
 
                     ob_start();
                     ?>
@@ -523,14 +598,48 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
                                     </tbody>
 
                                 </table>
+                        </div>
+                    </div>
+
+                    <div class="dokan-panel dokan-panel-default">
+                        <div class="dokan-panel-heading">
+                            <strong>Informazioni Manifesto</strong>
+                        </div>
+                        <div class="dokan-panel-body" id="woocommerce-order-items">
+                            <table class="dokan-table order-items">
+                                <thead>
+                                <tr>
+                                    <th class="item" colspan="2"><?php esc_html_e('Manifesto', 'dokan-mod'); ?></th>
+                                </tr>
+                                </thead>
+                                <tbody id="order_items_list">
+                                <tr class="item">
+                                    <td class="item-name" colspan="2">
+                                        <a href="<?php echo esc_url($manifesto_url); ?>"
+                                           class="custom-widget-button" style="margin-bottom: 15px">Visualizza/Modifica Manifesto</a>
+                                    </td>
+                                </tbody>
+
+                            </table>
 
                         </div>
                     </div>
+
                     <?php
                     echo ob_get_clean();
                 }
             }
         }
+
+
+        public function hide_id_old($field)
+        {
+            if ($field['_name'] == 'id_old') {
+                $field['wrapper']['style'] = 'display: none;';
+            }
+            return $field;
+        }
+
 
     }
 }

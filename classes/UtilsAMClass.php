@@ -50,6 +50,61 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
 
         }
 
+
+        public function get_visitor_id()
+        {
+            $cookie_name = 'dokan_visitor_id';
+
+            // Check if headers have already been sent
+            if (headers_sent()) {
+                // If headers are already sent, try to get the existing cookie
+                return isset($_COOKIE[$cookie_name])
+                    ? sanitize_text_field($_COOKIE[$cookie_name])
+                    : wp_generate_uuid4();
+            }
+
+            // Try to get existing ID from cookie
+            if (isset($_COOKIE[$cookie_name])) {
+                return sanitize_text_field($_COOKIE[$cookie_name]);
+            }
+
+            // Generate new unique ID
+            $visitor_id = wp_generate_uuid4();
+
+            // Use WordPress setcookie function
+            setcookie(
+                $cookie_name,
+                $visitor_id,
+                [
+                    'expires' => time() + (7 * DAY_IN_SECONDS),
+                    'path' => COOKIEPATH,
+                    'domain' => COOKIE_DOMAIN,
+                    'secure' => is_ssl(),
+                    'httponly' => true,
+                    'samesite' => 'Lax' // Added for modern browser compatibility
+                ]
+            );
+
+            return $visitor_id;
+        }
+        public function get_transient_key($type)
+        {
+            $visitor_id = $this->get_visitor_id();
+            return "dokan_location_{$type}_{$visitor_id}";
+        }
+
+        public function clear_location_preferences()
+        {
+            delete_transient($this->get_transient_key('city'));
+            delete_transient($this->get_transient_key('province'));
+
+            // Remove cookie as well
+            if (isset($_COOKIE['dokan_visitor_id'])) {
+                setcookie('dokan_visitor_id', '', time() - 3600, COOKIEPATH, COOKIE_DOMAIN);
+            }
+        }
+
+
         public function get_pages()
         {
             return $this->pages;
@@ -119,12 +174,100 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
         }
 
         //get price of the product by id
-        public function get_product_price($product_id)
+/*        public function get_product_price($product_id)
         {
+
+
+
             $product = wc_get_product($product_id);
             return $product->get_price_html();
-        }
+        }*/
 
+
+        public function get_product_price($product_id)
+        {
+            // Get base SKU pattern
+            $base_sku = $product_id . '-';
+
+            // Initialize arrays for all prices
+            $all_prices = array();
+
+            // Query for products with SKU starting with our pattern
+            $args = array(
+                'post_type' => 'product',
+                'posts_per_page' => -1,
+                'meta_query' => array(
+                    array(
+                        'key' => '_sku',
+                        'value' => $base_sku,
+                        'compare' => 'LIKE'
+                    )
+                )
+            );
+
+            $products = get_posts($args);
+
+            foreach ($products as $product) {
+                $product_wc = wc_get_product($product->ID);
+
+                if (!$product_wc) {
+                    continue;
+                }
+
+                // Handle variable products
+                if ($product_wc->is_type('variable')) {
+                    $variations = $product_wc->get_available_variations();
+                    foreach ($variations as $variation) {
+                        $variation_obj = wc_get_product($variation['variation_id']);
+                        if ($variation_obj && $variation_obj->get_price()) {
+                            $all_prices[] = floatval($variation_obj->get_price());
+                        }
+                    }
+                } // Handle simple products
+                else {
+                    if ($product_wc->get_price()) {
+                        $all_prices[] = floatval($product_wc->get_price());
+                    }
+                }
+            }
+
+            // Also check the original product
+            $original_product = wc_get_product($product_id);
+            if ($original_product) {
+                if ($original_product->is_type('variable')) {
+                    $variations = $original_product->get_available_variations();
+                    foreach ($variations as $variation) {
+                        $variation_obj = wc_get_product($variation['variation_id']);
+                        if ($variation_obj && $variation_obj->get_price()) {
+                            $all_prices[] = floatval($variation_obj->get_price());
+                        }
+                    }
+                } else {
+                    if ($original_product->get_price()) {
+                        $all_prices[] = floatval($original_product->get_price());
+                    }
+                }
+            }
+
+            // Remove any duplicate prices
+            $all_prices = array_unique($all_prices);
+
+            // If no prices found
+            if (empty($all_prices)) {
+                return '';
+            }
+
+            // Get min and max prices
+            $min_price = min($all_prices);
+            $max_price = max($all_prices);
+
+            // Format the output
+            if ($min_price === $max_price) {
+                return wc_price($min_price);
+            } else {
+                return wc_price($min_price) . ' - ' . wc_price($max_price);
+            }
+        }
 
         public function check_and_create_product()
         {
