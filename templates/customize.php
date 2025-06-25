@@ -25,7 +25,6 @@ $active_menu = 'settings/customize';
 // Include the Dokan dashboard sidebar
 
 ?>
-
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">

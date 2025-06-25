@@ -9,20 +9,22 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
     {
         const PLUGIN_PATH = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/';
 
-        private array $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'lista-annunci', 'customize', 'trigesimo-add','lista-anniversari','crea-anniversario', 'lista-manifesti','crea-manifesto'];
+        private array $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'lista-annunci', 'customize', 'trigesimo-add', 'lista-anniversari', 'crea-anniversario', 'lista-manifesti', 'crea-manifesto'];
 
 
         public function __construct()
         {
+            add_filter('query_vars', array($this, 'add_query_vars')); // Aggiunge le variabili di query
+            add_filter('template_include', array($this, 'load_template'), 12); // Include il template
+            add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'), 99999); // Mette in coda gli stili
             add_action('init', array($this, 'dynamic_page_init')); // Inizializza le pagine dinamiche
             add_action('dokan_get_dashboard_nav', array($this, 'add_dashboard_menu')); // Aggiunge il menu alla dashboard di Dokan
-            add_filter('query_vars', array($this, 'add_query_vars')); // Aggiunge le variabili di query
-            add_filter('template_include', array($this, 'load_template'),12); // Include il template
-            add_action('wp_enqueue_scripts', array($this, 'enqueue_styles'),99999); // Mette in coda gli stili
-
+            add_filter('dokan_get_seller_earnings', array($this, 'get_seller_earnings'), 10, 2);
+            add_filter('dokan_get_formatted_seller_earnings', array($this, 'get_seller_earnings_formatted'), 10, 2);
         }
 
-        public function dynamic_page_init(){
+        public function dynamic_page_init()
+        {
 
             foreach ($this->query_vars as $var) {
                 add_rewrite_rule('^dashboard/' . $var . '/page/([0-9]+)/?', 'index.php?' . $var . '=true&paged=$matches[1]', 'top');
@@ -76,7 +78,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
                 'permission' => 'dokan_view_product_menu'
             );
 
-            if(current_user_can('sell_manifesto')) {
+            if (current_user_can('sell_manifesto')) {
 
                 $urls['annunci'] = array(
                     'title' => __('Annunci', 'dokan-mod'),
@@ -134,6 +136,52 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
 
             return $template;
         }
+
+
+        public function get_seller_earnings($earning, $user_id)
+        {
+            $user_id = dokan_get_current_user_id();
+            //get the list of the orders in this month, dokan_get_seller_orders is deprecated
+            $orders = dokan()->order->all(array(
+                'seller_id' => $user_id,
+                'date_query' => array(
+                    'after' => date('Y-m-d', strtotime('first day of this month')),
+                    'before' => date('Y-m-d', strtotime('last day of this month'))
+                )
+            ));
+
+            $total = 0;
+
+            foreach ($orders as $order) {
+                $earning = dokan()->commission->get_earning_by_order($order);
+                $total += $earning;
+            }
+
+            return $total;
+        }
+
+        public function get_seller_earnings_formatted($earning, $user_id)
+        {
+            $user_id = dokan_get_current_user_id();
+            //get the list of the orders in this month, dokan_get_seller_orders is deprecated
+            $orders = dokan()->order->all(array(
+                'seller_id' => $user_id,
+                'date_query' => array(
+                    'after' => date('Y-m-d', strtotime('first day of this month')),
+                    'before' => date('Y-m-d', strtotime('last day of this month'))
+                )
+            ));
+
+            $total = 0;
+
+            foreach ($orders as $order) {
+                $earning = dokan()->commission->get_earning_by_order($order);
+                $total += $earning;
+            }
+
+            return wc_price($total);
+        }
+
 
 
     }

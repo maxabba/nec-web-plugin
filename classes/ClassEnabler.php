@@ -40,6 +40,7 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
                 'TrigesimiFrontendClass' => 'classes/TrigesimiFrontendClass.php',
                 'AnniversarioFrontendClass' => 'classes/AnniversarioFrontendClass.php',
                 'RingraziamentoFrontendClass' => 'classes/RingraziamentoFrontendClass.php',
+                'RicorrenzeFrontendClass' => 'classes/RicorrenzeFrontendClass.php',
                 'VendorFrontendClass' => 'classes/VendorFrontendClass.php',
                 'SearchFrontendClass' => 'classes/SearchFrontendClass.php',
                 'PrintManifestoClass' => 'classes/PrintManifestoClass.php',
@@ -47,6 +48,9 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
                 'EmailManagerClass' => 'classes/EmailManagerClass.php',
                 'SetupWizardModifierClass'=> 'classes/SetupWizardModifierClass.php',
                 'AutoPrelievoClass' => 'classes/AutoPrelievoClass.php',
+                'LoopFrontendVendor' => 'classes/LoopFrontendVendor.php',
+                //'TrigesimoBulkUpdate' => 'classes/TrigesimoBulkUpdate.php',
+                //'AnniversarioBulkUpdate' => 'classes/AnniversarioBulkUpdate.php',
             ];
 
             $this->deactivableclasses = [

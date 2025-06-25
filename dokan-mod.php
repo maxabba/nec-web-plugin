@@ -61,4 +61,3 @@ if (!class_exists(__NAMESPACE__ . '\FiltersClass')) {
     require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/FiltersClass.php';
 }
 
-

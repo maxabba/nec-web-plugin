@@ -1,0 +1,137 @@
+<?php
+
+namespace Dokan_Mods;
+
+use WP_Query;
+
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly.
+}
+if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
+
+    class RicorrenzeFrontendClass
+    {
+        public function __construct()
+        {
+            //add_action('pre_get_posts', array($this, 'custom_filter_query'));
+            add_action('elementor/query/ricorrenze_carousel', array($this, 'apply_custom_filter_query'));
+        }
+
+        public function apply_custom_filter_query($query)
+        {
+            // Imposta i post type
+            $query->set('post_type', ['anniversario', 'trigesimo']);
+            //$query->set('posts_per_page', -1); // Limita a 7 post
+            // Data attuale in formato ACF (Ymd)
+            $today = date('Ymd');
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                $meta_query = [
+                    'relation' => 'OR',
+                    [
+                        'key' => 'anniversario_data',
+                        'compare' => 'EXISTS',
+                    ],
+                    [
+                        'key' => 'trigesimo_data',
+                        'compare' => 'EXISTS',
+                    ]
+                ];
+            }else {
+                // Costruisci la meta query per includere i post futuri
+                $meta_query = [
+                    'relation' => 'OR',
+                    [
+                        'key' => 'anniversario_data',
+                        'value' => $today,
+                        'compare' => '>=',
+                        'type' => 'NUMERIC',
+                    ],
+                    [
+                        'key' => 'trigesimo_data',
+                        'value' => $today,
+                        'compare' => '>=',
+                        'type' => 'NUMERIC',
+                    ]
+                ];
+                $query->set('orderby', 'none');
+
+            }
+
+            $query->set('meta_query', $meta_query);
+
+            // Mantieni la post-elaborazione per l’ordinamento e il filtro avanzato
+            add_filter('the_posts', [$this, 'sort_and_alternate_posts'], 10, 2);
+        }
+
+        /**
+         * Custom filter to sort and alternate posts based on their dates
+         *
+         * @param array $posts Array of posts returned by the query
+         * @param WP_Query $query The WP_Query instance
+         * @return array Modified array of posts
+         */
+        public function sort_and_alternate_posts($posts, $query)
+        {
+            // Get current date for comparison
+            $current_date = current_time('Y-m-d');
+
+            // Calculate date 7 days from now
+            $end_date = date('Y-m-d', strtotime($current_date . ' +7 days'));
+
+            // Combined array for all eligible posts
+            $eligible_posts = [];
+
+            // Also keep track of all posts with dates >= today for fallback
+            $all_future_posts = [];
+
+            foreach ($posts as $post) {
+                $post_date = null;
+
+                if ($post->post_type === 'anniversario') {
+                    $post_date = get_field('anniversario_data', $post->ID);
+                } else if ($post->post_type === 'trigesimo') {
+                    $post_date = get_field('trigesimo_data', $post->ID);
+                }
+
+                if ($post_date) {
+                    // Store the date in the post object for later sorting
+                    $post->custom_date = $post_date;
+
+                    // Add to eligible posts if within 7 days
+                    if ($post_date >= $current_date && $post_date <= $end_date) {
+                        $eligible_posts[] = $post;
+                    }
+
+                    // Add to fallback array if in the future
+                    if ($post_date >= $current_date) {
+                        $all_future_posts[] = $post;
+                    }
+                }
+            }
+
+            // Sort both arrays by date in ascending order
+            $sort_by_date = function ($a, $b) {
+                return strtotime($a->custom_date) - strtotime($b->custom_date);
+            };
+
+            usort($eligible_posts, $sort_by_date);
+            usort($all_future_posts, $sort_by_date);
+
+            // In debug mode, if we have fewer than 3 posts in the next 7 days,
+            // use posts from future dates instead
+            if (defined('WP_DEBUG') && WP_DEBUG && count($eligible_posts) < 3 && count($all_future_posts) >= 3) {
+                $eligible_posts = array_slice($all_future_posts, 0, 7);
+            }
+
+            // If we need to limit the number of posts
+            if (isset($query->query_vars['posts_per_page']) && $query->query_vars['posts_per_page'] > 0) {
+                $eligible_posts = array_slice($eligible_posts, 0, $query->query_vars['posts_per_page']);
+            }
+
+            // Remove our filter to prevent infinite loops
+            remove_filter('the_posts', [$this, 'sort_and_alternate_posts'], 10);
+
+            return $eligible_posts;
+        }
+    }
+}

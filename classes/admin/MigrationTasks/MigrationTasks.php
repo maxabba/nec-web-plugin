@@ -71,16 +71,20 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
         protected function get_existing_users_by_old_ids($old_ids)
         {
             if (empty($old_ids)) {
+                $this->log("ATTENZIONE: Array old_ids vuoto in get_existing_users_by_old_ids");
                 return [];
             }
 
             global $wpdb;
 
             try {
-                // Crea i placeholder per la query preparata
+                // Log per debug
+                $this->log("Cercando utenti per i seguenti old_ids: " . implode(', ', $old_ids));
+
+                // Prepara i placeholders per la query
                 $placeholders = implode(',', array_fill(0, count($old_ids), '%s'));
 
-                // Prepara la query
+                // Query per ottenere gli utenti
                 $sql = $wpdb->prepare(
                     "SELECT um.user_id, um.meta_value 
             FROM {$wpdb->usermeta} um 
@@ -89,18 +93,27 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                     $old_ids
                 );
 
+                // Log della query per debug
+                $this->log("Query SQL eseguita: " . $sql);
+
                 // Esegui la query
                 $results = $wpdb->get_results($sql, ARRAY_A);
 
                 if ($wpdb->last_error) {
-                    throw new RuntimeException("Database error: " . $wpdb->last_error);
+                    throw new RuntimeException("Errore database: " . $wpdb->last_error);
                 }
 
-                // Crea un array associativo id_old => user_id
+                // Log dei risultati
+                $this->log("Risultati query: " . print_r($results, true));
+
+                // Crea l'array associativo
                 $existing_users = [];
                 foreach ($results as $row) {
                     $existing_users[$row['meta_value']] = $row['user_id'];
                 }
+
+                // Log dell'array finale
+                $this->log("Array existing_users creato: " . print_r($existing_users, true));
 
                 return $existing_users;
 

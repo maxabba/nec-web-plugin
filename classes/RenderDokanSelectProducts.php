@@ -51,11 +51,24 @@ if (!class_exists(__NAMESPACE__ . '\RenderDokanSelectProducts')) {
 
             $categoria_finale = get_field('categoria_finale', $product_id);
 
-            if (str_contains($categoria_finale, 'Manifesto') && (!$this->user_has_role($user_id, 'seller') || $this->user_has_role($user_id, 'fiorai'))) {
+            // Check user roles
+            $is_seller = $this->user_has_role($user_id, 'seller');
+            $is_fiorai = $this->user_has_role($user_id, 'fiorai');
+
+            $floral_categories = ['Composizione', 'Bouquet', 'Cuscino'];
+
+            $is_manifesto = str_contains($categoria_finale, 'Manifesto');
+            $is_floral = in_array($categoria_finale, $floral_categories);
+
+            if ($is_manifesto && $is_fiorai && !$is_seller) {
                 return null;
             }
 
-            if (in_array($categoria_finale,['Composizione','Bouquet','Cuscino']) && (!$this->user_has_role($user_id, 'fiorai') && !$this->user_has_role($user_id, 'seller'))) {
+            if ($is_floral && $is_seller && !$is_fiorai) {
+                return null;
+            }
+
+            if (!$is_seller && !$is_fiorai) {
                 return null;
             }
 
@@ -92,20 +105,28 @@ if (!class_exists(__NAMESPACE__ . '\RenderDokanSelectProducts')) {
                 <td><?php echo $product_name; ?></td>
                 <td>
                     <?php if (!empty($product_description) && !$is_editable_price): ?>
-                        <strong><?php _e('Descrizione del servizio:', 'dokan-mod'); ?></strong> <?php echo $product_description; ?>
+                        <strong><?php _e('Descrizione del servizio:', 'dokan-mod'); ?></strong>
+                        <?php echo wp_kses_post($product_description); ?>
                     <?php endif; ?>
 
                     <?php if ($is_editable_price): ?>
-                        <textarea id="product-<?php echo $product_id; ?>-description"
-                                  name="product_description[<?php echo $product_id; ?>]" rows="4" cols="50"
-                                  placeholder="Inserisci una descrizione per il servizio" <?php echo $disabled; ?>><?php echo $product_description ?? ""; ?></textarea>
+                        <?php
+                        // Pulisci l'HTML e mantieni solo il testo
+                        $clean_description = wp_strip_all_tags($product_description, true); // true mantiene i line breaks
+                        ?>
+                        <textarea id="product-<?php echo esc_attr($product_id); ?>-description"
+                                  name="product_description[<?php echo esc_attr($product_id); ?>]"
+                                  rows="4"
+                                  cols="50"
+                                  placeholder="<?php esc_attr_e('Inserisci una descrizione per il servizio', 'dokan-mod'); ?>"
+                  <?php echo $disabled; ?>><?php echo esc_textarea($clean_description); ?></textarea>
                     <?php endif; ?>
                 </td>
                 <td>
                     <?php if ($is_editable_price): ?>
                         <div class="dokan-form-group dokan-product-type-container">
                             <label
-                                for="product-<?php echo $product_id; ?>-price">Prezzo: <?php echo $currency_symbol; ?></label>
+                                    for="product-<?php echo $product_id; ?>-price">Prezzo: <?php echo $currency_symbol; ?></label>
                             <input type="number" id="product-<?php echo $product_id; ?>-price"
                                    name="product_price[<?php echo $product_id; ?>]" step="0.01" min="0"
                                    required value="<?php echo $price ?>" <?php echo $disabled; ?>>
@@ -176,11 +197,29 @@ if (!class_exists(__NAMESPACE__ . '\RenderDokanSelectProducts')) {
 
             $categoria_finale = get_field('categoria_finale', $product_id);
 
-            if (str_contains($categoria_finale, 'Manifesto') && (!$this->user_has_role($user_id, 'seller') || $this->user_has_role($user_id, 'fiorai'))) {
+            // Check user roles
+            $is_seller = $this->user_has_role($user_id, 'seller');
+            $is_fiorai = $this->user_has_role($user_id, 'fiorai');
+
+// Floral product categories
+            $floral_categories = ['Composizione', 'Bouquet', 'Cuscino'];
+
+// Check if product is a manifesto
+            $is_manifesto = str_contains($categoria_finale, 'Manifesto');
+            $is_floral = in_array($categoria_finale, $floral_categories);
+
+// Hide manifesti if user is only fiorai
+            if ($is_manifesto && $is_fiorai && !$is_seller) {
                 return null;
             }
 
-            if (in_array($categoria_finale, ['Composizione', 'Bouquet', 'Cuscino']) && (!$this->user_has_role($user_id, 'fiorai') && !$this->user_has_role($user_id, 'seller'))) {
+// Hide floral products if user is only seller
+            if ($is_floral && $is_seller && !$is_fiorai) {
+                return null;
+            }
+
+// Hide all products if user has neither role
+            if (!$is_seller && !$is_fiorai) {
                 return null;
             }
 

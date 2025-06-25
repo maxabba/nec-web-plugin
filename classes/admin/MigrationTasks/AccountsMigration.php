@@ -44,6 +44,11 @@ if (!class_exists(__NAMESPACE__ . '\AccountsMigration')) {
                 $header = $file->fgetcsv();
                 $file->seek($processed);
 
+                //foreach header remove spaces
+                $header = array_map(function ($header) {
+                    return str_replace(' ', '', $header);
+                }, $header);
+
                 $batch_data = [];
                 $batch_user_old_ids = [];
                 $id_index = array_search('ID', $header);
@@ -145,10 +150,7 @@ if (!class_exists(__NAMESPACE__ . '\AccountsMigration')) {
             }
 
             try {
-                // Preparazione dati utente
                 $user_data = $this->prepare_user_data($data, $field_indexes, $id);
-
-                // Preparazione dati store
                 $store_data = $this->prepare_store_data($user_data['azienda']);
                 $dokan_settings = $this->prepare_dokan_settings(
                     $user_data['azienda'],
@@ -157,18 +159,73 @@ if (!class_exists(__NAMESPACE__ . '\AccountsMigration')) {
                     $user_data['provincia']
                 );
 
-                //log the user data
-                $this->log("User data: " . json_encode($user_data));
+                // Verifica se esiste già un utente con questa email
+                $existing_email_user = get_user_by('email', $user_data['email']);
+                $new_role = $this->get_role_from_tipologia($user_data['tipologia']);
 
+                // Se esiste un utente con questa email
+                if ($existing_email_user) {
+                    $is_existing_fioraio = in_array('fiorai', $existing_email_user->roles);
+                    $is_new_fioraio = ($new_role === 'fiorai');
+                    $is_existing_seller = in_array('seller', $existing_email_user->roles);
 
+                    // Se uno dei due è fioraio, procediamo con il merge
+                    if ($is_existing_fioraio || $is_new_fioraio) {
+                        // Se l'utente che stiamo processando esiste già nel nostro sistema
+                        if (isset($existing_users[$id])) {
+                            $duplicate_user_id = $existing_users[$id];
+
+                            // Se l'utente duplicato è diverso dall'utente esistente con la stessa email
+                            if ($duplicate_user_id != $existing_email_user->ID) {
+                                $this->log("Eliminazione utente duplicato ID: {$duplicate_user_id} per merge con ID: {$existing_email_user->ID}");
+                                require_once(ABSPATH . 'wp-admin/includes/user.php');
+                                wp_delete_user($duplicate_user_id, $existing_email_user->ID);
+                            }
+                        }
+
+                        // Determina quale username e ID old mantenere
+                        $keep_old_id = $id;
+                        $keep_username = $user_data['username'];
+
+                        if ($is_existing_seller) {
+                            $keep_old_id = get_user_meta($existing_email_user->ID, 'id_old', true);
+                            $keep_username = $existing_email_user->user_login;
+                        }
+
+                        // Aggiorna l'utente esistente MANTENENDO i ruoli esistenti
+                        $user = new WP_User($existing_email_user->ID);
+
+                        // Se il nuovo ruolo è fiorai e l'utente non ce l'ha già, aggiungiamolo
+                        if ($new_role === 'fiorai' && !$is_existing_fioraio) {
+                            $user->add_role('fiorai');
+                        }
+                        // Se il nuovo ruolo è seller e l'utente non ce l'ha già, aggiungiamolo
+                        if ($new_role === 'seller' && !$is_existing_seller) {
+                            $user->add_role('seller');
+                        }
+
+                        return $this->update_existing_user(
+                            $existing_email_user->ID,
+                            $keep_username,
+                            'both', // Indichiamo che manteniamo entrambi i ruoli
+                            $store_data,
+                            $dokan_settings,
+                            $keep_old_id
+                        );
+                    }
+                }
+
+                // Procedi con la logica standard se non c'è merge
                 if (isset($existing_users[$id])) {
                     $user_id = $existing_users[$id];
                     $this->log("Aggiornamento utente esistente: $user_id (ID vecchio: $id)");
                     return $this->update_existing_user(
                         $user_id,
+                        $user_data['username'],
                         $user_data['tipologia'],
                         $store_data,
-                        $dokan_settings
+                        $dokan_settings,
+                        $id
                     );
                 } else {
                     $this->log("Creazione nuovo utente per ID vecchio: $id");
@@ -190,18 +247,23 @@ if (!class_exists(__NAMESPACE__ . '\AccountsMigration')) {
 
         private function prepare_user_data($data, $field_indexes, $id)
         {
+            $azienda = $data[$field_indexes['Azienda']] ?: 'Store-' . $id;
+            // Genera username dall'azienda: sostituisce spazi con punti e converti in lowercase
+            $username = strtolower(str_replace(' ', '.', $azienda));
+
             return [
-                'username' => $this->sanitize_username($data[$field_indexes['Username']], $id),
+                'username' => $this->sanitize_username($username, $id),
                 'email' => sanitize_email($data[$field_indexes['Email']]),
                 'tipologia' => $data[$field_indexes['Tipologia']],
                 'citta' => $this->format_luogo($data[$field_indexes['Citta']]),
                 'provincia' => $this->get_provincia($data[$field_indexes['Provincia']]),
-                'azienda' => $data[$field_indexes['Azienda']] ?: 'Store-' . $id,
+                'azienda' => $azienda,
                 'indirizzo' => sanitize_text_field($data[$field_indexes['Info']]),
             ];
         }
 
-        private function update_existing_user($user_id, $tipologia, $store_data, $dokan_settings)
+
+        private function update_existing_user($user_id, $username, $tipologia, $store_data, $dokan_settings, $old_id)
         {
             global $wpdb;
 
@@ -213,16 +275,23 @@ if (!class_exists(__NAMESPACE__ . '\AccountsMigration')) {
                     throw new Exception("Utente non trovato: $user_id");
                 }
 
-                $role = $this->get_role_from_tipologia($tipologia);
+                // Aggiorna username
+                $wpdb->update(
+                    $wpdb->users,
+                    ['user_login' => $username],
+                    ['ID' => $user_id]
+                );
+                update_user_meta($user_id, 'id_old', $old_id);
 
-                // Aggiorna ruolo
-                $current_roles = $user->roles;
-                foreach ($current_roles as $current_role) {
-                    $user->remove_role($current_role);
+                // Se non è 'both', gestisci i ruoli normalmente
+                if ($tipologia !== 'both') {
+                    $role = $this->get_role_from_tipologia($tipologia);
+                    // In questo caso non rimuoviamo i ruoli esistenti
+                    $user->add_role($role);
                 }
-                $user->add_role($role);
 
-                if ($role === 'seller' || $role === 'fiorai') {
+                // Setup vendor data se l'utente ha il ruolo seller
+                if (in_array('seller', $user->roles) || in_array('fiorai', $user->roles)) {
                     $this->setup_vendor_data($user, $user_id, $store_data, $dokan_settings);
                 }
 

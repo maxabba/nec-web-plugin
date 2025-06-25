@@ -167,7 +167,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
         public function enqueue_scripts($hook)
         {
-            if ('product-templates_page_product-templates-migration' !== $hook) {
+            if ('dokan-mods_page_dokan-migration' !== $hook) {
                 return;
             }
 
@@ -214,7 +214,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
                 <div id="migration-log"></div>
 
-
+                <?php if(true === false) { ?>
                 <div class="postbox">
                     <h2 class="hndle"><span><?php _e('Update Locations', 'dokan-mod'); ?></span></h2>
                     <div class="inside">
@@ -259,7 +259,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                         <div id="bulk-update-log"></div>
                     </div>
                 </div>
-
+                <?php } ?>
                 <script>
 
                     jQuery(document).ready(function ($) {

@@ -299,6 +299,18 @@ if (!class_exists(__NAMESPACE__ . '\AutoPrelievoClass')) {
                         } else {
                             $this->add_log("Prelievo creato con successo per {$store_name} - Importo: €{$balance}", 'success');
                             do_action('dokan_after_withdraw_request', $user_id, $balance, $method);
+
+                            try {
+                                if (class_exists(__NAMESPACE__ . '\EmailManagerClass')) {
+                                    $email_manager = new EmailManagerClass();
+                                    $email_manager->send_invoice_reminder_email($user_id, $balance);
+                                    $this->add_log("Email di sollecito fatturazione inviata a {$store_name}", 'success');
+                                } else {
+                                    $this->add_log("Impossibile inviare email di sollecito fatturazione: classe EmailManagerClass non trovata", 'warning');
+                                }
+                            } catch (\Exception $e) {
+                                $this->add_log("Errore nell'invio email di sollecito fatturazione a {$store_name}: " . $e->getMessage(), 'error');
+                            }
                             $successful++;
                         }
 

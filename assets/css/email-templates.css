@@ -1,0 +1,87 @@
+/**
+ * Stili per la pagina Template Mail
+ */
+.email-template-form {
+    margin-top: 20px;
+}
+
+.email-template-form .form-table th {
+    width: 200px;
+}
+
+.placeholders-box {
+    background: #f9f9f9;
+    border: 1px solid #e5e5e5;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 3px;
+}
+
+.placeholders-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.placeholder-item {
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 5px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+
+.placeholder-item:hover {
+    background: #f0f0f0;
+    border-color: #aaa;
+}
+
+.placeholder-item strong {
+    color: #0073aa;
+}
+
+.email-preview {
+    margin-top: 20px;
+    border: 1px solid #ddd;
+    padding: 20px;
+    background: #fff;
+    border-radius: 3px;
+}
+
+.email-preview h3 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.email-preview-content {
+    padding: 15px;
+    background: #f9f9f9;
+    border: 1px solid #eee;
+}
+
+/* Aumenta l'altezza dell'editor */
+.wp-editor-area {
+    min-height: 300px;
+}
+
+/* Tab styling */
+.nav-tab-wrapper {
+    margin-bottom: 20px;
+}
+
+.tab-content {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-top: none;
+    padding: 20px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
+}
+
+/* Bottoni form */
+.submit .button {
+    margin-right: 10px;
+}

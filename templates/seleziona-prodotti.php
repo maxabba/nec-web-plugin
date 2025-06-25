@@ -65,52 +65,89 @@ $RenderDokanSelectProducts = new Dokan_Mods\RenderDokanSelectProducts();
                             <input type="hidden" name="action" value="add_product_dokan_vendor">
                             <input type="hidden" name="selected_product_for_vendor" value="1">
 
-                            <table class="table table-bordered">
-                                <thead>
-                                <tr>
-                                    <th><?php _e('Prodotto', 'dokan-mod'); ?></th>
-                                    <th><?php _e('Descrizione', 'dokan-mod'); ?></th>
-                                    <th><?php _e('Prezzo', 'dokan-mod'); ?></th>
-                                    <th><?php _e('Azione', 'dokan-mod'); ?></th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <?php foreach ($products_not_editable as $product): ?>
-                                    <?php echo $RenderDokanSelectProducts->render_product_row($product, $store_info, $user_city, $currency_symbol, $user_id); ?>
-                                <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                            <table class="table table-bordered">
-                                <thead>
-                                <tr>
-                                    <th><?php _e('Prodotto', 'dokan-mod'); ?></th>
-                                    <th><?php _e('Descrizione', 'dokan-mod'); ?></th>
-                                    <th><?php _e('Prezzo', 'dokan-mod'); ?></th>
-                                    <th><?php _e('Azione', 'dokan-mod'); ?></th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <?php foreach ($products_editable as $product): ?>
-                                    <?php echo $RenderDokanSelectProducts->render_product_row($product, $store_info, $user_city, $currency_symbol, $user_id); ?>
-                                <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                            <table class="table table-bordered">
-                                <thead>
-                                <tr>
-                                    <th><?php _e('Prodotto', 'dokan-mod'); ?></th>
-                                    <th><?php _e('Descrizione', 'dokan-mod'); ?></th>
-                                    <th><?php _e('Azione', 'dokan-mod'); ?></th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <?php foreach ($products_editable as $product): ?>
-                                    <?php echo $RenderDokanSelectProducts->render_product_row_with_variations($product, $store_info, $user_city, $currency_symbol, $user_id); ?>
-                                <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                            <input type="submit" value="<?php _e('Add Products', 'dokan-mod'); ?>"
-                                   style="margin-top: 50px">
+                            <?php
+                            // Buffer per raccogliere i prodotti non editabili
+                            $non_editable_content = '';
+                            foreach ($products_not_editable as $product) {
+                                $row = $RenderDokanSelectProducts->render_product_row($product, $store_info, $user_city, $currency_symbol, $user_id);
+                                if ($row) {
+                                    $non_editable_content .= $row;
+                                }
+                            }
+
+                            if ($non_editable_content): ?>
+                                <table class="table table-bordered">
+                                    <thead>
+                                    <tr>
+                                        <th><?php _e('Prodotto', 'dokan-mod'); ?></th>
+                                        <th><?php _e('Descrizione', 'dokan-mod'); ?></th>
+                                        <th><?php _e('Prezzo', 'dokan-mod'); ?></th>
+                                        <th><?php _e('Azione', 'dokan-mod'); ?></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <?php echo $non_editable_content; ?>
+                                    </tbody>
+                                </table>
+                            <?php endif; ?>
+
+                            <?php
+                            // Buffer per raccogliere i prodotti editabili
+                            $editable_content = '';
+                            foreach ($products_editable as $product) {
+                                $row = $RenderDokanSelectProducts->render_product_row($product, $store_info, $user_city, $currency_symbol, $user_id);
+                                if ($row) {
+                                    $editable_content .= $row;
+                                }
+                            }
+
+                            if ($editable_content): ?>
+                                <table class="table table-bordered">
+                                    <thead>
+                                    <tr>
+                                        <th><?php _e('Prodotto', 'dokan-mod'); ?></th>
+                                        <th><?php _e('Descrizione', 'dokan-mod'); ?></th>
+                                        <th><?php _e('Prezzo', 'dokan-mod'); ?></th>
+                                        <th><?php _e('Azione', 'dokan-mod'); ?></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <?php echo $editable_content; ?>
+                                    </tbody>
+                                </table>
+                            <?php endif; ?>
+
+                            <?php
+                            // Buffer per raccogliere i prodotti con variazioni
+                            $variations_content = '';
+                            foreach ($products_editable as $product) {
+                                $row = $RenderDokanSelectProducts->render_product_row_with_variations($product, $store_info, $user_city, $currency_symbol, $user_id);
+                                if ($row) {
+                                    $variations_content .= $row;
+                                }
+                            }
+
+                            if ($variations_content): ?>
+                                <table class="table table-bordered">
+                                    <thead>
+                                    <tr>
+                                        <th><?php _e('Prodotto', 'dokan-mod'); ?></th>
+                                        <th><?php _e('Descrizione', 'dokan-mod'); ?></th>
+                                        <th><?php _e('Azione', 'dokan-mod'); ?></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <?php echo $variations_content; ?>
+                                    </tbody>
+                                </table>
+                            <?php endif; ?>
+
+                            <?php if ($non_editable_content || $editable_content || $variations_content): ?>
+                                <input type="submit" value="<?php _e('Add Products', 'dokan-mod'); ?>"
+                                       style="margin-top: 50px">
+                            <?php else: ?>
+                                <p><?php _e('Non ci sono servizzi attivabili per la tua agenzia, contatta il supporto.', 'dokan-mod'); ?></p>
+                            <?php endif; ?>
                         </form>
                     <?php else: ?>
                         <div style="display: flex; justify-content: center; align-items: center; height: 250px">

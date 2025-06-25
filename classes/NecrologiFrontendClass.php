@@ -64,11 +64,28 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
                 <div class="filter-group">
                     <label>Filtra per periodo</label>
                     <ul id="date_filter" style="list-style-type: none; padding-left: 0;">
-                        <li><a href="#" data-value="all">Tutti</a></li>
-                        <li><a href="#" data-value="today">Oggi</a></li>
-                        <li><a href="#" data-value="yesterday">Ieri</a></li>
-                        <li><a href="#" data-value="last_week">Ultima settimana</a></li>
-                        <li><a href="#" data-value="last_month">Ultimo mese</a></li>
+                        <?php
+                        // Get the current date filter from URL parameter, default to 'all' if not set
+                        $current_filter = isset($_GET['date_filter']) ? sanitize_text_field($_GET['date_filter']) : '';
+
+                        // Define filter options
+                        $filter_options = [
+                            'all' => 'Tutti',
+                            'today' => 'Oggi',
+                            'yesterday' => 'Ieri',
+                            'last_week' => 'Ultima settimana',
+                            'last_month' => 'Ultimo mese'
+                        ];
+
+                        // Loop through each option and create the list item
+                        foreach ($filter_options as $value => $label) {
+                            // Check if this is the current active filter
+                            $active_class = ($value === $current_filter) ? 'active' : '';
+
+                            // Output the list item with conditional active class
+                            echo '<li><a href="#" data-value="' . esc_attr($value) . '" class="' . esc_attr($active_class) . '">' . esc_html($label) . '</a></li>';
+                        }
+                        ?>
                     </ul>
                     <input type="hidden" name="date_filter" id="date_filter_input" value="all">
                 </div>
@@ -127,6 +144,11 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
                     color: gold;
                     margin-right: 0.5em;
                 }
+
+                #date_filter a.active {
+                    font-weight: bold;
+                }
+
             </style>
 
             <script>

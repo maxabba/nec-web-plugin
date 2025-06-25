@@ -159,10 +159,9 @@ $active_menu = 'add-annuncio';
                                 ob_start();
                                 ?>
                                 <div id="image_container"
-                                     style="background-image: url('<?php echo $manifesto_background; ?>');
-                                             background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; margin: 0 auto;">
+                                     style="background-image: none;">
                                     <div id="inner_container"
-                                         style="position: absolute; font-size: 14px; text-align: <?php echo $alignment; ?>;">
+                                         style="position: absolute; text-align: <?php echo $alignment; ?>;">
                                         <?php echo $existing_content; ?>
                                     </div>
                                 </div>
@@ -265,68 +264,90 @@ $active_menu = 'add-annuncio';
         }
 
         #image_container {
-            width: 350px; /* Imposta la larghezza massima al 80% */
             position: relative;
-            margin: 0 auto; /* Centra l'immagine */
+            aspect-ratio: 16 / 9;
+            height: clamp(300px, 50vh, 600px);
+            width: 100%;
             background-size: contain;
-            background-repeat: no-repeat;
             background-position: center;
+            margin-inline: auto;
+            overflow: hidden;
         }
 
         #inner_container {
-            position: absolute;
-            top: <?php echo $margin_top; ?>px;
-            right: <?php echo $margin_right; ?>px;
-            bottom: <?php echo $margin_bottom; ?>px;
-            left: <?php echo $margin_left; ?>px;
+            --font-size: clamp(14px, 1.5vw, 16px);
+
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            color: #000;
+            resize: none;
+            box-sizing: border-box;
+            outline: none;
+            overflow: visible;
+            font-size: var(--font-size);
+            font-family: var(--e-global-typography-text-font-family), Sans-serif;
+            font-weight: var(--e-global-typography-text-font-weight);
         }
+        }
+
     </style>
 
     <script>
-
-
         jQuery(document).ready(function ($) {
             const innerContainer = $('#inner_container');
             const innerTextElements = $('.inner-text');
             const imageContainer = $('#image_container');
 
-            function initInputMargin() {
-                const containerWidth = imageContainer.width();
-                const containerHeight = imageContainer.height();
+            // New function to update editor background and margins
+            function updateEditorBackground(data) {
+                const backgroundDiv = imageContainer[0];
+                const textEditor = innerContainer[0];
 
-                const marginTopPer = <?php echo $margin_top; ?>;
-                const marginRightPer = <?php echo $margin_right; ?>;
-                const marginBottomPer = <?php echo $margin_bottom; ?>;
-                const marginLeftPer = <?php echo $margin_left; ?>;
+                if (data.manifesto_background) {
+                    const img = new Image();
+                    img.src = data.manifesto_background;
+                    img.onload = function () {
+                        const aspectRatio = img.width / img.height;
+                        backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
 
-                const marginTopPx = Math.round((marginTopPer / 100) * containerHeight);
-                const marginRightPx = Math.round((marginRightPer / 100) * containerWidth);
-                const marginBottomPx = Math.round((marginBottomPer / 100) * containerHeight);
-                const marginLeftPx = Math.round((marginLeftPer / 100) * containerWidth);
+                        if (aspectRatio > 1) {
+                            backgroundDiv.style.width = '100%';
+                            backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
+                        } else {
+                            backgroundDiv.style.height = '350px';
+                            backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
+                        }
 
-                innerContainer.css({
-                    top: `${marginTopPx}px`,
-                    right: `${marginRightPx}px`,
-                    bottom: `${marginBottomPx}px`,
-                    left: `${marginLeftPx}px`
-                });
+                        const marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
+                        const marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
+                        const marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
+                        const marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
 
-
+                        textEditor.style.paddingTop = `${marginTopPx}px`;
+                        textEditor.style.paddingRight = `${marginRightPx}px`;
+                        textEditor.style.paddingBottom = `${marginBottomPx}px`;
+                        textEditor.style.paddingLeft = `${marginLeftPx}px`;
+                        textEditor.style.textAlign = data.alignment || 'left';
+                    }
+                } else {
+                    backgroundDiv.style.backgroundImage = 'none';
+                }
             }
 
+            // Existing function to initialize input margin (modified to use new approach)
+            function initInputMargin() {
+                const data = {
+                    manifesto_background: "<?php echo $manifesto_background; ?>",
+                    margin_top: <?php echo $margin_top; ?>,
+                    margin_right: <?php echo $margin_right; ?>,
+                    margin_bottom: <?php echo $margin_bottom; ?>,
+                    margin_left: <?php echo $margin_left; ?>,
+                    alignment: "<?php echo $alignment; ?>"
+                };
 
-            function updateAspectRatio() {
-                const img = new Image();
-                img.src = "<?php echo $manifesto_background; ?>";
-                img.onload = function () {
-                    const containerWidth = imageContainer.width();
-                    const aspectRatio = img.height / img.width;
-                    const containerHeight = containerWidth * aspectRatio;
-                    imageContainer.css('height', `${containerHeight}px`);
-
-                    // Call initInputMargin after setting the height
-                    initInputMargin();
-                }
+                updateEditorBackground(data);
             }
 
             function updateAlignment() {
@@ -334,42 +355,31 @@ $active_menu = 'add-annuncio';
                 innerTextElements.css('text-align', alignment);
             }
 
-            updateAspectRatio();
+            initInputMargin();
             updateAlignment();
 
-            //find the id of the div with class mce-tinymce
-
-
             function addChangeListenerToTinyMCE() {
-                // Verifica se tinymce è definito
                 if (typeof tinymce !== 'undefined') {
-                    // Itera su tutti gli editor TinyMCE
                     tinymce.editors.forEach(function (editor) {
-                        if (!editor.hasChangeListener) { // Evita di aggiungere più volte lo stesso listener
-                            // Aggiungi un listener per l'evento 'change'
+                        if (!editor.hasChangeListener) {
                             editor.on('change', function (e) {
-                                // Ottieni il contenuto dell'editor
                                 var content = editor.getContent();
                                 innerContainer.html(content);
-                                // Puoi fare altre azioni qui, come inviare il contenuto tramite AJAX
                             });
-                            editor.hasChangeListener = true; // Segna che il listener è stato aggiunto
+                            editor.hasChangeListener = true;
                         }
                     });
                 }
             }
 
-            // Aggiungi i listener quando la pagina è pronta
+            // Existing event listeners and intervals
             addChangeListenerToTinyMCE();
 
-            // ACF può aggiungere campi dinamicamente, quindi intercetta l'evento 'acf/setup_fields'
             $(document).on('acf/setup_fields', function (e, postbox) {
                 addChangeListenerToTinyMCE();
             });
 
-            // Inoltre, verifica periodicamente se ci sono nuovi editor TinyMCE inizializzati
-            setInterval(addChangeListenerToTinyMCE, 1000); // Ogni secondo
-
+            setInterval(addChangeListenerToTinyMCE, 1000);
         });
 
         window.onload = function () {
