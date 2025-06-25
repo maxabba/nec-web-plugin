@@ -222,10 +222,42 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 update_field('annuncio_di_morte', $necrologio->ID, $post_id);
 
                 if ($tipo == 1) { // Trigesimo
-                    update_field('trigesimo_data', $data[$field_indexes['Data']], $post_id);
+                    $date_value = $data[$field_indexes['Data']];
+
+                    if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
+                        $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
+                    }
+
+                    // Verifica se esiste il meta ACF associato
+                    $existing_key = get_post_meta($post_id, '_trigesimo_data', true);
+
+                    if (!empty($date_value)) {
+                        update_post_meta($post_id, 'trigesimo_data', $date_value);
+
+                        if (empty($existing_key) || $existing_key !== 'field_6734d2e598b99') {
+                            update_post_meta($post_id, '_trigesimo_data', 'field_6734d2e598b99');
+                        }
+                    }
+
                     update_field('testo_annuncio_trigesimo', $data[$field_indexes['Testo']], $post_id);
                 } else { // Anniversario
-                    update_field('anniversario_data', $data[$field_indexes['Data']], $post_id);
+                    $date_value = $data[$field_indexes['Data']];
+
+                    if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
+                        $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
+                    }
+
+                    // Verifica se esiste il meta ACF associato
+                    $existing_key = get_post_meta($post_id, '_anniversario_data', true);
+
+                    if (!empty($date_value)) {
+                        update_post_meta($post_id, 'anniversario_data', $date_value);
+
+                        if (empty($existing_key) || $existing_key !== 'field_665ec95bca23d') {
+                            update_post_meta($post_id, '_anniversario_data', 'field_665ec95bca23d');
+                        }
+                    }
+
                     update_field('testo_annuncio_anniversario', $data[$field_indexes['Testo']], $post_id);
                     update_field('anniversario_n_anniversario', $data[$field_indexes['Anni']], $post_id);
                 }

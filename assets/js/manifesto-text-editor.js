@@ -137,3 +137,5 @@ document.addEventListener('DOMContentLoaded', function () {
 
     updateToolbarState();
 });
+
+

@@ -1,6 +1,9 @@
 <?php
 
 namespace Dokan_Mods;
+use WP_Query;
+use Dokan_Mods\ManifestiLoader;
+
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
@@ -8,7 +11,6 @@ if (!defined('ABSPATH')) {
 if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
     class ManifestoClass
     {
-
         public function __construct()
         {
             add_action('init', array($this, 'register_shortcodes'));
@@ -32,6 +34,10 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             add_action('wp_ajax_load_more_manifesti', array($this, 'load_more_manifesti'));
             add_action('wp_ajax_nopriv_load_more_manifesti', array($this, 'load_more_manifesti'));
 
+            //require the class 'ManifestiLoader' => 'classes/ManifestiLoader.php',
+            require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/ManifestiLoader.php';
+
+
         }
 
         public function my_enqueue_scripts()
@@ -46,6 +52,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 wp_enqueue_style('manifesto-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/manifesto.css');
 
             }
+
+
 
             if (get_query_var('manifesto-top') || get_query_var('manifesto-silver') || get_query_var('manifesto-online') ) {
                 wp_enqueue_script('text-editor-manifesto-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/manifesto-text-editor.js', array('jquery'), null, true);
@@ -455,76 +463,25 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
         }
 
 
-        function load_more_manifesti()
+        public function load_more_manifesti()
         {
             $post_id = intval($_POST['post_id']) !== null ? intval($_POST['post_id']) : null;
             $offset = intval($_POST['offset']) !== null ? intval($_POST['offset']) : 0;
             $tipo_manifesto = $_POST['tipo_manifesto'] ?? null;
-            $limit = 5; // Numero di commenti da caricare per volta
 
-            //check if the tipo_manifesto is splitted by comma
-            $compare = '=';
-            if (str_contains($tipo_manifesto, ',')) {
-                $tipo_manifesto = explode(',', $tipo_manifesto);
-                $compare = 'IN';
+            if (!$post_id) {
+                wp_send_json_error('Invalid post ID');
+                wp_die();
             }
 
-            // get post type manifesto where meta key annuncio_di_morte_relativo is equal to $post_id with offset and limit
-            $args = array(
-                'post_type' => 'manifesto',
-                'orderby' => 'date',
-                'order' => 'DESC',
-                'meta_query' => array(
-                        'relation' => 'AND',
-                    array(
-                        'key' => 'annuncio_di_morte_relativo',
-                        'value' => $post_id,
-                        'compare' => '=',
-                    ),
-                    array(
-                        'key' => 'tipo_manifesto',
-                        'value' => $tipo_manifesto,
-                        'compare' => $compare,
-                    ),
-                ),
-                'posts_per_page' => $limit,
-                'offset' => $offset,
-            );
+            $loader = new ManifestiLoader($post_id, $offset, $tipo_manifesto);
+            $response = $loader->load_manifesti();
 
-            $manifesti = new \WP_Query($args);
-            $response = [];
-
-            if ($manifesti->have_posts()) {
-                while ($manifesti->have_posts()) {
-                    $manifesti->the_post();
-                    $post_id = get_the_ID();
-                    $vendor_id = get_field('vendor_id');
-
-                    // Get vendor data
-                    $vendor_data = (new UtilsAMClass())->get_vendor_data_by_id($vendor_id);
-
-                    ob_start();
-                    ?>
-                    <div class="col-12 flex-item" style="margin-bottom: 25px; ">
-                        <div class="text-editor-background" style="background-image: none"
-                             data-postid="<?php echo $post_id; ?>" data-vendorid="<?php echo $vendor_id; ?>">
-                            <div class="custom-text-editor">
-                                <?php the_field('testo_manifesto'); ?>
-                            </div>
-                        </div>
-                    </div>
-                    <?php
-                    $response[] = [
-                        'html' => ob_get_clean(),
-                        'vendor_data' => $vendor_data,
-                    ];
-                }
-            }
             wp_send_json_success($response);
-
             wp_die();
         }
 
+// Shortcode PHP per generare il container e il loader
         public function generate_manifesti_shortcode($attrs)
         {
             static $instance = 0;
@@ -537,20 +494,22 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 $attrs
             );
 
-
-
             $post_id = get_the_ID();
             ob_start();
             ?>
-
-            <div id="manifesto-container-<?php echo $instance; ?>" class="manifesto-container flex-container row g-2" style="justify-content: center;"
+            <div id="manifesto-container-<?php echo $instance; ?>" class="manifesto-container flex-container row g-2"
                  data-postid="<?php echo $post_id; ?>" data-tipo="<?php echo $attrs['tipo_manifesto']; ?>"></div>
+            <?php if ($attrs['tipo_manifesto'] !== 'top'): ?>
+            <!-- Il loader visibile solo se vuoi mostrare uno spinner -->
             <div class="loader manifesto-loader" id="manifesto-loader-<?php echo $instance; ?>"></div>
-
+            <!-- Elemento sentinella per l'infinite scroll -->
+            <div class="sentinel" id="sentinel-<?php echo $instance; ?>"></div>
+        <?php else: ?>
+            <div class="loader manifesto-loader" id="manifesto-loader-<?php echo $instance; ?>"></div>
+        <?php endif; ?>
             <?php
             return ob_get_clean();
         }
-
 
 
     }

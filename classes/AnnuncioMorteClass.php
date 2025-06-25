@@ -31,6 +31,8 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             add_filter('query_vars', array($this, 'query_vars'));
             add_filter('template_include', array($this, 'custom_dynamic_page_template'), 99);
 
+
+
         }
 
 
@@ -71,6 +73,8 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
         {
             add_shortcode('product_price', array($this, 'get_product_price'));
             add_shortcode('product_title', array($this, 'get_product_title_shortcode'));
+            add_shortcode('vendor_banner', array($this, 'display_vendor_banner'));
+
         }
 
 
@@ -331,9 +335,45 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
         }
 
 
+        public function display_vendor_banner($atts)
+        {
+            $atts = shortcode_atts(array(
+                'vendor_id' => get_the_author_meta('ID'),
+            ), $atts);
 
+            // Get the vendor ID
+            $vendor_id = intval($atts['vendor_id']);
 
+            // Get vendor instance
+            $vendor = dokan()->vendor->get($vendor_id);
+            if (!$vendor) {
+                return '';
+            }
 
+            // Get vendor store URL and banner
+            $store_url = dokan_get_store_url($vendor_id);
+            $banner = $vendor->get_banner();
+            $banner_url = $banner ? $banner : 'https://via.placeholder.com/1000x200';
+            $store_name = $vendor->get_shop_name();
+
+            ob_start();
+            ?>
+            <a href="<?php echo esc_url($store_url); ?>" class="vendor-banner-link">
+                <div class="vendor-banner-wrapper" style="position: relative; margin-bottom: 20px;">
+                    <img src="<?php echo esc_url($banner_url); ?>"
+                         alt="<?php echo esc_attr($store_name); ?>"
+                         style="width: 100%; height: auto; max-height: 200px; object-fit: cover;">
+                    <div class="vendor-banner-name"
+                         style="position: absolute; bottom: 0; left: 0; right: 0;
+                        background: rgba(0,0,0,0.7); color: white;
+                        padding: 10px; text-align: center;">
+                        <h6 style="margin: 0;"><?php echo esc_html($store_name); ?></h6>
+                    </div>
+                </div>
+            </a>
+            <?php
+            return ob_get_clean();
+        }
 
     }
 }

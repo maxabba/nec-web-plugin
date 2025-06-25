@@ -51,7 +51,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
             $batch_post_old_ids = [];
             $batch_necrologi_ids = [];
 
-            $id_account_index = array_search('IdAccount', $header);
+            $id_account_index = array_search('idAccount', $header);
             $id_necrologio_index = array_search('IdNecrologio', $header);
             $id_index = array_search('ID', $header);
 
@@ -120,14 +120,30 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
                     'Testo' => array_search('Testo', $header),
                     'DataInserimento' => array_search('DataInserimento', $header),
                     'Pubblicato' => array_search('Pubblicato', $header),
-                    'IdAccount' => array_search('IdAccount', $header)
+                    'IdAccount' => array_search('idAccount', $header)
                 ];
             }
 
-            // Verifica se il post esiste già
+            // Se il post esiste già
             if (isset($existing_posts[$data[$field_indexes['ID']]])) {
-                $this->log("Manifesto già esistente: ID {$data[$field_indexes['ID']]}");
-                return false;
+                $existing_post_id = $existing_posts[$data[$field_indexes['ID']]];
+
+                // Trova l'ID dell'utente basato su id_old
+                $author_id = $existing_users[$data[$field_indexes['IdAccount']]] ?? 1;
+
+                // Aggiorna post_author
+                $updated = wp_update_post([
+                    'ID' => $existing_post_id,
+                    'post_author' => $author_id
+                ]);
+
+                if ($updated) {
+                    $this->log("Post author aggiornato per manifesto ID {$existing_post_id} con nuovo author ID {$author_id}");
+                } else {
+                    $this->log("Errore nell'aggiornamento dell'autore per manifesto ID {$existing_post_id}");
+                }
+
+                return $updated;
             }
 
             if ($data[$field_indexes['Testo']] == '' || $data[$field_indexes['Testo']] == null) {
@@ -142,6 +158,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
             $necrologio_id = $existing_necrologi[$data[$field_indexes['IdNecrologio']]] ?? null;
 
             $necrologio_title = $necrologio_id ? get_the_title($necrologio_id) : 'N/A';
+
             // Crea il post
             $post_id = wp_insert_post([
                 'post_type' => 'manifesto',
@@ -153,14 +170,14 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
 
             if (!is_wp_error($post_id)) {
                 // Aggiorna i campi ACF
-                update_field('id_old', $data[$field_indexes['ID']], $post_id); // id_old
+                update_field('id_old', $data[$field_indexes['ID']], $post_id);
                 if ($necrologio_id) {
-                    update_field('annuncio_di_morte_relativo', $necrologio_id, $post_id); // IdNecrologio
+                    update_field('annuncio_di_morte_relativo', $necrologio_id, $post_id);
                 }
 
-                update_field('testo_manifesto', $this->cleanText($data[$field_indexes['Testo']]), $post_id); // Testo
-                update_field('vendor_id', $author_id, $post_id); // IdAccount
-                update_field('tipo_manifesto', 'silver', $post_id); // Imposta il tipo come "silver"
+                update_field('testo_manifesto', $this->cleanText($data[$field_indexes['Testo']]), $post_id);
+                update_field('vendor_id', $author_id, $post_id);
+                update_field('tipo_manifesto', 'silver', $post_id);
 
                 $this->log("Manifesto creato: ID $post_id");
             } else {
@@ -169,7 +186,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
 
             return $post_id;
         }
-
 
         function cleanText(string $text): string
         {

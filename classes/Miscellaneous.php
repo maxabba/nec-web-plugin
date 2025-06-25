@@ -3,6 +3,7 @@
 namespace Dokan_Mods;
 
 use JetBrains\PhpStorm\NoReturn;
+use WP_Query;
 use WP_User;
 
 if (!defined('ABSPATH')) {
@@ -58,6 +59,20 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             add_filter('acf/prepare_field/key=field_671a68742fc07', array($this, 'hide_id_old'));
 
 
+            add_filter('gettext', [$this, 'customize_dokan_strings'], 20, 3);
+            add_filter('ngettext', [$this, 'customize_dokan_strings'], 20, 3);
+
+            // Modifica i titoli delle sezioni del dashboard
+            add_filter('dokan_get_dashboard_nav', [$this, 'customize_dashboard_labels'], 20);
+
+            // Modifica le etichette delle impostazioni
+            add_filter('dokan_settings_general_vendor_store_options', [$this, 'customize_settings_labels'], 20);
+
+            // Modifica le etichette del setup wizard
+            //add_filter('dokan_seller_wizard_steps', [$this, 'customize_wizard_labels'], 20);
+            //add_action('init', [$this, 'aggiorna_tutti_i_post']);
+
+
             add_action('dokan_seller_wizard_after_payment_setup_form', function ($setup_wizard) {
                 ?>
                 <div class="dokan-payment-setup-info"
@@ -86,6 +101,29 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
 
 
         }
+
+        public function aggiorna_tutti_i_post()
+        {
+            $query = new WP_Query(array(
+                'post_type' => 'trigesimo', // Cambia con il tuo post type
+                'posts_per_page' => -1
+            ));
+
+            if ($query->have_posts()) {
+                while ($query->have_posts()) {
+                    $query->the_post();
+                    $post_id = get_the_ID();
+
+                    // Forza l'aggiornamento
+                    wp_update_post(array(
+                        'ID' => $post_id,
+                        'post_status' => get_post_status($post_id),
+                    ));
+                }
+            }
+            wp_reset_postdata();
+        }
+
 
         function custom_custom_fields_meta_limit($limit)
         {
@@ -148,7 +186,52 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             add_shortcode('acf_gmaps_link', array($this, 'generate_google_maps_link')); // Registra lo shortcode per generare un link a Google Maps come [acf_gmaps_link acf_field="nome_campo"]
             add_shortcode('dokan_store_name_print', array($this, 'dokan_store_name_print')); // Registra lo shortcode per stampare il nome del negozio come [dokan_store_name_print]
             add_shortcode('show_selected_location', array($this, 'show_selected_location_shortcode'));
+            add_shortcode('render_text_group_acf', array($this, 'render_text_group_acf'));
+            //create a shortcode to show the post type name
+            add_shortcode('post_type_name', array($this, 'post_type_name_shortcode'));
+        }
 
+
+        public function render_text_group_acf($atts)
+        {
+            // Estrai gli attributi passati allo shortcode
+            $atts = shortcode_atts(array(
+                'acf_field' => '',
+                'acf_group' => '',
+            ), $atts, 'render_text_group_acf');
+
+            //get the post id
+            $post_id = get_the_ID();
+            acf_flush_value_cache($post_id);
+            // Recupera i valori dal campo ACF
+            $group = get_field($atts['acf_group'], $post_id);
+
+            // Se l'indirizzo è vuoto, restituisci un messaggio di errore
+            if (empty($group)) {
+                return '';
+            }
+
+            if ($group && isset($group[$atts['acf_field']])) {
+                return esc_html($group[$atts['acf_field']]);
+            }
+            return '';
+        }
+
+
+        public function post_type_name_shortcode()
+        {
+            //get the post type
+            $post_type = get_post_type();
+
+            if ($post_type == 'trigesimo') {
+                return esc_html('Trigesimo');
+            } elseif ($post_type == 'anniversario') {
+                return esc_html('Anniversario');
+            } elseif ($post_type == 'ricorrenza') {
+                return esc_html('Ricorrenza');
+            }
+
+            return esc_html($post_type);
         }
 
 
@@ -639,6 +722,63 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             }
             return $field;
         }
+
+
+        public function customize_dokan_strings($translated_text, $untranslated_text, $domain)
+        {
+            if ($domain !== 'dokan-lite') {
+                return $translated_text;
+            }
+
+            $replacements = [
+                'Vendor' => 'Agenzia',
+                'vendor' => 'agenzia',
+                'Vendors' => 'Agenzie',
+                'vendors' => 'agenzie'
+            ];
+
+            foreach ($replacements as $search => $replace) {
+                if (stripos($translated_text, $search) !== false) {
+                    $translated_text = str_ireplace($search, $replace, $translated_text);
+                }
+            }
+
+            return $translated_text;
+        }
+
+        public function customize_dashboard_labels($menu_items)
+        {
+            if (isset($menu_items['settings'])) {
+                // Personalizza le etichette del menu impostazioni
+                $menu_items['settings']['title'] = __('Impostazioni Agenzia', 'dokan-mod');
+
+                if (isset($menu_items['settings']['submenu']['store'])) {
+                    $menu_items['settings']['submenu']['store']['title'] = __('Configurazione Agenzia', 'dokan-mod');
+                }
+            }
+
+            if (isset($menu_items['products'])) {
+                $menu_items['products']['title'] = __('Servizi', 'dokan-mod');
+            }
+
+            return $menu_items;
+        }
+
+        public function customize_settings_labels($settings)
+        {
+            foreach ($settings as $key => $setting) {
+                if (isset($setting['name'])) {
+                    $setting['name'] = str_ireplace(
+                        ['Vendor', 'vendor'],
+                        ['Agenzia', 'agenzia'],
+                        $setting['name']
+                    );
+                    $settings[$key] = $setting;
+                }
+            }
+            return $settings;
+        }
+
 
 
     }
