@@ -19,6 +19,8 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
         protected $progress_file;
         protected $log_file;
         protected $batch_size;
+        protected $memory_limit_mb = 256;
+        protected $max_execution_time = 30;
 
         public function __construct(string $upload_dir, string $progress_file, string $log_file, int $batch_size)
         {
@@ -317,6 +319,50 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             }
 
             return $memory;
+        }
+
+        protected function get_memory_usage_mb()
+        {
+            return round(memory_get_usage(true) / 1048576, 2);
+        }
+
+        protected function should_continue_immediately($file_name)
+        {
+            $current_memory = $this->get_memory_usage_mb();
+            $execution_time = microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'];
+            
+            $progress = $this->get_progress($file_name);
+            $has_more_work = $progress['processed'] < $progress['total'];
+            
+            $memory_ok = $current_memory < $this->memory_limit_mb;
+            $time_ok = $execution_time < $this->max_execution_time;
+            
+            $this->log("Memory check: {$current_memory}MB/{$this->memory_limit_mb}MB - Time: {$execution_time}s/{$this->max_execution_time}s - More work: " . ($has_more_work ? 'yes' : 'no'));
+            
+            return $has_more_work && $memory_ok && $time_ok;
+        }
+
+        protected function should_auto_trigger($file_name)
+        {
+            if (!$this->should_continue_immediately($file_name)) {
+                return false;
+            }
+            
+            $status = $this->get_progress_status($file_name);
+            
+            return in_array($status, ['completed', 'not_started']);
+        }
+
+        protected function set_progress_status_smart($file, $status, $auto_continue = true)
+        {
+            $this->set_progress_status($file, $status);
+            
+            if ($auto_continue && $status === 'completed' && $this->should_auto_trigger($file)) {
+                $this->log("Auto-triggering immediate continuation for $file");
+                return 'auto_continue';
+            }
+            
+            return $status;
         }
 
     }

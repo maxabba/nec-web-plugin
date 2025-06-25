@@ -16,7 +16,13 @@ if (!defined('ABSPATH')) {
 if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
     class NecrologiMigration extends MigrationTasks
     {
-
+        private int $micro_batch_size = 20;
+        private int $query_chunk_size = 100;
+        private array $user_cache = [];
+        private array $post_cache = [];
+        private int $checkpoint_interval = 50;
+        private int $progress_update_interval = 10;
+        
         //private string $image_cron_hook = 'dokan_mods_download_images';
 
         private string $image_queue_file = 'image_download_queue.csv';
@@ -26,6 +32,9 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
         public function __construct(String $upload_dir, String $progress_file, String $log_file, Int $batch_size)
         {
             parent::__construct($upload_dir, $progress_file, $log_file, $batch_size);
+            
+            $this->memory_limit_mb = 256;
+            $this->max_execution_time = 30;
 
             add_action('dokan_mods_process_image_queue', [$this, 'process_image_queue']);
 
@@ -99,35 +108,68 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                 $batch_post_old_ids[] = $data[array_search('ID', $header)];
             }
 
-            // Ottimizzazione: pre-fetch degli utenti esistenti
-            $existing_posts = $this->get_existing_posts_by_old_ids(array_unique($batch_post_old_ids));
+            // Ottimizzazione: pre-fetch degli utenti esistenti con chunking
+            $existing_posts = $this->get_existing_posts_by_old_ids_chunked(array_unique($batch_post_old_ids));
             $existing_users = $this->get_existing_users_by_old_ids(array_unique($batch_user_old_ids));
             unset($batch_user_old_ids); // Libera memoria
             unset($batch_post_old_ids); // Libera memoria
 
             $image_queue = [];
 
-            // Process batch
-            foreach ($batch_data as $data) {
-
-                $this->process_single_record(
-                    $data,
-                    $header,
-                    $existing_posts,
-                    $existing_users,
-                    $image_queue
-                );
-                $processed++;
-                $this->update_progress($file_name, $processed, $total_rows);
+            // Process batch con micro-batching
+            $batch_acf_updates = [];
+            $micro_batches = array_chunk($batch_data, $this->micro_batch_size);
+            
+            foreach ($micro_batches as $micro_batch) {
+                foreach ($micro_batch as $data) {
+                    $this->process_single_record(
+                        $data,
+                        $header,
+                        $existing_posts,
+                        $existing_users,
+                        $image_queue,
+                        $batch_acf_updates
+                    );
+                    $processed++;
+                    
+                    if ($processed % $this->progress_update_interval === 0) {
+                        $this->update_progress($file_name, $processed, $total_rows);
+                    }
+                    
+                    if ($processed % $this->checkpoint_interval === 0) {
+                        $this->log("Checkpoint: processati $processed di $total_rows record");
+                        wp_cache_flush();
+                        if (function_exists('gc_collect_cycles')) {
+                            gc_collect_cycles();
+                        }
+                    }
+                }
+                
+                // Batch insert ACF fields per questo micro-batch
+                if (!empty($batch_acf_updates)) {
+                    $this->batch_insert_acf_fields($batch_acf_updates);
+                    $batch_acf_updates = [];
+                }
+                
+                // Memory cleanup dopo ogni micro-batch
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
+            
+            // Final batch insert per eventuali ACF rimanenti
+            if (!empty($batch_acf_updates)) {
+                $this->batch_insert_acf_fields($batch_acf_updates);
             }
 
             // Cleanup
             unset($batch_data);
             $file = null; // Chiude il file
 
-            // Processamento immagini
+            // Processamento immagini con download concorrente
             if (!empty($image_queue)) {
                 $this->image_queue($image_queue);
+                $this->download_images_concurrent($image_queue);
             }
             unset($image_queue);
 
@@ -135,19 +177,25 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             $execution_time = $end_time - $start_time;
             $this->log("Batch execution time: {$execution_time} seconds");
 
-            $this->set_progress_status($file_name, 'completed');
-
             if ($processed >= $total_rows) {
                 $this->set_progress_status($file_name, 'finished');
                 $this->schedule_image_processing();
+                return true;
             }
 
-            return $processed >= $total_rows;
+            $smart_status = $this->set_progress_status_smart($file_name, 'completed');
+            
+            if ($smart_status === 'auto_continue') {
+                $this->log("Auto-continuazione immediata possibile per $file_name");
+                return 'auto_continue';
+            }
+
+            return false;
         }
 
 
 
-        private function process_single_record($data, $header, $existing_posts, $existing_users, &$image_queue)
+        private function process_single_record($data, $header, $existing_posts, $existing_users, &$image_queue, &$batch_acf_updates = null)
         {
             static $field_indexes = null;
 
@@ -187,7 +235,11 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             ]);
 
             if (!is_wp_error($post_id)) {
-                $this->update_post_fields($post_id, $data, $field_indexes);
+                if ($batch_acf_updates !== null) {
+                    $this->prepare_acf_batch_update($post_id, $data, $field_indexes, $batch_acf_updates);
+                } else {
+                    $this->update_post_fields($post_id, $data, $field_indexes);
+                }
 
                 // Gestione immagini
                 if ($data[$field_indexes['Foto']]) {
@@ -472,11 +524,11 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                     wp_generate_attachment_metadata($attach_id, $upload_file)
                 );
 
-                update_field(
-                    $image_type === 'profile_photo' ? 'field_6641d593b4da3' : 'field_6641d6eecc551',
-                    $attach_id,
-                    $post_id
-                );
+                if ($image_type === 'profile_photo') {
+                    update_field('fotografia', $attach_id, $post_id);
+                } elseif ($image_type === 'manifesto_image') {
+                    update_field('immagine_annuncio_di_morte', $attach_id, $post_id);
+                }
 
                 return true;
 
@@ -487,6 +539,172 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
         }
 
 
+
+        private function get_existing_posts_by_old_ids_chunked($old_ids, $post_types = ['annuncio-di-morte'])
+        {
+            if (empty($old_ids)) {
+                return [];
+            }
+
+            $all_results = [];
+            $chunks = array_chunk($old_ids, $this->query_chunk_size);
+            
+            foreach ($chunks as $chunk) {
+                $chunk_results = parent::get_existing_posts_by_old_ids($chunk, $post_types);
+                $all_results = array_merge($all_results, $chunk_results);
+                
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
+            
+            return $all_results;
+        }
+
+        private function prepare_acf_batch_update($post_id, $data, $field_indexes, &$batch_acf_updates)
+        {
+            $fields = [
+                'id_old' => $data[$field_indexes['ID']],
+                'nome' => $data[$field_indexes['Nome']],
+                'cognome' => $data[$field_indexes['Cognome']],
+                'eta' => intval($data[$field_indexes['Anni']]),
+                'data_di_morte' => $data[$field_indexes['DataMorte']],
+                'testo_annuncio_di_morte' => $data[$field_indexes['Testo']] ?: $data[$field_indexes['AltTesto']],
+                'citta' => $this->format_luogo($data[$field_indexes['Luogo']]),
+                'funerale_data' => $data[$field_indexes['DataFunerale']]
+            ];
+
+            foreach ($fields as $field_key => $value) {
+                $batch_acf_updates[] = [
+                    'post_id' => $post_id,
+                    'meta_key' => $field_key,
+                    'meta_value' => $value
+                ];
+            }
+        }
+
+        private function batch_insert_acf_fields($batch_updates)
+        {
+            if (empty($batch_updates)) {
+                return;
+            }
+
+            global $wpdb;
+            
+            $values = [];
+            $placeholders = [];
+            
+            foreach ($batch_updates as $update) {
+                $values[] = $update['post_id'];
+                $values[] = $update['meta_key'];
+                $values[] = maybe_serialize($update['meta_value']);
+                $placeholders[] = '(%d, %s, %s)';
+            }
+            
+            $sql = "INSERT INTO {$wpdb->postmeta} (post_id, meta_key, meta_value) VALUES " . 
+                   implode(', ', $placeholders) . 
+                   " ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)";
+            
+            $prepared_sql = $wpdb->prepare($sql, $values);
+            $wpdb->query($prepared_sql);
+        }
+
+        private function download_images_concurrent($image_queue)
+        {
+            if (empty($image_queue) || count($image_queue) < 2) {
+                return;
+            }
+
+            $multi_handle = curl_multi_init();
+            $curl_handles = [];
+            $max_concurrent = 3;
+            $running = 0;
+            
+            curl_multi_setopt($multi_handle, CURLMOPT_MAXCONNECTS, $max_concurrent);
+            
+            $i = 0;
+            do {
+                while ($running < $max_concurrent && $i < count($image_queue)) {
+                    $image = $image_queue[$i];
+                    $image_url = 'https://necrologi.sciame.it/necrologi/' . $image[1];
+                    
+                    $ch = curl_init();
+                    curl_setopt_array($ch, [
+                        CURLOPT_URL => $image_url,
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_FOLLOWLOCATION => true,
+                        CURLOPT_TIMEOUT => 30,
+                        CURLOPT_CONNECTTIMEOUT => 10
+                    ]);
+                    
+                    curl_multi_add_handle($multi_handle, $ch);
+                    $curl_handles[$i] = $ch;
+                    $i++;
+                    $running++;
+                }
+                
+                curl_multi_exec($multi_handle, $running);
+                curl_multi_select($multi_handle);
+                
+                while ($info = curl_multi_info_read($multi_handle)) {
+                    $ch = $info['handle'];
+                    $index = array_search($ch, $curl_handles);
+                    
+                    if ($index !== false && $info['result'] === CURLE_OK) {
+                        $content = curl_multi_getcontent($ch);
+                        $this->save_image_as_attachment($content, $image_queue[$index]);
+                    }
+                    
+                    curl_multi_remove_handle($multi_handle, $ch);
+                    curl_close($ch);
+                    unset($curl_handles[$index]);
+                    $running--;
+                }
+                
+            } while ($running > 0 || $i < count($image_queue));
+            
+            curl_multi_close($multi_handle);
+        }
+
+        private function save_image_as_attachment($image_data, $image_info)
+        {
+            if (!$image_data) {
+                return false;
+            }
+            
+            list($image_type, $image_path, $post_id, $author_id) = $image_info;
+            
+            $upload_dir = wp_upload_dir();
+            $filename = wp_unique_filename($upload_dir['path'], basename($image_path));
+            $upload_file = $upload_dir['path'] . '/' . $filename;
+            
+            if (!file_put_contents($upload_file, $image_data)) {
+                return false;
+            }
+            
+            $attachment = [
+                'post_mime_type' => wp_check_filetype($filename, null)['type'],
+                'post_title' => sanitize_file_name($filename),
+                'post_status' => 'inherit',
+                'post_author' => $author_id ?: 1,
+            ];
+            
+            $attach_id = wp_insert_attachment($attachment, $upload_file, $post_id);
+            if (is_wp_error($attach_id)) {
+                return false;
+            }
+            
+            require_once(ABSPATH . 'wp-admin/includes/image.php');
+            wp_update_attachment_metadata($attach_id, wp_generate_attachment_metadata($attach_id, $upload_file));
+            
+            if ($image_type === 'profile_photo') {
+                update_field('fotografia', $attach_id, $post_id);
+            } elseif ($image_type === 'manifesto_image') {
+                update_field('immagine_annuncio_di_morte', $attach_id, $post_id);
+            }
+            
+            return true;
+        }
 
         // New helper function to get post by old ID
         protected function get_existing_posts_by_old_ids($old_ids, $post_types = ['annuncio-di-morte'])

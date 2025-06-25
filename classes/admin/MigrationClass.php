@@ -36,6 +36,9 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
         private $migration_tasks = [];
         private $base_path;
+        private $memory_limit_mb = 256;
+        private $max_execution_time = 30;
+        
         public function __construct()
         {
             // Setup paths
@@ -508,48 +511,99 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             }
         }
 
+        private function get_memory_usage_mb()
+        {
+            return round(memory_get_usage(true) / 1048576, 2);
+        }
+
+        private function should_continue_immediately($file)
+        {
+            $current_memory = $this->get_memory_usage_mb();
+            $execution_time = microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'];
+            
+            $progress = $this->get_progress($file);
+            $has_more_work = $progress['processed'] < $progress['total'];
+            
+            $memory_ok = $current_memory < $this->memory_limit_mb;
+            $time_ok = $execution_time < $this->max_execution_time;
+            
+            $this->log("Auto-continuation check for $file: Memory {$current_memory}MB/{$this->memory_limit_mb}MB - Time: {$execution_time}s/{$this->max_execution_time}s - More work: " . ($has_more_work ? 'yes' : 'no'));
+            
+            return $has_more_work && $memory_ok && $time_ok;
+        }
+
+        private function get_progress($file)
+        {
+            $default = ['processed' => 0, 'total' => 0, 'percentage' => 0];
+
+            if (!file_exists($this->progress_file)) {
+                return $default;
+            }
+
+            $progress = @json_decode(file_get_contents($this->progress_file), true);
+
+            return isset($progress[$file]['processed'], $progress[$file]['total'], $progress[$file]['percentage'])
+                ? $progress[$file]
+                : $default;
+        }
 
         public function process_migration_batch($file)
         {
-            if (file_exists($this->upload_dir . $file)) {
-
-                wp_cache_flush();
-                gc_collect_cycles();
-                if ($this->get_progress_status($file) === 'ongoing') {
-                    return;
-                }
-
-                $hook = $this->cron_hooks[$file];
-                $this->log("Processing migration batch for {$file}");
-
-                $completed = false;
-                switch ($file) {
-                    case 'accounts.csv':
-                        $completed = $this->migration_tasks['accounts']->migrate_accounts_batch('accounts.csv');
-                        break;
-                    case 'necrologi.csv':
-                        $completed = $this->migration_tasks['necrologi']->migrate_necrologi_batch('necrologi.csv');
-                        break;
-                    case 'ricorrenze.csv':
-                        $completed = $this->migration_tasks['ricorrenze']->migrate_ricorrenze_batch('ricorrenze.csv');
-                        break;
-                    case 'manifesti.csv':
-                        $completed = $this->migration_tasks['manifesti']->migrate_manifesti_batch('manifesti.csv');
-                        break;
-                    case 'ringraziamenti.csv':
-                        $completed = $this->migration_tasks['ringraziamenti']->migrate_ringraziamenti_batch('ringraziamenti.csv');
-                        break;
-                    default:
-                        $this->log("Errore: Il file {$file} non è riconosciuto per la migrazione.");
-                        return;
-                }
-
-                if ($completed) {
-                    wp_unschedule_hook($hook);
-                    $this->log("Batch cleared for {$file}");
-                }
-            } else {
+            if (!file_exists($this->upload_dir . $file)) {
                 $this->log("Errore: Il file {$file} non esiste.");
+                return;
+            }
+
+            wp_cache_flush();
+            gc_collect_cycles();
+            
+            if ($this->get_progress_status($file) === 'ongoing') {
+                return;
+            }
+
+            $hook = $this->cron_hooks[$file];
+            $this->log("Processing migration batch for {$file}");
+
+            // Execute the migration batch and get result
+            $result = $this->execute_migration_batch($file);
+            
+            // Handle different result types
+            if ($result === true) {
+                // Migration fully completed
+                wp_unschedule_hook($hook);
+                $this->log("Migration completed for {$file}. Batch cleared.");
+            } elseif ($result === 'auto_continue') {
+                // Can continue immediately if resources allow
+                if ($this->should_continue_immediately($file)) {
+                    $this->log("Auto-continuing migration for {$file}");
+                    // Recursive call for immediate continuation
+                    $this->process_migration_batch($file);
+                } else {
+                    $this->log("Auto-continuation not possible for {$file}, falling back to cron scheduling");
+                    // Will continue via cron at next scheduled time
+                }
+            } elseif ($result === false) {
+                // Continue via cron at next scheduled time
+                $this->log("Batch processed for {$file}, waiting for next cron execution");
+            }
+        }
+
+        private function execute_migration_batch($file)
+        {
+            switch ($file) {
+                case 'accounts.csv':
+                    return $this->migration_tasks['accounts']->migrate_accounts_batch('accounts.csv');
+                case 'necrologi.csv':
+                    return $this->migration_tasks['necrologi']->migrate_necrologi_batch('necrologi.csv');
+                case 'ricorrenze.csv':
+                    return $this->migration_tasks['ricorrenze']->migrate_ricorrenze_batch('ricorrenze.csv');
+                case 'manifesti.csv':
+                    return $this->migration_tasks['manifesti']->migrate_manifesti_batch('manifesti.csv');
+                case 'ringraziamenti.csv':
+                    return $this->migration_tasks['ringraziamenti']->migrate_ringraziamenti_batch('ringraziamenti.csv');
+                default:
+                    $this->log("Errore: Il file {$file} non è riconosciuto per la migrazione.");
+                    return false;
             }
         }
 

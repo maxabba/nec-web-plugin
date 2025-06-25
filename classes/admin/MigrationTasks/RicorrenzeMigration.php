@@ -14,6 +14,11 @@ if (!defined('ABSPATH')) {
 if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
     class RicorrenzeMigration extends MigrationTasks
     {
+        private int $micro_batch_size = 20;
+        private int $query_chunk_size = 100;
+        private array $necrologio_cache = [];
+        private int $checkpoint_interval = 50;
+        private int $progress_update_interval = 10;
 
         private string $image_cron_hook = 'dokan_mods_download_images';
 
@@ -25,6 +30,9 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
         public function __construct(string $upload_dir, string $progress_file, string $log_file, int $batch_size)
         {
             parent::__construct($upload_dir, $progress_file, $log_file, $batch_size);
+            
+            $this->memory_limit_mb = 256;
+            $this->max_execution_time = 30;
 
             add_action('dokan_mods_process_image_ricorrenze_queue', [$this, 'process_image_queue']);
 
@@ -58,6 +66,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
         public function migrate_ricorrenze_batch($file_name)
         {
+            $start_time = microtime(true);
             $progress_status = $this->get_progress_status($file_name);
 
             // Se il processo è già completato completamente (tutti i batch)
@@ -75,7 +84,6 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                     $this->log("Resetting manipulation due to new migration run.");
                 }
 
-                $start_time = microtime(true);
                 $this->set_progress_status($file_name, 'ongoing');
 
                 // Esegui la manipolazione dei dati
@@ -90,6 +98,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             // Se lo stato è 'completed', significa che abbiamo finito un batch ma non l'intero processo,
             // quindi possiamo continuare con il prossimo batch
             if ($progress_status == 'completed' || $progress_status == 'not_started') {
+                
                 // Iniziare il batch processing
                 if (!$file = $this->load_file($file_name)) {
                     return false;
@@ -119,14 +128,49 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                     $batch_post_old_ids[] = $data[array_search('ID', $header)];
                 }
 
-                // Controllo post esistenti
-                $existing_posts = $this->get_existing_posts_by_old_ids($batch_post_old_ids);
+                // Controllo post esistenti con chunking
+                $existing_posts = $this->get_existing_posts_by_old_ids_chunked($batch_post_old_ids);
                 unset($batch_post_old_ids);
+                
+                $image_queue = [];
 
-                foreach ($batch_data as $data) {
-                    $this->process_single_record($data, $header, $existing_posts, $image_queue);
-                    $processed++;
-                    $this->update_progress($file_name, $processed, $total_rows);
+                // Process batch con micro-batching
+                $batch_acf_updates = [];
+                $micro_batches = array_chunk($batch_data, $this->micro_batch_size);
+                
+                foreach ($micro_batches as $micro_batch) {
+                    foreach ($micro_batch as $data) {
+                        $this->process_single_record($data, $header, $existing_posts, $image_queue, $batch_acf_updates);
+                        $processed++;
+                        
+                        if ($processed % $this->progress_update_interval === 0) {
+                            $this->update_progress($file_name, $processed, $total_rows);
+                        }
+                        
+                        if ($processed % $this->checkpoint_interval === 0) {
+                            $this->log("Checkpoint: processati $processed di $total_rows record");
+                            wp_cache_flush();
+                            if (function_exists('gc_collect_cycles')) {
+                                gc_collect_cycles();
+                            }
+                        }
+                    }
+                    
+                    // Batch insert ACF fields per questo micro-batch
+                    if (!empty($batch_acf_updates)) {
+                        $this->batch_insert_acf_fields($batch_acf_updates);
+                        $batch_acf_updates = [];
+                    }
+                    
+                    // Memory cleanup dopo ogni micro-batch
+                    if (function_exists('gc_collect_cycles')) {
+                        gc_collect_cycles();
+                    }
+                }
+                
+                // Final batch insert per eventuali ACF rimanenti
+                if (!empty($batch_acf_updates)) {
+                    $this->batch_insert_acf_fields($batch_acf_updates);
                 }
 
                 unset($batch_data);
@@ -134,6 +178,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
                 if (!empty($image_queue)) {
                     $this->image_queue($image_queue);
+                    $this->download_images_concurrent($image_queue);
                 }
                 unset($image_queue);
 
@@ -145,18 +190,24 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 if ($processed >= $total_rows) {
                     $this->set_progress_status($file_name, 'finished');
                     $this->schedule_image_processing();
-                } else {
-                    $this->set_progress_status($file_name, 'completed');
+                    return true;
                 }
 
-                return $processed >= $total_rows;
+                $smart_status = $this->set_progress_status_smart($file_name, 'completed');
+                
+                if ($smart_status === 'auto_continue') {
+                    $this->log("Auto-continuazione immediata possibile per $file_name");
+                    return 'auto_continue';
+                }
+
+                return false;
             }
 
             return false; // Se lo stato non rientra in nessuno dei casi previsti
         }
 
 
-        private function process_single_record($data, $header, $existing_posts, &$image_queue)
+        private function process_single_record($data, $header, $existing_posts, &$image_queue, &$batch_acf_updates = null)
         {
 
             static $field_indexes = null;
@@ -190,10 +241,17 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             }
 
 
-            $necrologio = $this->get_post_by_old_id($data[$field_indexes['IdNecrologio']]);
+            $necrologio_old_id = $data[$field_indexes['IdNecrologio']];
+            
+            // Usa cache per evitare query ripetute
+            if (!isset($this->necrologio_cache[$necrologio_old_id])) {
+                $this->necrologio_cache[$necrologio_old_id] = $this->get_post_by_old_id($necrologio_old_id);
+            }
+            
+            $necrologio = $this->necrologio_cache[$necrologio_old_id];
 
             if (!$necrologio) {
-                $this->log("Annuncio di morte non trovato per ID: ". $data[$field_indexes['IdNecrologio']]);
+                $this->log("Annuncio di morte non trovato per ID: $necrologio_old_id");
                 return;
             }
 
@@ -218,52 +276,11 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             ));
 
             if (!is_wp_error($post_id)) {
-                // Aggiornamento campi
-                update_field('annuncio_di_morte', $necrologio->ID, $post_id);
-
-                if ($tipo == 1) { // Trigesimo
-                    $date_value = $data[$field_indexes['Data']];
-
-                    if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
-                        $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
-                    }
-
-                    // Verifica se esiste il meta ACF associato
-                    $existing_key = get_post_meta($post_id, '_trigesimo_data', true);
-
-                    if (!empty($date_value)) {
-                        update_post_meta($post_id, 'trigesimo_data', $date_value);
-
-                        if (empty($existing_key) || $existing_key !== 'field_6734d2e598b99') {
-                            update_post_meta($post_id, '_trigesimo_data', 'field_6734d2e598b99');
-                        }
-                    }
-
-                    update_field('testo_annuncio_trigesimo', $data[$field_indexes['Testo']], $post_id);
-                } else { // Anniversario
-                    $date_value = $data[$field_indexes['Data']];
-
-                    if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
-                        $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
-                    }
-
-                    // Verifica se esiste il meta ACF associato
-                    $existing_key = get_post_meta($post_id, '_anniversario_data', true);
-
-                    if (!empty($date_value)) {
-                        update_post_meta($post_id, 'anniversario_data', $date_value);
-
-                        if (empty($existing_key) || $existing_key !== 'field_665ec95bca23d') {
-                            update_post_meta($post_id, '_anniversario_data', 'field_665ec95bca23d');
-                        }
-                    }
-
-                    update_field('testo_annuncio_anniversario', $data[$field_indexes['Testo']], $post_id);
-                    update_field('anniversario_n_anniversario', $data[$field_indexes['Anni']], $post_id);
-                }
-
-                if ($citta) {
-                    update_field('citta', $citta, $post_id);
+                if ($batch_acf_updates !== null) {
+                    $this->prepare_acf_batch_update($post_id, $data, $field_indexes, $necrologio, $tipo, $citta, $batch_acf_updates);
+                } else {
+                    // Aggiornamento campi diretto (fallback)
+                    $this->update_ricorrenza_fields_direct($post_id, $data, $field_indexes, $necrologio, $tipo, $citta);
                 }
 
                 // Gestione immagine
@@ -401,6 +418,271 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             }
 
             return $final_mapping;
+        }
+
+        private function get_existing_posts_by_old_ids_chunked($old_ids, $post_types = ['trigesimo', 'anniversario'])
+        {
+            if (empty($old_ids)) {
+                return [];
+            }
+
+            $all_results = [];
+            $chunks = array_chunk($old_ids, $this->query_chunk_size);
+            
+            foreach ($chunks as $chunk) {
+                $chunk_results = parent::get_existing_posts_by_old_ids($chunk, $post_types);
+                $all_results = array_merge($all_results, $chunk_results);
+                
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
+            
+            return $all_results;
+        }
+
+        private function prepare_acf_batch_update($post_id, $data, $field_indexes, $necrologio, $tipo, $citta, &$batch_acf_updates)
+        {
+            $batch_acf_updates[] = [
+                'post_id' => $post_id,
+                'meta_key' => 'annuncio_di_morte',
+                'meta_value' => $necrologio->ID
+            ];
+            
+            if ($tipo == 1) { // Trigesimo
+                $date_value = $data[$field_indexes['Data']];
+                if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
+                    $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
+                }
+                
+                if (!empty($date_value)) {
+                    $batch_acf_updates[] = [
+                        'post_id' => $post_id,
+                        'meta_key' => 'trigesimo_data',
+                        'meta_value' => $date_value
+                    ];
+                    $batch_acf_updates[] = [
+                        'post_id' => $post_id,
+                        'meta_key' => '_trigesimo_data',
+                        'meta_value' => 'field_6734d2e598b99'
+                    ];
+                }
+                
+                $batch_acf_updates[] = [
+                    'post_id' => $post_id,
+                    'meta_key' => 'testo_annuncio_trigesimo',
+                    'meta_value' => $data[$field_indexes['Testo']]
+                ];
+            } else { // Anniversario
+                $date_value = $data[$field_indexes['Data']];
+                if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
+                    $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
+                }
+                
+                if (!empty($date_value)) {
+                    $batch_acf_updates[] = [
+                        'post_id' => $post_id,
+                        'meta_key' => 'anniversario_data',
+                        'meta_value' => $date_value
+                    ];
+                    $batch_acf_updates[] = [
+                        'post_id' => $post_id,
+                        'meta_key' => '_anniversario_data',
+                        'meta_value' => 'field_665ec95bca23d'
+                    ];
+                }
+                
+                $batch_acf_updates[] = [
+                    'post_id' => $post_id,
+                    'meta_key' => 'testo_annuncio_anniversario',
+                    'meta_value' => $data[$field_indexes['Testo']]
+                ];
+                
+                $batch_acf_updates[] = [
+                    'post_id' => $post_id,
+                    'meta_key' => 'anniversario_n_anniversario',
+                    'meta_value' => $data[$field_indexes['Anni']]
+                ];
+            }
+            
+            if ($citta) {
+                $batch_acf_updates[] = [
+                    'post_id' => $post_id,
+                    'meta_key' => 'citta',
+                    'meta_value' => $citta
+                ];
+            }
+        }
+
+        private function update_ricorrenza_fields_direct($post_id, $data, $field_indexes, $necrologio, $tipo, $citta)
+        {
+            update_field('annuncio_di_morte', $necrologio->ID, $post_id);
+
+            if ($tipo == 1) { // Trigesimo
+                $date_value = $data[$field_indexes['Data']];
+
+                if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
+                    $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
+                }
+
+                $existing_key = get_post_meta($post_id, '_trigesimo_data', true);
+
+                if (!empty($date_value)) {
+                    update_post_meta($post_id, 'trigesimo_data', $date_value);
+
+                    if (empty($existing_key) || $existing_key !== 'field_6734d2e598b99') {
+                        update_post_meta($post_id, '_trigesimo_data', 'field_6734d2e598b99');
+                    }
+                }
+
+                update_field('testo_annuncio_trigesimo', $data[$field_indexes['Testo']], $post_id);
+            } else { // Anniversario
+                $date_value = $data[$field_indexes['Data']];
+
+                if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
+                    $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
+                }
+
+                $existing_key = get_post_meta($post_id, '_anniversario_data', true);
+
+                if (!empty($date_value)) {
+                    update_post_meta($post_id, 'anniversario_data', $date_value);
+
+                    if (empty($existing_key) || $existing_key !== 'field_665ec95bca23d') {
+                        update_post_meta($post_id, '_anniversario_data', 'field_665ec95bca23d');
+                    }
+                }
+
+                update_field('testo_annuncio_anniversario', $data[$field_indexes['Testo']], $post_id);
+                update_field('anniversario_n_anniversario', $data[$field_indexes['Anni']], $post_id);
+            }
+
+            if ($citta) {
+                update_field('citta', $citta, $post_id);
+            }
+        }
+
+        private function batch_insert_acf_fields($batch_updates)
+        {
+            if (empty($batch_updates)) {
+                return;
+            }
+
+            global $wpdb;
+            
+            $values = [];
+            $placeholders = [];
+            
+            foreach ($batch_updates as $update) {
+                $values[] = $update['post_id'];
+                $values[] = $update['meta_key'];
+                $values[] = maybe_serialize($update['meta_value']);
+                $placeholders[] = '(%d, %s, %s)';
+            }
+            
+            $sql = "INSERT INTO {$wpdb->postmeta} (post_id, meta_key, meta_value) VALUES " . 
+                   implode(', ', $placeholders) . 
+                   " ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)";
+            
+            $prepared_sql = $wpdb->prepare($sql, $values);
+            $wpdb->query($prepared_sql);
+        }
+
+        private function download_images_concurrent($image_queue)
+        {
+            if (empty($image_queue) || count($image_queue) < 2) {
+                return;
+            }
+
+            $multi_handle = curl_multi_init();
+            $curl_handles = [];
+            $max_concurrent = 3;
+            $running = 0;
+            
+            curl_multi_setopt($multi_handle, CURLMOPT_MAXCONNECTS, $max_concurrent);
+            
+            $i = 0;
+            do {
+                while ($running < $max_concurrent && $i < count($image_queue)) {
+                    $image = $image_queue[$i];
+                    $image_url = 'https://necrologi.sciame.it/necrologi/' . $image[1];
+                    
+                    $ch = curl_init();
+                    curl_setopt_array($ch, [
+                        CURLOPT_URL => $image_url,
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_FOLLOWLOCATION => true,
+                        CURLOPT_TIMEOUT => 30,
+                        CURLOPT_CONNECTTIMEOUT => 10
+                    ]);
+                    
+                    curl_multi_add_handle($multi_handle, $ch);
+                    $curl_handles[$i] = $ch;
+                    $i++;
+                    $running++;
+                }
+                
+                curl_multi_exec($multi_handle, $running);
+                curl_multi_select($multi_handle);
+                
+                while ($info = curl_multi_info_read($multi_handle)) {
+                    $ch = $info['handle'];
+                    $index = array_search($ch, $curl_handles);
+                    
+                    if ($index !== false && $info['result'] === CURLE_OK) {
+                        $content = curl_multi_getcontent($ch);
+                        $this->save_ricorrenza_image_as_attachment($content, $image_queue[$index]);
+                    }
+                    
+                    curl_multi_remove_handle($multi_handle, $ch);
+                    curl_close($ch);
+                    unset($curl_handles[$index]);
+                    $running--;
+                }
+                
+            } while ($running > 0 || $i < count($image_queue));
+            
+            curl_multi_close($multi_handle);
+        }
+
+        private function save_ricorrenza_image_as_attachment($image_data, $image_info)
+        {
+            if (!$image_data) {
+                return false;
+            }
+            
+            list($image_type, $image_path, $post_id, $author_id) = $image_info;
+            
+            $upload_dir = wp_upload_dir();
+            $filename = wp_unique_filename($upload_dir['path'], basename($image_path));
+            $upload_file = $upload_dir['path'] . '/' . $filename;
+            
+            if (!file_put_contents($upload_file, $image_data)) {
+                return false;
+            }
+            
+            $attachment = [
+                'post_mime_type' => wp_check_filetype($filename, null)['type'],
+                'post_title' => sanitize_file_name($filename),
+                'post_status' => 'inherit',
+                'post_author' => $author_id ?: 1,
+            ];
+            
+            $attach_id = wp_insert_attachment($attachment, $upload_file, $post_id);
+            if (is_wp_error($attach_id)) {
+                return false;
+            }
+            
+            require_once(ABSPATH . 'wp-admin/includes/image.php');
+            wp_update_attachment_metadata($attach_id, wp_generate_attachment_metadata($attach_id, $upload_file));
+            
+            if ($image_type === 'trigesimo') {
+                update_field('immagine_annuncio_trigesimo', $attach_id, $post_id);
+            } elseif ($image_type === 'anniversario') {
+                update_field('immagine_annuncio_anniversario', $attach_id, $post_id);
+            }
+            
+            return true;
         }
 
         protected function get_existing_posts_by_old_ids($old_ids, $post_types = ['trigesimo', 'anniversario'])
