@@ -76,17 +76,21 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             }
 
             $start_time = microtime(true);
-            
-            // Imposta status ongoing con timestamp immediato
+            $this->log("=== INIZIO BATCH MIGRATION per $file_name ===");
             $this->set_progress_status($file_name, 'ongoing');
 
             if(!$file = $this->load_file($file_name)){
+                $this->log("ERRORE: Impossibile caricare file $file_name");
                 return false;
             }
+            $this->log("File $file_name caricato con successo");
 
-            if (!$progress = $this->first_call_check($file)) {
+            $progress = $this->first_call_check($file);
+            if (!$progress) {
+                $this->log("ERRORE: first_call_check fallito per $file_name");
                 return false;
             }
+            $this->log("first_call_check completato - progresso: " . json_encode($progress));
 
             $processed = $progress['processed'];
             $total_rows = $progress['total'];
@@ -160,10 +164,6 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                     
                     if ($processed % $this->checkpoint_interval === 0) {
                         $this->log("Checkpoint: processati $processed di $total_rows record");
-                        
-                        // Aggiorna timestamp per mantenere status alive
-                        $this->set_progress_status($file_name, 'ongoing');
-                        
                         wp_cache_flush();
                         if (function_exists('gc_collect_cycles')) {
                             gc_collect_cycles();
@@ -194,8 +194,18 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
 
             // Processamento immagini con download concorrente
             if (!empty($image_queue)) {
+                $image_count = count($image_queue);
+                $this->log("Processamento $image_count immagini nella queue");
+                
+                $queue_start = microtime(true);
                 $this->image_queue($image_queue);
+                $queue_time = microtime(true) - $queue_start;
+                $this->log("Image queue processing completato in {$queue_time}s");
+                
+                $download_start = microtime(true);
                 $this->download_images_concurrent($image_queue);
+                $download_time = microtime(true) - $download_start;
+                $this->log("Concurrent download completato in {$download_time}s");
             }
             unset($image_queue);
 
@@ -203,25 +213,19 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             $execution_time = $end_time - $start_time;
             $this->log("Batch execution time: {$execution_time} seconds");
 
-            // Final progress update
-            $this->update_progress($file_name, $processed, $total_rows);
-            
             if ($processed >= $total_rows) {
-                $this->log("Migration completed for $file_name: $processed/$total_rows records processed");
                 $this->set_progress_status($file_name, 'finished');
                 $this->schedule_image_processing();
                 return true;
             }
 
-            $this->log("Batch completed for $file_name: $processed/$total_rows records processed");
             $smart_status = $this->set_progress_status_smart($file_name, 'completed');
             
             if ($smart_status === 'auto_continue') {
-                $this->log("Auto-continuazione immediata attivata per $file_name - memoria e tempo sufficienti");
+                $this->log("Auto-continuazione immediata possibile per $file_name");
                 return 'auto_continue';
             }
 
-            $this->log("Auto-continuazione non possibile per $file_name - batch completato, in attesa del prossimo cron");
             return false;
         }
 
@@ -310,13 +314,23 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
 
         private function image_queue($image_queue)
         {
+            $this->log("=== INIZIO IMAGE QUEUE PROCESSING ===");
+            $queue_count = count($image_queue);
+            $this->log("Processing $queue_count immagini per la coda");
+            
             // Prepariamo un array di tutti gli URL per fare una singola query SQL
+            $url_start = microtime(true);
             $image_urls = array_map(function ($image) {
                 return 'https://necrologi.sciame.it/necrologi/' . $image[1];
             }, $image_queue);
+            $url_time = microtime(true) - $url_start;
+            $this->log("URL mapping completato in {$url_time}s");
 
             // Otteniamo tutti gli ID delle immagini esistenti con una singola query
+            $query_start = microtime(true);
             $existing_images = $this->get_images_ids_by_urls($image_urls);
+            $query_time = microtime(true) - $query_start;
+            $this->log("Query immagini esistenti completata in {$query_time}s - trovate " . count($existing_images) . " immagini");
 
             // Prepariamo il file per la coda una sola volta
             $queue_file = $this->upload_dir . $this->image_queue_file;
@@ -377,6 +391,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
 
                 // Chiudiamo il file
                 $write_file = null;
+                $this->log("=== FINE IMAGE QUEUE PROCESSING - SUCCESS ===");
 
                 return true;
             } catch (RuntimeException $e) {

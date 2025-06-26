@@ -26,10 +26,6 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
         protected $csv_delimiter = null; // null = auto-detect
         protected $csv_enclosure = '"';
         protected $csv_escape = '\\';
-        
-        // Cache per conteggio CSV
-        protected $csv_count_cache = [];
-        protected $csv_count_cache_file;
 
         public function __construct(string $upload_dir, string $progress_file, string $log_file, int $batch_size)
         {
@@ -37,67 +33,39 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             $this->progress_file = $progress_file;
             $this->log_file = $log_file;
             $this->batch_size = $batch_size;
-            $this->csv_count_cache_file = $upload_dir . 'csv_count_cache.json';
-            $this->load_csv_count_cache();
         }
 
         protected function countCsvRows(SplFileObject $file)
         {
             $file_path = $file->getRealPath();
-            $file_name = basename($file_path);
-            $file_mtime = filemtime($file_path);
-            $file_size = filesize($file_path);
-            
-            // Controlla se abbiamo una cache valida
-            $cache_key = $file_name;
-            if (isset($this->csv_count_cache[$cache_key])) {
-                $cached = $this->csv_count_cache[$cache_key];
-                if ($cached['mtime'] === $file_mtime && $cached['size'] === $file_size) {
-                    $this->log("Utilizzando conteggio CSV dalla cache per $file_name: {$cached['count']} righe");
-                    return $cached['count'];
-                }
-            }
-            
             $this->log("Inizio conteggio righe CSV per file: $file_path");
             
             // Prima detecta il formato del CSV
             $csv_format = $this->detectCsvFormat($file_path);
             
-            // Usa il conteggio CSV per accuratezza con delimitatori complessi
+            // SEMPRE usa il conteggio CSV per accuratezza, specialmente con delimitatore ';'
             $csv_count = $this->countCsvRowsWithFormat($file, $csv_format);
             
-            // Salva nella cache
-            $this->csv_count_cache[$cache_key] = [
-                'count' => $csv_count,
-                'mtime' => $file_mtime,
-                'size' => $file_size,
-                'timestamp' => time()
-            ];
-            $this->save_csv_count_cache();
-            
-            // Log informativo sulla struttura del file
+            // Confronta con conteggio semplice solo per logging
             if ($csv_format['line_count'] > 0) {
-                $ratio = $csv_format['line_count'] > 0 ? $csv_format['line_count'] / ($csv_count + 1) : 0;
+                $simple_data_rows = max(0, $csv_format['line_count'] - 1);
+                $ratio = $simple_data_rows > 0 ? $csv_format['line_count'] / ($csv_count + 1) : 0;
                 
-                $this->log("Conteggio linee fisiche: {$csv_format['line_count']}, Record CSV validi: " . ($csv_count + 1));
+                $this->log("Conteggio linee fisiche: {$csv_format['line_count']}, Conteggio record CSV: " . ($csv_count + 1));
                 
                 if ($ratio > 5) {
-                    $this->log("NOTA: File con campi multi-riga (ratio: " . round($ratio, 1) . ":1) - Normale per CSV con testo quotato");
+                    $this->log("NOTA: Il file contiene campi multi-riga (ratio: " . round($ratio, 1) . ":1)");
+                    $this->log("Questo è normale per CSV con testo su più righe dentro virgolette");
                 }
             }
             
-            $this->log("Conteggio CSV completato e salvato in cache: $csv_count righe dati");
+            $this->log("Conteggio CSV finale: $csv_count righe dati (escludendo header)");
             return $csv_count;
         }
 
         protected function countCsvRowsWithFormat(SplFileObject $file, array $csv_format)
         {
             $count = 0;
-            $start_time = microtime(true);
-            $max_execution_time = 25; // Limite di 25 secondi per il conteggio
-            $last_check_time = $start_time;
-            $check_interval = 1000; // Controlla timeout ogni 1000 righe
-            
             $file->rewind();
             
             // Configura i parametri CSV corretti
@@ -128,28 +96,6 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                             $count++;
                         }
                     }
-                    
-                    // Controllo timeout periodico per evitare blocchi
-                    if ($count % $check_interval === 0) {
-                        $current_time = microtime(true);
-                        $elapsed = $current_time - $start_time;
-                        
-                        if ($elapsed > $max_execution_time) {
-                            $this->log("TIMEOUT: Conteggio CSV interrotto dopo {$elapsed}s con $count righe processate");
-                            // Usa conteggio parziale + stima
-                            $file_position = $file->ftell();
-                            $file_size = $file->getSize();
-                            $estimated_total = $file_size > 0 ? round($count * ($file_size / $file_position)) : $count;
-                            $this->log("Stima totale basata su progresso: $estimated_total righe");
-                            $count = $estimated_total;
-                            break;
-                        }
-                        
-                        if ($current_time - $last_check_time > 5) { // Log ogni 5 secondi
-                            $this->log("Conteggio in corso: $count righe processate in {$elapsed}s");
-                            $last_check_time = $current_time;
-                        }
-                    }
                 }
                 
                 $file->rewind();
@@ -158,8 +104,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                 $file->setCsvControl(',', '"', '\\');
                 
                 $data_rows = max(0, $count - 1);
-                $total_time = microtime(true) - $start_time;
-                $this->log("Conteggio CSV completato: $count righe totali, $data_rows righe dati (tempo: {$total_time}s)");
+                $this->log("Conteggio CSV completato: $count righe totali, $data_rows righe dati (escludendo header)");
                 
                 return $data_rows;
                 
@@ -196,21 +141,32 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
 
         protected function verifyCsvRowCount(SplFileObject $file, $expected_count)
         {
-            $this->log("Verifica conteggio CSV: conteggio = $expected_count");
+            $this->log("Verifica conteggio CSV: conteggio atteso = $expected_count");
             
-            // Validazione base del conteggio
-            if ($expected_count < 0) {
-                $this->log("ERRORE: Conteggio negativo rilevato: $expected_count");
-                return false;
+            // Usa il conteggio semplice delle linee per verifica
+            $file_path = $file->getRealPath();
+            $simple_count = $this->countLinesSimple($file_path);
+            $simple_data_rows = max(0, $simple_count - 1);
+            
+            $this->log("Verifica con conteggio semplice: $simple_count righe totali, $simple_data_rows righe dati");
+            
+            // Se il conteggio semplice è nell'ordine di grandezza corretto (20k invece di 200k)
+            if ($simple_data_rows < 50000 && $expected_count > 100000) {
+                $this->log("ERRORE CRITICO: Ordine di grandezza errato! Semplice: $simple_data_rows, CSV: $expected_count");
+                $this->log("Il conteggio CSV sembra errato, usando il conteggio semplice");
+                return false; // Forza il ricalcolo
             }
             
-            if ($expected_count == 0) {
-                $this->log("ATTENZIONE: File CSV vuoto o senza dati");
-                return true;
+            // Altrimenti verifica la differenza normale
+            $difference = abs($expected_count - $simple_data_rows);
+            $tolerance = max(100, $expected_count * 0.05); // 5% di tolleranza o min 100 righe
+            
+            if ($difference > $tolerance) {
+                $this->log("ATTENZIONE: Discrepanza nel conteggio righe! CSV: $expected_count, Semplice: $simple_data_rows, Differenza: $difference");
+                return true; // Accetta comunque se non è un errore di ordine di grandezza
             }
             
-            // Per file con campi multi-riga, il conteggio CSV è sempre la fonte di verità
-            $this->log("Conteggio CSV accettato: $expected_count righe dati");
+            $this->log("Verifica conteggio CSV superata (differenza: $difference righe)");
             return true;
         }
 
@@ -437,8 +393,12 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             
             // Controllo sanità: se processed > total, reset necessario
             if ($total_rows > 0 && $processed > $total_rows) {
-                $this->log("ERRORE: Processed ($processed) > Total ($total_rows) per $file_name - reset necessario");
+                $this->log("ERRORE CRITICO: Processed ($processed) > Total ($total_rows) per $file_name");
+                $this->log("Reset automatico del progresso per correggere l'incoerenza");
+                
                 $this->resetProgressForFile($file_name);
+                
+                // Ricomincia da zero
                 return ['processed' => 0, 'total' => 0, 'percentage' => 0];
             }
 
@@ -448,21 +408,43 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                 
                 $total_rows = $this->countCsvRows($file);
                 
-                // Verifica base del conteggio
-                if ($total_rows <= 0) {
-                    $this->log("ERRORE: Conteggio righe non valido per $file_name: $total_rows");
+                // Verifica del conteggio con doppio controllo
+                if (!$this->verifyCsvRowCount($file, $total_rows)) {
+                    $this->log("ERRORE: Verifica conteggio fallita per $file_name");
                     $this->set_progress_status($file_name, 'failed');
                     return false;
                 }
                 
-                $this->update_progress($file_name, 0, $total_rows);
+                $this->update_progress($file->getFilename(), 0, $total_rows);
                 $header = $file->fgetcsv();
                 
                 if ($file_name != 'accounts.csv') {
                     $this->process_existing_posts($file, $header, $processed, $total_rows, $file_name);
                 }
                 
+                // NON impostare completed qui - lascia che il normale flusso continui
+                // Il progresso è ora inizializzato correttamente
+                $this->log("Inizializzazione completata per $file_name - pronto per processamento");
                 return ['processed' => 0, 'total' => $total_rows, 'percentage' => 0];
+            }
+
+            // Controllo sanità: se il conteggio sembra errato
+            if ($total_rows > 100000) { // Se supera 100k righe, potrebbe essere un errore
+                $this->log("ATTENZIONE: Conteggio righe sospetto per $file_name: $total_rows righe. Riconteggio...");
+                
+                $new_count = $this->countCsvRows($file);
+                
+                if (abs($new_count - $total_rows) > ($total_rows * 0.1)) { // Se differenza > 10%
+                    $this->log("CORREZIONE: Rilevato conteggio errato. Vecchio: $total_rows, Nuovo: $new_count. Reset progresso.");
+                    
+                    $this->resetProgressForFile($file_name);
+                    
+                    // Ricomincia con il conteggio corretto
+                    $this->update_progress($file_name, 0, $new_count);
+                    $this->set_progress_status($file_name, 'completed');
+                    
+                    return ['processed' => 0, 'total' => $new_count, 'percentage' => 0];
+                }
             }
 
             if ($processed >= $total_rows) {
@@ -636,12 +618,14 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             $progress[$file]['last_update'] = date('Y-m-d H:i:s');
             
             file_put_contents($this->progress_file, json_encode($progress));
+            
+            $this->log("Status aggiornato per $file: $status (timestamp: {$progress[$file]['status_timestamp']})");
         }
 
         protected function get_progress_status($file)
         {
             $progress = json_decode(file_get_contents($this->progress_file), true);
-            return isset($progress[$file]['status']) ? $progress[$file]['status'] : 'not_started';
+            return $progress[$file]['status'];
         }
 
         protected function get_memory_usage()
@@ -687,14 +671,8 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             }
             
             $status = $this->get_progress_status($file_name);
-            $progress = $this->get_progress($file_name);
             
-            // Auto-trigger solo se:
-            // 1. Status è completed o not_started
-            // 2. C'è ancora lavoro da fare (processed < total)
-            return in_array($status, ['completed', 'not_started']) && 
-                   $progress['processed'] < $progress['total'] && 
-                   $progress['total'] > 0;
+            return in_array($status, ['completed', 'not_started']);
         }
 
         protected function set_progress_status_smart($file, $status, $auto_continue = true)
@@ -707,28 +685,6 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             }
             
             return $status;
-        }
-        
-        protected function load_csv_count_cache()
-        {
-            if (file_exists($this->csv_count_cache_file)) {
-                $cache_content = file_get_contents($this->csv_count_cache_file);
-                $this->csv_count_cache = json_decode($cache_content, true) ?: [];
-                
-                // Pulisci cache vecchia (più di 24 ore)
-                $current_time = time();
-                foreach ($this->csv_count_cache as $key => $cached) {
-                    if (isset($cached['timestamp']) && ($current_time - $cached['timestamp']) > 86400) {
-                        unset($this->csv_count_cache[$key]);
-                    }
-                }
-            }
-        }
-        
-        protected function save_csv_count_cache()
-        {
-            $cache_content = json_encode($this->csv_count_cache, JSON_PRETTY_PRINT);
-            file_put_contents($this->csv_count_cache_file, $cache_content);
         }
 
     }

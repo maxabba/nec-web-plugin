@@ -76,6 +76,15 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 return true;
             }
 
+            // Controllo se il processo è attivo o se è bloccato
+            if ($progress_status == 'ongoing') {
+                if (!$this->is_process_active($file_name)) {
+                    $this->log("Processo 'ongoing' rilevato come inattivo per $file_name - continuazione automatica");
+                    $this->set_progress_status($file_name, 'completed');
+                    $progress_status = 'completed';
+                }
+            }
+
             // Se lo stato è 'not_started', eseguire la manipolazione e avviare il batch processing
             if ($progress_status == 'not_started') {
                 // Se il file manipulation_done.txt esiste, cancellarlo per ripetere la manipolazione
@@ -104,7 +113,9 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                     return false;
                 }
 
-                if (!$progress = $this->first_call_check($file, $file_name)) {
+                $progress = $this->first_call_check($file);
+                if (!$progress) {
+                    $this->log("ERRORE: first_call_check fallito per $file_name");
                     return false;
                 }
 
@@ -149,6 +160,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                         
                         if ($processed % $this->checkpoint_interval === 0) {
                             $this->log("Checkpoint: processati $processed di $total_rows record");
+                            $this->set_progress_status($file_name, 'ongoing'); // Aggiorna timestamp
                             wp_cache_flush();
                             if (function_exists('gc_collect_cycles')) {
                                 gc_collect_cycles();
@@ -195,6 +207,9 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
                 $smart_status = $this->set_progress_status_smart($file_name, 'completed');
                 
+                // Log delle prestazioni del batch
+                $this->log("Batch completato - Memoria: " . $this->get_memory_usage() . ", Tempo: {$execution_time}s");
+                
                 if ($smart_status === 'auto_continue') {
                     $this->log("Auto-continuazione immediata possibile per $file_name");
                     return 'auto_continue';
@@ -204,6 +219,71 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             }
 
             return false; // Se lo stato non rientra in nessuno dei casi previsti
+        }
+
+        private function is_process_active($file)
+        {
+            $progress = json_decode(file_get_contents($this->progress_file), true);
+            
+            if (!isset($progress[$file]['status_timestamp'])) {
+                $this->log("Nessun timestamp trovato per $file");
+                return false;
+            }
+            
+            $elapsed = time() - $progress[$file]['status_timestamp'];
+            $is_active = $elapsed <= 90; // 90 secondi di timeout
+            
+            $this->log("Controllo processo per $file: elapsed={$elapsed}s, active=" . ($is_active ? 'true' : 'false'));
+            
+            return $is_active;
+        }
+
+        protected function should_continue_immediately($file_name)
+        {
+            $current_memory = $this->get_memory_usage_mb();
+            $execution_time = microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'];
+            
+            $progress = $this->get_progress($file_name);
+            $has_more_work = $progress['processed'] < $progress['total'];
+            
+            $memory_ok = $current_memory < $this->memory_limit_mb;
+            $time_ok = $execution_time < $this->max_execution_time;
+            
+            $this->log("Memory check: {$current_memory}MB/{$this->memory_limit_mb}MB - Time: {$execution_time}s/{$this->max_execution_time}s - More work: " . ($has_more_work ? 'yes' : 'no'));
+            
+            return $has_more_work && $memory_ok && $time_ok;
+        }
+
+        protected function set_progress_status_smart($file, $status, $auto_continue = true)
+        {
+            $this->set_progress_status($file, $status);
+            
+            if ($auto_continue && $status === 'completed' && $this->should_continue_immediately($file)) {
+                $this->log("Auto-triggering immediate continuation for $file");
+                return 'auto_continue';
+            }
+            
+            return $status;
+        }
+
+        protected function get_memory_usage()
+        {
+            $mem_usage = memory_get_usage(true);
+
+            if ($mem_usage < 1024) {
+                $memory = $mem_usage . " bytes";
+            } elseif ($mem_usage < 1048576) {
+                $memory = round($mem_usage / 1024, 2) . " KB";
+            } else {
+                $memory = round($mem_usage / 1048576, 2) . " MB";
+            }
+
+            return $memory;
+        }
+
+        protected function get_memory_usage_mb()
+        {
+            return round(memory_get_usage(true) / 1048576, 2);
         }
 
 
@@ -727,9 +807,15 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 return;
             }
 
+            // Controllo se il processo è attualmente attivo
             if ($this->get_progress_status($this->image_queue_file) === 'ongoing') {
-                $this->log("Image processing already in progress");
-                return;
+                if ($this->is_process_active($this->image_queue_file)) {
+                    $this->log("Image processing already in progress");
+                    return;
+                } else {
+                    $this->log("Image processing rilevato come bloccato - continuazione automatica");
+                    $this->set_progress_status($this->image_queue_file, 'completed');
+                }
             }
 
             try {
@@ -770,13 +856,23 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
                     list($image_type, $image_url, $post_id, $author_id, $retry_count) = $data;
 
-                    // Scarica e carica l'immagine
+                    // Scarica e carica l'immagine con gestione errori migliorata
                     if($this->download_and_upload_image($image_type,$image_url, $post_id, $author_id)){
                         $processed = $index + 1;  // Aggiorna il numero di righe processate
                         $batch_count++;  // Incrementa il contatore del batch
                         $this->update_progress($this->image_queue_file, $processed, $total_rows);  // Aggiorna lo stato del progresso
-                    }else{
+                        $this->log("Immagine processata con successo: $image_url");
+                    } else {
                         $retry_count++;
+                        $this->log("Errore nel download dell'immagine $image_url (tentativo $retry_count/{$this->max_retries})");
+                        
+                        // Se abbiamo superato il numero massimo di tentativi, salta questa immagine
+                        if ($retry_count >= $this->max_retries) {
+                            $this->log("Saltando immagine $image_url dopo {$this->max_retries} tentativi falliti");
+                            $processed = $index + 1; // Salta questa riga
+                            $batch_count++;
+                            $this->update_progress($this->image_queue_file, $processed, $total_rows);
+                        }
                     }
                 }
 
@@ -785,8 +881,15 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 // Se abbiamo completato tutte le righe, possiamo segnare il progresso come "finished"
                 if ($processed >= $total_rows) {
                     $this->set_progress_status($this->image_queue_file, 'finished');
+                    $this->log("Processamento immagini completato per {$this->image_queue_file}");
+                    // Rimuovi il file di coda completato
+                    if (file_exists($queue_file)) {
+                        unlink($queue_file);
+                        $this->log("File di coda rimosso: {$this->image_queue_file}");
+                    }
                 } else {
                     $this->set_progress_status($this->image_queue_file, 'completed');
+                    $this->log("Batch immagini completato: $processed/$total_rows processate");
                 }
 
             }
