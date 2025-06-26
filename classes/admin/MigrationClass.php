@@ -808,30 +808,20 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             wp_cache_flush();
             gc_collect_cycles();
             
-            // Check for stuck ongoing status with intelligent recovery
+            // Controllo status semplificato per evitare esecuzioni parallele
             $status = $this->get_progress_status($file);
             if ($status === 'ongoing') {
-                $this->log("Migration status is 'ongoing' for $file - checking for timeout");
+                $this->log("Migration status is 'ongoing' for $file - checking if process is active");
                 
-                // Check if we have a stuck ongoing status
-                if ($this->is_status_stuck($file)) {
-                    $this->log("Detected stuck 'ongoing' status for $file - attempting recovery");
-                    
-                    // Recovery intelligente basato sul progresso
-                    $progress = $this->get_migration_progress($file);
-                    if ($progress['total'] > 0 && $progress['processed'] >= 0) {
-                        // Se abbiamo già un conteggio valido, continua da dove si è fermato
-                        $this->log("Recovery: progresso esistente trovato - continua da {$progress['processed']}/{$progress['total']}");
-                        $this->set_progress_status($file, 'completed');
-                    } else {
-                        // Se non abbiamo progresso valido, ricomincia
-                        $this->log("Recovery: nessun progresso valido - restart completo");
-                        $this->set_progress_status($file, 'not_started');
-                    }
-                } else {
-                    $this->log("Status 'ongoing' is recent for $file - skipping this execution");
+                // Se è ongoing con timestamp recente, skip (processo attivo)
+                if (!$this->is_status_stuck($file)) {
+                    $this->log("Process is active for $file - skipping this execution");
                     return;
                 }
+                
+                // Se ongoing ma senza timestamp o troppo vecchio, considera come completed
+                $this->log("Stale 'ongoing' status detected for $file - treating as completed");
+                $this->set_progress_status($file, 'completed');
             }
 
             $hook = $this->cron_hooks[$file];
@@ -1235,17 +1225,14 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             $progress = $this->read_progress_file();
             
             if (!isset($progress[$file]['status_timestamp'])) {
-                // Se non c'è timestamp, considera bloccato
-                $this->log("Nessun timestamp trovato per $file - considerato bloccato");
+                // Se non c'è timestamp, è stuck
                 return true;
             }
             
             $status_time = $progress[$file]['status_timestamp'];
             $current_time = time();
-            $stuck_threshold = 120; // 2 minuti invece di 5
+            $stuck_threshold = 90; // 90 secondi
             $elapsed = $current_time - $status_time;
-            
-            $this->log("Status check per $file: elapsed {$elapsed}s, threshold {$stuck_threshold}s");
             
             return $elapsed > $stuck_threshold;
         }

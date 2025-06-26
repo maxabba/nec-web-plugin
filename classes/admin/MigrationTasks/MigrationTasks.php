@@ -437,12 +437,8 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             
             // Controllo sanità: se processed > total, reset necessario
             if ($total_rows > 0 && $processed > $total_rows) {
-                $this->log("ERRORE CRITICO: Processed ($processed) > Total ($total_rows) per $file_name");
-                $this->log("Reset automatico del progresso per correggere l'incoerenza");
-                
+                $this->log("ERRORE: Processed ($processed) > Total ($total_rows) per $file_name - reset necessario");
                 $this->resetProgressForFile($file_name);
-                
-                // Ricomincia da zero
                 return ['processed' => 0, 'total' => 0, 'percentage' => 0];
             }
 
@@ -452,31 +448,21 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                 
                 $total_rows = $this->countCsvRows($file);
                 
-                // Verifica del conteggio
-                if (!$this->verifyCsvRowCount($file, $total_rows)) {
-                    $this->log("ERRORE: Verifica conteggio fallita per $file_name");
+                // Verifica base del conteggio
+                if ($total_rows <= 0) {
+                    $this->log("ERRORE: Conteggio righe non valido per $file_name: $total_rows");
                     $this->set_progress_status($file_name, 'failed');
                     return false;
                 }
                 
-                $this->update_progress($file->getFilename(), 0, $total_rows);
+                $this->update_progress($file_name, 0, $total_rows);
                 $header = $file->fgetcsv();
                 
                 if ($file_name != 'accounts.csv') {
                     $this->process_existing_posts($file, $header, $processed, $total_rows, $file_name);
                 }
                 
-                // NON settare completed qui - lascia che il normale flusso di batch processing continui
-                // Il status verrà settato correttamente quando il processing è completato
                 return ['processed' => 0, 'total' => $total_rows, 'percentage' => 0];
-            }
-
-            // Controllo sanità: valida range ragionevole del conteggio
-            if ($total_rows > 500000) { // Limite massimo ragionevole
-                $this->log("ATTENZIONE: Conteggio righe molto alto per $file_name: $total_rows righe");
-                $this->log("Verifica che il file CSV non abbia problemi di formato");
-            } else if ($total_rows < 10) { // Minimum ragionevole
-                $this->log("ATTENZIONE: Conteggio righe molto basso per $file_name: $total_rows righe");
             }
 
             if ($processed >= $total_rows) {
@@ -646,7 +632,9 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
         {
             $progress = json_decode(file_get_contents($this->progress_file), true);
             $progress[$file]['status'] = $status;
-            $progress[$file]['status_timestamp'] = time(); // Aggiungi timestamp per tracciare quando è stato impostato
+            $progress[$file]['status_timestamp'] = time();
+            $progress[$file]['last_update'] = date('Y-m-d H:i:s');
+            
             file_put_contents($this->progress_file, json_encode($progress));
         }
 

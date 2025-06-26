@@ -76,6 +76,8 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             }
 
             $start_time = microtime(true);
+            
+            // Imposta status ongoing con timestamp immediato
             $this->set_progress_status($file_name, 'ongoing');
 
             if(!$file = $this->load_file($file_name)){
@@ -158,6 +160,10 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                     
                     if ($processed % $this->checkpoint_interval === 0) {
                         $this->log("Checkpoint: processati $processed di $total_rows record");
+                        
+                        // Aggiorna timestamp per mantenere status alive
+                        $this->set_progress_status($file_name, 'ongoing');
+                        
                         wp_cache_flush();
                         if (function_exists('gc_collect_cycles')) {
                             gc_collect_cycles();
