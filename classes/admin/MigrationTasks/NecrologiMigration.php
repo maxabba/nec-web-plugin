@@ -197,19 +197,25 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             $execution_time = $end_time - $start_time;
             $this->log("Batch execution time: {$execution_time} seconds");
 
+            // Final progress update
+            $this->update_progress($file_name, $processed, $total_rows);
+            
             if ($processed >= $total_rows) {
+                $this->log("Migration completed for $file_name: $processed/$total_rows records processed");
                 $this->set_progress_status($file_name, 'finished');
                 $this->schedule_image_processing();
                 return true;
             }
 
+            $this->log("Batch completed for $file_name: $processed/$total_rows records processed");
             $smart_status = $this->set_progress_status_smart($file_name, 'completed');
             
             if ($smart_status === 'auto_continue') {
-                $this->log("Auto-continuazione immediata possibile per $file_name");
+                $this->log("Auto-continuazione immediata attivata per $file_name - memoria e tempo sufficienti");
                 return 'auto_continue';
             }
 
+            $this->log("Auto-continuazione non possibile per $file_name - batch completato, in attesa del prossimo cron");
             return false;
         }
 

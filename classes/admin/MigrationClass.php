@@ -39,6 +39,13 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
         private $memory_limit_mb = 256;
         private $max_execution_time = 30;
         
+        // Progress caching optimization
+        private $progress_cache = null;
+        private $progress_cache_time = 0;
+        private $cache_ttl = 2; // Cache for 2 seconds
+        private $log_cache = null;
+        private $log_cache_time = 0;
+        
         public function __construct()
         {
             // Setup paths
@@ -92,6 +99,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             add_action('wp_ajax_nopriv_bulk_update_anniversario_trigesimo', array($this,'bulk_update_anniversario_trigesimo'));
 
             add_action('wp_ajax_reset_migration_progress', array($this, 'reset_migration_progress'));
+            add_action('wp_ajax_cleanup_all_necrologi', array($this, 'cleanup_all_necrologi'));
 
         }
 
@@ -216,6 +224,82 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 </button>
                 <button id="resume-migration" class="button button-secondary" >Resume Migration
                 </button>
+
+                <!-- Bottone Pulizia Completa -->
+                <div style="margin-top: 30px; padding: 20px; border: 2px solid #dc3545; border-radius: 5px; background-color: #f8f9fa;">
+                    <h3 style="color: #dc3545;">⚠️ Zona Pericolosa</h3>
+                    <p>Questa operazione eliminerà <strong>TUTTI</strong> i dati migrati permanentemente.</p>
+                    <button id="cleanup-necrologi" class="button button-large" style="background-color: #dc3545; color: white; border-color: #dc3545;">
+                        🗑️ Pulizia Completa Database Necrologi
+                    </button>
+                </div>
+
+                <!-- Modale Pulizia -->
+                <div id="cleanup-modal-overlay" class="cleanup-modal-overlay" style="display: none;"></div>
+                <div id="cleanup-modal" class="cleanup-modal" style="display: none;">
+                    <div class="cleanup-modal-content">
+                        <div class="cleanup-header">
+                            <h2>⚠️ ATTENZIONE: Pulizia Completa Database</h2>
+                            <button class="cleanup-close">&times;</button>
+                        </div>
+                        
+                        <div class="cleanup-body">
+                            <div class="backup-warning">
+                                <div class="warning-box">
+                                    <h3>🚨 OBBLIGATORIO: Effettuare backup del database prima di procedere!</h3>
+                                    <p>Questa operazione eliminerà <strong>PERMANENTEMENTE</strong>:</p>
+                                    <ul>
+                                        <li>✗ Tutti i necrologi (annunci di morte)</li>
+                                        <li>✗ Tutti i manifesti collegati</li>
+                                        <li>✗ Tutte le ricorrenze (anniversari e trigesimi)</li>
+                                        <li>✗ Tutti i ringraziamenti</li>
+                                        <li>✗ Tutte le immagini collegate</li>
+                                    </ul>
+                                    <p><strong>QUESTA AZIONE NON PUÒ ESSERE ANNULLATA!</strong></p>
+                                </div>
+                            </div>
+                            
+                            <div id="item-count" style="display: none;">
+                                <h4>Elementi da eliminare:</h4>
+                                <div id="count-details"></div>
+                            </div>
+                            
+                            <div class="confirmation-section">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="backup-confirmed"> 
+                                    <span class="checkmark"></span>
+                                    Ho effettuato il backup del database
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="delete-confirmed"> 
+                                    <span class="checkmark"></span>
+                                    Confermo di voler eliminare TUTTI i dati elencati sopra
+                                </label>
+                            </div>
+                            
+                            <div id="cleanup-progress" style="display: none;">
+                                <h3>Pulizia in corso...</h3>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar">
+                                        <div id="cleanup-progress-bar" class="progress"></div>
+                                    </div>
+                                    <span id="cleanup-percentage">0%</span>
+                                </div>
+                                <div id="cleanup-current-step"></div>
+                                <div id="cleanup-log" class="cleanup-log-container"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="cleanup-footer">
+                            <button id="start-cleanup" class="button button-primary button-large" disabled>
+                                🗑️ Inizia Pulizia Completa
+                            </button>
+                            <button id="cancel-cleanup" class="button button-secondary button-large">
+                                Annulla
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
                 <div id="migration-log"></div>
 
@@ -421,6 +505,171 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                     color: #666;
                     margin-top: 5px;
                 }
+
+                /* Cleanup Modal Styles */
+                .cleanup-modal-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.7);
+                    z-index: 9998;
+                }
+
+                .cleanup-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.7);
+                    z-index: 9999;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .cleanup-modal-content {
+                    background: white;
+                    border-radius: 8px;
+                    max-width: 600px;
+                    width: 90%;
+                    max-height: 90vh;
+                    overflow-y: auto;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                }
+
+                .cleanup-header {
+                    padding: 20px;
+                    border-bottom: 1px solid #ddd;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    background: #dc3545;
+                    color: white;
+                    border-radius: 8px 8px 0 0;
+                }
+
+                .cleanup-header h2 {
+                    margin: 0;
+                    color: white;
+                }
+
+                .cleanup-close {
+                    background: none;
+                    border: none;
+                    font-size: 24px;
+                    cursor: pointer;
+                    color: white;
+                    padding: 0;
+                    width: 30px;
+                    height: 30px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .cleanup-body {
+                    padding: 20px;
+                }
+
+                .warning-box {
+                    background: #fff3cd;
+                    border: 2px solid #ffeaa7;
+                    border-radius: 5px;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                }
+
+                .warning-box h3 {
+                    color: #856404;
+                    margin-top: 0;
+                }
+
+                .warning-box ul {
+                    margin: 10px 0;
+                    padding-left: 20px;
+                }
+
+                .warning-box li {
+                    margin: 5px 0;
+                    color: #721c24;
+                    font-weight: bold;
+                }
+
+                .confirmation-section {
+                    margin: 20px 0;
+                }
+
+                .checkbox-label {
+                    display: flex;
+                    align-items: center;
+                    margin: 10px 0;
+                    cursor: pointer;
+                    font-weight: bold;
+                }
+
+                .checkbox-label input[type="checkbox"] {
+                    margin-right: 10px;
+                    transform: scale(1.2);
+                }
+
+                .progress-bar-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    margin: 10px 0;
+                }
+
+                .cleanup-log-container {
+                    max-height: 200px;
+                    overflow-y: auto;
+                    background: #f8f9fa;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    padding: 10px;
+                    margin-top: 15px;
+                    font-family: monospace;
+                    font-size: 12px;
+                }
+
+                .cleanup-footer {
+                    padding: 20px;
+                    border-top: 1px solid #ddd;
+                    display: flex;
+                    gap: 10px;
+                    justify-content: flex-end;
+                }
+
+                #cleanup-current-step {
+                    font-weight: bold;
+                    color: #0073aa;
+                    margin: 10px 0;
+                }
+
+                #count-details {
+                    background: #f8f9fa;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    padding: 10px;
+                    margin: 10px 0;
+                }
+
+                #count-details div {
+                    margin: 5px 0;
+                    display: flex;
+                    justify-content: space-between;
+                }
+
+                .count-label {
+                    font-weight: bold;
+                }
+
+                .count-number {
+                    color: #dc3545;
+                    font-weight: bold;
+                }
             </style>
             <?php
         }
@@ -559,8 +808,30 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             wp_cache_flush();
             gc_collect_cycles();
             
-            if ($this->get_progress_status($file) === 'ongoing') {
-                return;
+            // Check for stuck ongoing status with intelligent recovery
+            $status = $this->get_progress_status($file);
+            if ($status === 'ongoing') {
+                $this->log("Migration status is 'ongoing' for $file - checking for timeout");
+                
+                // Check if we have a stuck ongoing status
+                if ($this->is_status_stuck($file)) {
+                    $this->log("Detected stuck 'ongoing' status for $file - attempting recovery");
+                    
+                    // Recovery intelligente basato sul progresso
+                    $progress = $this->get_migration_progress($file);
+                    if ($progress['total'] > 0 && $progress['processed'] >= 0) {
+                        // Se abbiamo già un conteggio valido, continua da dove si è fermato
+                        $this->log("Recovery: progresso esistente trovato - continua da {$progress['processed']}/{$progress['total']}");
+                        $this->set_progress_status($file, 'completed');
+                    } else {
+                        // Se non abbiamo progresso valido, ricomincia
+                        $this->log("Recovery: nessun progresso valido - restart completo");
+                        $this->set_progress_status($file, 'not_started');
+                    }
+                } else {
+                    $this->log("Status 'ongoing' is recent for $file - skipping this execution");
+                    return;
+                }
             }
 
             $hook = $this->cron_hooks[$file];
@@ -626,8 +897,8 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
         private function get_progress_status($file)
         {
-            $progress = json_decode(file_get_contents($this->progress_file), true);
-            return $progress[$file]['status'];
+            $progress = $this->read_progress_file();
+            return isset($progress[$file]['status']) ? $progress[$file]['status'] : 'not_started';
         }
 
         public function check_migration_status()
@@ -653,32 +924,142 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 return;
             }
 
-            // Lettura file ottimizzata con cache dei risultati
-
-            $progress_content = file_get_contents($this->progress_file);
-            $progress = $progress_content ? json_decode($progress_content, true) : [];
-
-
-            // Ottimizzazione lettura log con SplFileObject
-            $log_lines = [];
-            if (is_readable($this->log_file)) {
-                $file = new SplFileObject($this->log_file, 'r');
-                $file->seek(PHP_INT_MAX);
-                $total_lines = $file->key();
-
-                $start_line = max(0, $total_lines - 100);
-                $file->seek($start_line);
-
-                while (!$file->eof()) {
-                    $line = $file->current();
-                    if (trim($line) !== '') {
-                        $log_lines[] = $line;
-                    }
-                    $file->next();
-                }
+            // Use cached data if available and recent
+            $response_data = $this->get_cached_progress_data();
+            
+            if ($response_data !== null) {
+                $this->debug_log("Utilizzo dati cache per check_migration_status");
+                wp_send_json_success($response_data);
+                return;
             }
 
-            // Calcolo progresso ottimizzato
+            // Generate fresh data and cache it
+            $response_data = $this->generate_fresh_progress_data();
+            $this->cache_progress_data($response_data);
+
+            $this->debug_log("Invio risposta JSON per check_migration_status (fresh data)");
+            wp_send_json_success($response_data);
+        }
+
+        private function get_cached_progress_data()
+        {
+            $current_time = time();
+            
+            // Check if we have cached data and it's still fresh
+            if ($this->progress_cache !== null && 
+                ($current_time - $this->progress_cache_time) < $this->cache_ttl) {
+                return $this->progress_cache;
+            }
+            
+            return null;
+        }
+
+        private function cache_progress_data($data)
+        {
+            $this->progress_cache = $data;
+            $this->progress_cache_time = time();
+        }
+
+        private function generate_fresh_progress_data()
+        {
+            // Read progress file efficiently
+            $progress = $this->read_progress_file();
+            
+            // Read log efficiently
+            $log_content = $this->read_log_efficiently();
+            
+            // Calculate overall progress
+            $overall_percentage = $this->calculate_overall_percentage($progress);
+            
+            return [
+                'progress' => $progress,
+                'overall_percentage' => $overall_percentage,
+                'log' => $log_content
+            ];
+        }
+
+        private function read_progress_file()
+        {
+            $progress_content = file_get_contents($this->progress_file);
+            return $progress_content ? json_decode($progress_content, true) : [];
+        }
+
+        private function read_log_efficiently()
+        {
+            // Check cache first
+            $current_time = time();
+            if ($this->log_cache !== null && 
+                ($current_time - $this->log_cache_time) < $this->cache_ttl) {
+                return $this->log_cache;
+            }
+
+            $log_lines = [];
+            if (is_readable($this->log_file)) {
+                // Use more efficient method for reading last lines
+                $log_lines = $this->tail_file($this->log_file, 100);
+            }
+            
+            $log_content = implode("\n", $log_lines);
+            
+            // Cache the result
+            $this->log_cache = $log_content;
+            $this->log_cache_time = $current_time;
+            
+            return $log_content;
+        }
+
+        private function tail_file($file_path, $lines = 100)
+        {
+            // More efficient tail implementation
+            $file_size = filesize($file_path);
+            if ($file_size === 0) {
+                return [];
+            }
+            
+            $chunk_size = 8192; // 8KB chunks
+            $lines_found = [];
+            $buffer = '';
+            $pos = $file_size;
+            
+            $fp = fopen($file_path, 'rb');
+            if (!$fp) {
+                return [];
+            }
+            
+            while ($pos > 0 && count($lines_found) < $lines) {
+                $read_size = min($chunk_size, $pos);
+                $pos -= $read_size;
+                
+                fseek($fp, $pos);
+                $chunk = fread($fp, $read_size);
+                $buffer = $chunk . $buffer;
+                
+                // Split into lines
+                $new_lines = explode("\n", $buffer);
+                $buffer = array_shift($new_lines); // Keep partial line for next iteration
+                
+                // Add complete lines to our result (in reverse order)
+                foreach (array_reverse($new_lines) as $line) {
+                    if (trim($line) !== '') {
+                        array_unshift($lines_found, $line);
+                        if (count($lines_found) >= $lines) {
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Add any remaining buffer content if we need more lines
+            if (count($lines_found) < $lines && trim($buffer) !== '') {
+                array_unshift($lines_found, $buffer);
+            }
+            
+            fclose($fp);
+            return array_slice($lines_found, -$lines); // Return last N lines
+        }
+
+        private function calculate_overall_percentage($progress)
+        {
             $total_progress = 0;
             $total_files = 0;
 
@@ -691,17 +1072,8 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 }
             }
 
-            $overall_percentage = $total_files ? round($total_progress / $total_files, 2) : 0;
-
-
-            $this->debug_log("Invio risposta JSON per check_migration_status");
-            wp_send_json_success([
-                'progress' => $progress,
-                'overall_percentage' => $overall_percentage,
-                'log' => implode("\n", $log_lines)
-            ]);
+            return $total_files ? round($total_progress / $total_files, 2) : 0;
         }
-
 
         public function check_image_migration_status()
         {
@@ -726,22 +1098,21 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 return;
             }
 
-            // Lettura file ottimizzata con cache dei risultati
+            // Use optimized progress reading
+            $progress = $this->read_progress_file();
 
-            $progress_content = file_get_contents($this->progress_file);
-            $progress = $progress_content ? json_decode($progress_content, true) : [];
-
-            //if in progress exist key starting with image_download_queue
-            $image_download_queue = array_filter($progress, function($key) {
-                return strpos($key, 'image_download_queue') !== false;
-            }, ARRAY_FILTER_USE_KEY);
+            // Filter for image download queue entries efficiently
+            $image_download_queue = [];
+            foreach ($progress as $key => $value) {
+                if (strpos($key, 'image_download_queue') === 0) {
+                    $image_download_queue[$key] = $value;
+                }
+            }
 
             $this->debug_log("Invio risposta JSON per check_image_migration_status");
             wp_send_json_success([
                 'progress' => $image_download_queue
             ]);
-
-
         }
 
         private function initialize_progress_file($file)
@@ -765,7 +1136,118 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             }
 
             file_put_contents($this->log_file, '');
+            
+            // Invalidate cache when progress is updated
+            $this->invalidate_progress_cache();
+            
             $this->debug_log("Inizializzazione completata");
+        }
+
+        private function invalidate_progress_cache()
+        {
+            $this->progress_cache = null;
+            $this->progress_cache_time = 0;
+            $this->log_cache = null;
+            $this->log_cache_time = 0;
+        }
+
+        public function update_progress_safely($file, $processed, $total, $status = null)
+        {
+            // Thread-safe progress update with file locking and validation
+            $lock_file = $this->progress_file . '.lock';
+            $lock_fp = fopen($lock_file, 'w');
+            
+            if (!$lock_fp || !flock($lock_fp, LOCK_EX)) {
+                error_log("Could not acquire lock for progress update");
+                return false;
+            }
+            
+            try {
+                // Read current progress
+                $progress = $this->read_progress_file();
+                
+                // Update progress data with validation
+                if (!isset($progress[$file])) {
+                    $progress[$file] = [
+                        'processed' => 0,
+                        'total' => 0,
+                        'percentage' => 0,
+                        'status' => 'not_started'
+                    ];
+                }
+                
+                // Validazione: previeni regression nel progresso
+                $current_processed = $progress[$file]['processed'] ?? 0;
+                if ($processed < $current_processed && $status !== 'not_started') {
+                    $this->log("ATTENZIONE: Tentativo di regressione progresso per $file: $processed < $current_processed");
+                    $processed = max($processed, $current_processed);
+                }
+                
+                $progress[$file]['processed'] = $processed;
+                $progress[$file]['total'] = $total;
+                $progress[$file]['percentage'] = $total > 0 ? round(($processed / $total) * 100, 2) : 0;
+                
+                if ($status !== null) {
+                    $progress[$file]['status'] = $status;
+                    $progress[$file]['status_timestamp'] = time();
+                    $progress[$file]['last_update'] = date('Y-m-d H:i:s');
+                }
+                
+                // Write updated progress
+                $result = file_put_contents($this->progress_file, json_encode($progress, JSON_PRETTY_PRINT));
+                
+                if ($result !== false) {
+                    // Invalidate cache on successful update
+                    $this->invalidate_progress_cache();
+                    return true;
+                } else {
+                    error_log("Failed to write progress update to file");
+                    return false;
+                }
+                
+            } finally {
+                flock($lock_fp, LOCK_UN);
+                fclose($lock_fp);
+                if (file_exists($lock_file)) {
+                    unlink($lock_file);
+                }
+            }
+        }
+
+        public function get_migration_progress($file = null)
+        {
+            $progress = $this->read_progress_file();
+            
+            if ($file !== null) {
+                return isset($progress[$file]) ? $progress[$file] : [
+                    'processed' => 0,
+                    'total' => 0,
+                    'percentage' => 0,
+                    'status' => 'not_started'
+                ];
+            }
+            
+            return $progress;
+        }
+
+        private function is_status_stuck($file)
+        {
+            $progress = $this->read_progress_file();
+            
+            if (!isset($progress[$file]['status_timestamp'])) {
+                // Se non c'è timestamp, considera bloccato
+                $this->log("Nessun timestamp trovato per $file - considerato bloccato");
+                return true;
+            }
+            
+            $status_time = $progress[$file]['status_timestamp'];
+            $current_time = time();
+            $stuck_threshold = 120; // 2 minuti invece di 5
+            $elapsed = $current_time - $status_time;
+            
+            $this->log("Status check per $file: elapsed {$elapsed}s, threshold {$stuck_threshold}s");
+            
+            return $elapsed > $stuck_threshold;
         }
 
 
@@ -835,6 +1317,10 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
             if (file_put_contents($this->log_file, $log_entry, FILE_APPEND) === false) {
                 error_log("Failed to write to custom log file. Message was: $log_entry");
+            } else {
+                // Invalidate log cache when new log entry is added
+                $this->log_cache = null;
+                $this->log_cache_time = 0;
             }
         }
 
@@ -1160,6 +1646,523 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
             $this->log("Progresso resettato con successo per $file_name");
             wp_send_json_success("Progress reset successfully for $file_name");
+        }
+
+        public function cleanup_all_necrologi()
+        {
+            check_ajax_referer('migration_nonce', 'nonce');
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Insufficient permissions');
+                return;
+            }
+
+            // Batch size ottimizzati per velocità mantenendo basso uso RAM
+            $batch_sizes = [
+                'necrologi' => 100,      // Con attachment, batch moderato
+                'manifesti' => 300,      // Senza attachment, batch grandi
+                'ricorrenze' => 300,     // Senza attachment, batch grandi  
+                'ringraziamenti' => 300, // Senza attachment, batch grandi
+                'images' => 200          // File system operations, batch medio
+            ];
+            $batch_size = $batch_sizes[$step] ?? 100;
+            $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+            $step = sanitize_text_field($_POST['step'] ?? 'count');
+            
+            $this->log("Cleanup step: $step, offset: $offset");
+
+            try {
+                switch($step) {
+                    case 'count':
+                        wp_send_json_success($this->count_items_to_delete());
+                        break;
+                        
+                    case 'necrologi':
+                        wp_send_json_success($this->delete_necrologi_batch($offset, $batch_size));
+                        break;
+                        
+                    case 'manifesti':
+                        wp_send_json_success($this->delete_manifesti_batch($offset, $batch_size));
+                        break;
+                        
+                    case 'ricorrenze':
+                        wp_send_json_success($this->delete_ricorrenze_batch($offset, $batch_size));
+                        break;
+                        
+                    case 'ringraziamenti':
+                        wp_send_json_success($this->delete_ringraziamenti_batch($offset, $batch_size));
+                        break;
+                        
+                    case 'images':
+                        wp_send_json_success($this->delete_orphan_images_batch($offset, $batch_size));
+                        break;
+                        
+                    // Verifica completezza per ogni step
+                    case 'verify_necrologi':
+                        wp_send_json_success(['remaining' => $this->count_posts_by_type('annuncio-di-morte')]);
+                        break;
+                        
+                    case 'verify_manifesti':
+                        wp_send_json_success(['remaining' => $this->count_posts_by_type('manifesto')]);
+                        break;
+                        
+                    case 'verify_ricorrenze':
+                        $anniversari = $this->count_posts_by_type('anniversario');
+                        $trigesimi = $this->count_posts_by_type('trigesimo');
+                        wp_send_json_success(['remaining' => $anniversari + $trigesimi]);
+                        break;
+                        
+                    case 'verify_ringraziamenti':
+                        wp_send_json_success(['remaining' => $this->count_posts_by_type('ringraziamento')]);
+                        break;
+                        
+                    case 'verify_images':
+                        wp_send_json_success(['remaining' => $this->count_necrologio_attachments()]);
+                        break;
+                        
+                    default:
+                        wp_send_json_error('Invalid step');
+                }
+            } catch (Exception $e) {
+                $this->log("Errore durante cleanup: " . $e->getMessage());
+                wp_send_json_error("Error during cleanup: " . $e->getMessage());
+            }
+        }
+
+        private function count_items_to_delete()
+        {
+            $counts = [
+                'necrologi' => $this->count_posts_by_type('annuncio-di-morte'),
+                'manifesti' => $this->count_posts_by_type('manifesto'),
+                'anniversari' => $this->count_posts_by_type('anniversario'),
+                'trigesimi' => $this->count_posts_by_type('trigesimo'),
+                'ringraziamenti' => $this->count_posts_by_type('ringraziamento'),
+                'images' => $this->count_necrologio_attachments()
+            ];
+            
+            $total = array_sum($counts);
+            
+            $this->log("Conteggio items da eliminare: " . json_encode($counts) . " - Totale: $total");
+            
+            return [
+                'counts' => $counts,
+                'total' => $total
+            ];
+        }
+
+        private function count_posts_by_type($post_type)
+        {
+            global $wpdb;
+            
+            // Conta TUTTI i post di questo tipo, indipendentemente dallo status
+            $count = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s",
+                $post_type
+            ));
+            
+            return intval($count);
+        }
+
+        private function count_necrologio_attachments()
+        {
+            global $wpdb;
+            
+            // Conta TUTTI gli attachment orfani (il cui parent non esiste più)
+            $count = $wpdb->get_var("
+                SELECT COUNT(DISTINCT p.ID) 
+                FROM {$wpdb->posts} p
+                LEFT JOIN {$wpdb->posts} parent ON p.post_parent = parent.ID
+                WHERE p.post_type = 'attachment' 
+                AND p.post_parent > 0
+                AND parent.ID IS NULL
+            ");
+            
+            return intval($count);
+        }
+
+        private function delete_necrologi_batch($offset, $batch_size)
+        {
+            global $wpdb;
+            
+            // Query SQL diretta per necrologi - TUTTI gli status, sempre offset 0 per "until empty"
+            $post_ids = $wpdb->get_col($wpdb->prepare("
+                SELECT ID FROM {$wpdb->posts} 
+                WHERE post_type = 'annuncio-di-morte'
+                ORDER BY ID ASC
+                LIMIT %d
+            ", $batch_size));
+
+            if (empty($post_ids)) {
+                return [
+                    'processed' => 0,
+                    'completed' => true,
+                    'next_offset' => $offset,
+                    'messages' => ['Nessun necrologio da eliminare'],
+                    'step_total' => 0
+                ];
+            }
+
+            $deleted = 0;
+            $messages = [];
+            
+            // Preparazione placeholders per query bulk
+            $ids_placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
+            
+            // 1. Trova e elimina tutti gli attachment collegati ai necrologi
+            $attachment_ids = $wpdb->get_col($wpdb->prepare("
+                SELECT ID FROM {$wpdb->posts} 
+                WHERE post_type = 'attachment' 
+                AND post_parent IN ($ids_placeholders)
+            ", $post_ids));
+            
+            if (!empty($attachment_ids)) {
+                // Elimina file fisici in batch
+                foreach ($attachment_ids as $attachment_id) {
+                    $file_path = get_attached_file($attachment_id);
+                    if ($file_path && file_exists($file_path)) {
+                        unlink($file_path);
+                    }
+                }
+                
+                // Elimina attachment dal database in bulk
+                $att_placeholders = implode(',', array_fill(0, count($attachment_ids), '%d'));
+                $wpdb->query($wpdb->prepare("
+                    DELETE FROM {$wpdb->postmeta} 
+                    WHERE post_id IN ($att_placeholders)
+                ", $attachment_ids));
+                
+                $wpdb->query($wpdb->prepare("
+                    DELETE FROM {$wpdb->posts} 
+                    WHERE ID IN ($att_placeholders)
+                ", $attachment_ids));
+                
+                $messages[] = "Eliminati " . count($attachment_ids) . " attachment collegati";
+            }
+            
+            // 2. Elimina postmeta dei necrologi
+            $wpdb->query($wpdb->prepare("
+                DELETE FROM {$wpdb->postmeta} 
+                WHERE post_id IN ($ids_placeholders)
+            ", $post_ids));
+            
+            // 3. Elimina i necrologi
+            $deleted = $wpdb->query($wpdb->prepare("
+                DELETE FROM {$wpdb->posts} 
+                WHERE ID IN ($ids_placeholders)
+            ", $post_ids));
+
+            // Memory cleanup
+            wp_cache_flush();
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
+            }
+
+            // Conta quanti necrologi rimangono per determinare se completato
+            $remaining_count = $this->count_posts_by_type('annuncio-di-morte');
+            $has_more = $remaining_count > 0;
+            
+            $batch_message = "Eliminati $deleted necrologi (rimangono: $remaining_count)";
+            $messages[] = $batch_message;
+            $this->log($batch_message);
+
+            return [
+                'processed' => $deleted,
+                'completed' => !$has_more,
+                'next_offset' => 0, // Sempre 0 per logica "until empty"
+                'messages' => $messages,
+                'step_total' => $deleted,
+                'remaining' => $remaining_count
+            ];
+        }
+
+        private function delete_manifesti_batch($offset, $batch_size)
+        {
+            global $wpdb;
+            
+            // Query SQL diretta per massima velocità - TUTTI gli status, sempre offset 0
+            $post_ids = $wpdb->get_col($wpdb->prepare("
+                SELECT ID FROM {$wpdb->posts} 
+                WHERE post_type = 'manifesto'
+                ORDER BY ID ASC
+                LIMIT %d
+            ", $batch_size));
+
+            if (empty($post_ids)) {
+                return [
+                    'processed' => 0,
+                    'completed' => true,
+                    'next_offset' => $offset,
+                    'messages' => ['Nessun manifesto da eliminare'],
+                    'step_total' => 0
+                ];
+            }
+
+            $deleted = 0;
+            $messages = [];
+            
+            // Preparazione placeholders per query bulk
+            $ids_placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
+            
+            // Eliminazione bulk postmeta
+            $wpdb->query($wpdb->prepare("
+                DELETE FROM {$wpdb->postmeta} 
+                WHERE post_id IN ($ids_placeholders)
+            ", $post_ids));
+            
+            // Eliminazione bulk posts
+            $deleted = $wpdb->query($wpdb->prepare("
+                DELETE FROM {$wpdb->posts} 
+                WHERE ID IN ($ids_placeholders)
+            ", $post_ids));
+
+            // Memory cleanup
+            wp_cache_flush();
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
+            }
+
+            // Conta quanti manifesti rimangono
+            $remaining_count = $this->count_posts_by_type('manifesto');
+            $has_more = $remaining_count > 0;
+            
+            $batch_message = "Eliminati $deleted manifesti (rimangono: $remaining_count)";
+            $messages[] = $batch_message;
+            $this->log($batch_message);
+
+            return [
+                'processed' => $deleted,
+                'completed' => !$has_more,
+                'next_offset' => 0,
+                'messages' => $messages,
+                'step_total' => $deleted,
+                'remaining' => $remaining_count
+            ];
+        }
+
+        private function delete_ricorrenze_batch($offset, $batch_size)
+        {
+            global $wpdb;
+            
+            // Query SQL diretta per anniversari e trigesimi - TUTTI gli status, sempre offset 0
+            $post_ids = $wpdb->get_col($wpdb->prepare("
+                SELECT ID FROM {$wpdb->posts} 
+                WHERE post_type IN ('anniversario', 'trigesimo')
+                ORDER BY ID ASC
+                LIMIT %d
+            ", $batch_size));
+
+            if (empty($post_ids)) {
+                return [
+                    'processed' => 0,
+                    'completed' => true,
+                    'next_offset' => $offset,
+                    'messages' => ['Nessuna ricorrenza da eliminare'],
+                    'step_total' => 0
+                ];
+            }
+
+            $deleted = 0;
+            $messages = [];
+            
+            // Preparazione placeholders per query bulk
+            $ids_placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
+            
+            // Eliminazione bulk postmeta
+            $wpdb->query($wpdb->prepare("
+                DELETE FROM {$wpdb->postmeta} 
+                WHERE post_id IN ($ids_placeholders)
+            ", $post_ids));
+            
+            // Eliminazione bulk posts
+            $deleted = $wpdb->query($wpdb->prepare("
+                DELETE FROM {$wpdb->posts} 
+                WHERE ID IN ($ids_placeholders)
+            ", $post_ids));
+
+            // Memory cleanup
+            wp_cache_flush();
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
+            }
+
+            // Conta quante ricorrenze rimangono
+            $anniversari = $this->count_posts_by_type('anniversario');
+            $trigesimi = $this->count_posts_by_type('trigesimo');
+            $remaining_count = $anniversari + $trigesimi;
+            $has_more = $remaining_count > 0;
+            
+            $batch_message = "Eliminate $deleted ricorrenze (rimangono: $remaining_count)";
+            $messages[] = $batch_message;
+            $this->log($batch_message);
+
+            return [
+                'processed' => $deleted,
+                'completed' => !$has_more,
+                'next_offset' => 0,
+                'messages' => $messages,
+                'step_total' => $deleted,
+                'remaining' => $remaining_count
+            ];
+        }
+
+        private function delete_ringraziamenti_batch($offset, $batch_size)
+        {
+            global $wpdb;
+            
+            // Query SQL diretta per ringraziamenti - TUTTI gli status, sempre offset 0
+            $post_ids = $wpdb->get_col($wpdb->prepare("
+                SELECT ID FROM {$wpdb->posts} 
+                WHERE post_type = 'ringraziamento'
+                ORDER BY ID ASC
+                LIMIT %d
+            ", $batch_size));
+
+            if (empty($post_ids)) {
+                return [
+                    'processed' => 0,
+                    'completed' => true,
+                    'next_offset' => $offset,
+                    'messages' => ['Nessun ringraziamento da eliminare'],
+                    'step_total' => 0
+                ];
+            }
+
+            $deleted = 0;
+            $messages = [];
+            
+            // Preparazione placeholders per query bulk
+            $ids_placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
+            
+            // Eliminazione bulk postmeta
+            $wpdb->query($wpdb->prepare("
+                DELETE FROM {$wpdb->postmeta} 
+                WHERE post_id IN ($ids_placeholders)
+            ", $post_ids));
+            
+            // Eliminazione bulk posts
+            $deleted = $wpdb->query($wpdb->prepare("
+                DELETE FROM {$wpdb->posts} 
+                WHERE ID IN ($ids_placeholders)
+            ", $post_ids));
+
+            // Memory cleanup
+            wp_cache_flush();
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
+            }
+
+            // Conta quanti ringraziamenti rimangono
+            $remaining_count = $this->count_posts_by_type('ringraziamento');
+            $has_more = $remaining_count > 0;
+            
+            $batch_message = "Eliminati $deleted ringraziamenti (rimangono: $remaining_count)";
+            $messages[] = $batch_message;
+            $this->log($batch_message);
+
+            return [
+                'processed' => $deleted,
+                'completed' => !$has_more,
+                'next_offset' => 0,
+                'messages' => $messages,
+                'step_total' => $deleted,
+                'remaining' => $remaining_count
+            ];
+        }
+
+        private function delete_orphan_images_batch($offset, $batch_size)
+        {
+            global $wpdb;
+            
+            // Trova attachment orfani ottimizzato - TUTTI gli status, sempre offset 0
+            $attachment_data = $wpdb->get_results($wpdb->prepare("
+                SELECT p.ID, pm.meta_value as file_path
+                FROM {$wpdb->posts} p
+                LEFT JOIN {$wpdb->posts} parent ON p.post_parent = parent.ID
+                LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_wp_attached_file'
+                WHERE p.post_type = 'attachment' 
+                AND p.post_parent > 0
+                AND parent.ID IS NULL
+                LIMIT %d
+            ", $batch_size), ARRAY_A);
+
+            if (empty($attachment_data)) {
+                return [
+                    'processed' => 0,
+                    'completed' => true,
+                    'next_offset' => $offset,
+                    'messages' => ['Nessuna immagine orfana da eliminare'],
+                    'step_total' => 0
+                ];
+            }
+
+            $deleted = 0;
+            $messages = [];
+            $attachment_ids = [];
+            
+            // Raccogli IDs e elimina file fisici in batch
+            $upload_dir = wp_upload_dir();
+            foreach ($attachment_data as $attachment) {
+                $attachment_id = $attachment['ID'];
+                $attachment_ids[] = $attachment_id;
+                
+                // Elimina file fisico se esiste
+                if (!empty($attachment['file_path'])) {
+                    $file_path = $upload_dir['basedir'] . '/' . $attachment['file_path'];
+                    if (file_exists($file_path)) {
+                        unlink($file_path);
+                    }
+                }
+            }
+            
+            if (!empty($attachment_ids)) {
+                // Eliminazione bulk attachment
+                $ids_placeholders = implode(',', array_fill(0, count($attachment_ids), '%d'));
+                
+                // Elimina postmeta
+                $wpdb->query($wpdb->prepare("
+                    DELETE FROM {$wpdb->postmeta} 
+                    WHERE post_id IN ($ids_placeholders)
+                ", $attachment_ids));
+                
+                // Elimina posts
+                $deleted = $wpdb->query($wpdb->prepare("
+                    DELETE FROM {$wpdb->posts} 
+                    WHERE ID IN ($ids_placeholders)
+                ", $attachment_ids));
+            }
+
+            // Memory cleanup
+            wp_cache_flush();
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
+            }
+
+            // Conta quante immagini orfane rimangono
+            $remaining_count = $this->count_necrologio_attachments();
+            $has_more = $remaining_count > 0;
+            
+            $batch_message = "Eliminate $deleted immagini orfane (rimangono: $remaining_count)";
+            $messages[] = $batch_message;
+            $this->log($batch_message);
+
+            return [
+                'processed' => $deleted,
+                'completed' => !$has_more,
+                'next_offset' => 0,
+                'messages' => $messages,
+                'step_total' => $deleted,
+                'remaining' => $remaining_count
+            ];
+        }
+
+        private function delete_post_attachments($post_id)
+        {
+            $attachments = get_attached_media('', $post_id);
+            
+            foreach ($attachments as $attachment) {
+                wp_delete_attachment($attachment->ID, true);
+                $this->log("Eliminato attachment ID: {$attachment->ID} collegato al post $post_id");
+            }
         }
 
     }
