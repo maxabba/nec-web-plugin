@@ -89,9 +89,22 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             $processed = $progress['processed'];
             $total_rows = $progress['total'];
 
+            // Controllo sanità: non processare oltre il totale
+            if ($processed >= $total_rows) {
+                $this->log("Tutti i record sono già stati processati: $processed di $total_rows");
+                $this->set_progress_status($file_name, 'finished');
+                $this->schedule_image_processing();
+                return true;
+            }
+
             $header = $file->fgetcsv();             // Leggi l'header
 
-            $file->seek($processed);                // Salta le righe già processate
+            // IMPORTANTE: seek deve considerare che abbiamo già letto l'header
+            // Se processed = 0, siamo già alla posizione 1 dopo aver letto l'header
+            if ($processed > 0) {
+                $file->seek($processed + 1);        // +1 per saltare l'header
+            }
+            // Se processed = 0, non fare seek perché siamo già dopo l'header
 
             $batch_data = [];
             $batch_user_old_ids = [];
@@ -99,9 +112,16 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             $id_account_index = array_search('IdAccount', $header);
 
             // Raccolta dati batch
-            while (!$file->eof() && count($batch_data) < $this->batch_size) {
+            $rows_to_process = min($this->batch_size, $total_rows - $processed);
+            while (!$file->eof() && count($batch_data) < $rows_to_process) {
                 $data = $file->fgetcsv();
-                if (empty($data)) continue;
+                if (empty($data) || $data === [null]) continue;
+
+                // Ulteriore controllo per non superare il totale
+                if ($processed + count($batch_data) >= $total_rows) {
+                    $this->log("Raggiunto il limite totale di righe da processare");
+                    break;
+                }
 
                 $batch_data[] = $data;
                 $batch_user_old_ids[] = $data[$id_account_index];

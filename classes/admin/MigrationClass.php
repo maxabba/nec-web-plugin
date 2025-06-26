@@ -91,6 +91,8 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             add_action('wp_ajax_bulk_update_anniversario_trigesimo', array($this,'bulk_update_anniversario_trigesimo'));
             add_action('wp_ajax_nopriv_bulk_update_anniversario_trigesimo', array($this,'bulk_update_anniversario_trigesimo'));
 
+            add_action('wp_ajax_reset_migration_progress', array($this, 'reset_migration_progress'));
+
         }
 
         private function loadMigrationFiles(): void
@@ -1109,6 +1111,55 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 'message' => $message,
                 'bulk_type' => $current_post_type
             ));
+        }
+
+        public function reset_migration_progress()
+        {
+            check_ajax_referer('migration_nonce', 'nonce');
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Insufficient permissions');
+                return;
+            }
+
+            $file_name = sanitize_text_field($_POST['file_name'] ?? '');
+            
+            if (empty($file_name) || !in_array($file_name, $this->allowed_files)) {
+                wp_send_json_error('Invalid file name');
+                return;
+            }
+
+            $this->log("Reset manuale progresso richiesto per: $file_name");
+
+            // Reset del progresso per il file specificato
+            if (!file_exists($this->progress_file)) {
+                $progress = [];
+            } else {
+                $progress = json_decode(file_get_contents($this->progress_file), true) ?: [];
+            }
+
+            $progress[$file_name] = [
+                'processed' => 0,
+                'total' => 0,
+                'percentage' => 0,
+                'status' => 'not_started'
+            ];
+
+            if (file_put_contents($this->progress_file, json_encode($progress)) === false) {
+                $this->log("ERRORE: Impossibile resettare il progresso per $file_name");
+                wp_send_json_error("Failed to reset progress for $file_name");
+                return;
+            }
+
+            // Cancella anche eventuali cron jobs per questo file
+            if (isset($this->cron_hooks[$file_name])) {
+                $hook = $this->cron_hooks[$file_name];
+                wp_unschedule_hook($hook);
+                $this->log("Cron job cancellato per $file_name");
+            }
+
+            $this->log("Progresso resettato con successo per $file_name");
+            wp_send_json_success("Progress reset successfully for $file_name");
         }
 
     }
