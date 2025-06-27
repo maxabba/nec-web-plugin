@@ -470,6 +470,11 @@ function initializeAdvancedCleanup() {
         validateCleanupForm();
     });
     
+    // Event handler per cambio data
+    jQuery('#cleanup-cutoff-date').on('change', function() {
+        loadCleanupItemCounts();
+    });
+    
     
     // Event handler per avvio cleanup
     jQuery('#start-advanced-cleanup').on('click', function() {
@@ -554,13 +559,17 @@ function validateCleanupForm() {
 function loadCleanupItemCounts() {
     console.log('Loading cleanup item counts...');
     
+    // Ottieni la data di cutoff se presente
+    const cutoffDate = jQuery('#cleanup-cutoff-date').val();
+    
     jQuery.ajax({
         url: migrationAjax.ajax_url,
         type: 'POST',
         data: {
             action: 'bulk_cleanup_migration',
             nonce: migrationAjax.nonce,
-            step: 'count'
+            step: 'count',
+            cutoff_date: cutoffDate || ''
         },
         success: function(response) {
             if (response.success) {
@@ -600,6 +609,14 @@ function startAdvancedCleanup() {
     currentCleanupStep = 0;
     processedCleanupItems = 0;
     
+    // Salva la data di cutoff per uso successivo
+    const cutoffDate = jQuery('#cleanup-cutoff-date').val();
+    jQuery('#cleanup-cutoff-date').data('saved-date', cutoffDate);
+    
+    if (cutoffDate) {
+        console.log('Cleanup will include all media uploaded after:', cutoffDate);
+    }
+    
     // Switch to progress step
     jQuery('#backup-confirmation-step').hide();
     jQuery('#cleanup-progress-step').show();
@@ -608,8 +625,11 @@ function startAdvancedCleanup() {
     updateOverallProgress(0);
     updateStepProgress(0, 'Preparazione...');
     
-    // Start cleanup process
-    processNextCleanupStep();
+    // Ricarica i conteggi con la data se presente
+    loadCleanupItemCounts();
+    
+    // Start cleanup process after a short delay
+    setTimeout(() => processNextCleanupStep(), 500);
 }
 
 function processNextCleanupStep() {
@@ -642,6 +662,9 @@ function processCleanupBatch(stepName, offset) {
         return;
     }
     
+    // Ottieni la data di cutoff salvata
+    const cutoffDate = jQuery('#cleanup-cutoff-date').data('saved-date') || '';
+    
     jQuery.ajax({
         url: migrationAjax.ajax_url,
         type: 'POST',
@@ -649,7 +672,8 @@ function processCleanupBatch(stepName, offset) {
             action: 'bulk_cleanup_migration',
             nonce: migrationAjax.nonce,
             step: stepName,
-            offset: offset
+            offset: offset,
+            cutoff_date: cutoffDate
         },
         success: function(response) {
             if (response.success) {

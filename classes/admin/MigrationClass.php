@@ -284,6 +284,12 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                                     </label>
                                 </div>
                                 
+                                <div class="optional-cleanup-date" style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
+                                    <p><strong>Opzionale:</strong> Elimina anche TUTTI i media non collegati caricati dopo questa data:</p>
+                                    <input type="date" id="cleanup-cutoff-date" style="width: 200px; padding: 8px; font-size: 14px;">
+                                    <p style="font-size: 0.9em; color: #666; margin-top: 5px;">⚠️ Se inserisci una data, verranno eliminati TUTTI i media caricati dopo quella data, anche se non collegati alla migrazione!</p>
+                                </div>
+                                
                                 <div class="final-confirmation" style="margin-top: 20px; padding: 15px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;">
                                     <p><strong>Conferma finale:</strong> Digita <code style="background: #dc3545; color: white; padding: 2px 6px;">DELETE</code> per confermare:</p>
                                     <input type="text" id="delete-confirmation-text" placeholder="Digita DELETE" style="width: 200px; padding: 8px; font-size: 14px;">
@@ -1525,6 +1531,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
             $step = sanitize_text_field($_POST['step'] ?? 'count');
             $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+            $cutoff_date = sanitize_text_field($_POST['cutoff_date'] ?? '');
             
             // Batch sizes ottimizzati per velocità
             $batch_sizes = [
@@ -1543,7 +1550,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             try {
                 switch($step) {
                     case 'count':
-                        wp_send_json_success($this->count_all_migration_items());
+                        wp_send_json_success($this->count_all_migration_items($cutoff_date));
                         break;
                         
                     case 'ringraziamenti':
@@ -1563,7 +1570,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                         break;
                         
                     case 'images':
-                        wp_send_json_success($this->delete_all_migration_images($offset, $batch_size));
+                        wp_send_json_success($this->delete_all_migration_images($offset, $batch_size, $cutoff_date));
                         break;
                         
                     case 'necrologi':
@@ -1579,7 +1586,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             }
         }
 
-        private function count_all_migration_items()
+        private function count_all_migration_items($cutoff_date = '')
         {
             global $wpdb;
             
@@ -1589,7 +1596,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 'trigesimi' => $this->count_posts_by_type_optimized('trigesimo'),
                 'manifesti' => $this->count_posts_by_type_optimized('manifesto'),
                 'necrologi' => $this->count_posts_by_type_optimized('annuncio-di-morte'),
-                'images' => $this->count_migration_attachments()
+                'images' => $this->count_migration_attachments($cutoff_date)
             ];
             
             $total = array_sum($counts);
@@ -1622,18 +1629,50 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             return intval($count);
         }
 
-        private function count_migration_attachments()
+        private function count_migration_attachments($cutoff_date = '')
         {
             global $wpdb;
             
-            // Conta tutti gli attachment collegati ai necrologi
-            $count = $wpdb->get_var("
-                SELECT COUNT(DISTINCT p.ID) 
-                FROM {$wpdb->posts} p
-                INNER JOIN {$wpdb->posts} parent ON p.post_parent = parent.ID
-                WHERE p.post_type = 'attachment' 
-                AND parent.post_type = 'annuncio-di-morte'
-            ");
+            if (!empty($cutoff_date)) {
+                // Se c'è una data, conta TUTTI gli attachment caricati dopo quella data
+                $count = $wpdb->get_var($wpdb->prepare("
+                    SELECT COUNT(DISTINCT ID) 
+                    FROM {$wpdb->posts}
+                    WHERE post_type = 'attachment' 
+                    AND post_date > %s
+                ", $cutoff_date));
+                
+                $this->log("Conteggio immagini con data cutoff $cutoff_date: $count");
+            } else {
+                // Altrimenti conta solo quelli collegati alla migrazione
+                // Query 1: Attachment con post_parent = annuncio-di-morte
+                $parent_count = $wpdb->get_var("
+                    SELECT COUNT(DISTINCT p.ID) 
+                    FROM {$wpdb->posts} p
+                    INNER JOIN {$wpdb->posts} parent ON p.post_parent = parent.ID
+                    WHERE p.post_type = 'attachment' 
+                    AND parent.post_type = 'annuncio-di-morte'
+                ");
+                
+                // Query 2: Attachment collegati tramite ACF fields
+                $acf_count = $wpdb->get_var("
+                    SELECT COUNT(DISTINCT meta_value)
+                    FROM {$wpdb->postmeta} pm
+                    INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                    WHERE p.post_type = 'annuncio-di-morte'
+                    AND pm.meta_key IN ('fotografia', 'immagine_annuncio_di_morte')
+                    AND pm.meta_value != ''
+                    AND pm.meta_value IS NOT NULL
+                    AND EXISTS (
+                        SELECT 1 FROM {$wpdb->posts} 
+                        WHERE ID = pm.meta_value 
+                        AND post_type = 'attachment'
+                    )
+                ");
+                
+                $count = intval($parent_count) + intval($acf_count);
+                $this->log("Conteggio immagini migrazione: $parent_count (parent) + $acf_count (ACF) = $count totali");
+            }
             
             return intval($count);
         }
@@ -1721,20 +1760,68 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             ];
         }
 
-        private function delete_all_migration_images($offset, $batch_size)
+        private function delete_all_migration_images($offset, $batch_size, $cutoff_date = '')
         {
             global $wpdb;
             
-            // Trova attachment collegati ai necrologi
-            $attachment_data = $wpdb->get_results($wpdb->prepare("
-                SELECT p.ID, pm.meta_value as file_path
-                FROM {$wpdb->posts} p
-                INNER JOIN {$wpdb->posts} parent ON p.post_parent = parent.ID
-                LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_wp_attached_file'
-                WHERE p.post_type = 'attachment' 
-                AND parent.post_type = 'annuncio-di-morte'
-                LIMIT %d
-            ", $batch_size), ARRAY_A);
+            $attachment_data = [];
+            
+            if (!empty($cutoff_date)) {
+                // Se c'è una data, prendi TUTTI gli attachment caricati dopo quella data
+                $attachment_data = $wpdb->get_results($wpdb->prepare("
+                    SELECT p.ID, pm.meta_value as file_path
+                    FROM {$wpdb->posts} p
+                    LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = '_wp_attached_file'
+                    WHERE p.post_type = 'attachment' 
+                    AND p.post_date > %s
+                    LIMIT %d
+                ", $cutoff_date, $batch_size), ARRAY_A);
+                
+                $this->log("Eliminazione immagini con cutoff date $cutoff_date");
+            } else {
+                // Altrimenti usa query complessa per trovare solo quelli della migrazione
+                // Combina 3 query con UNION per trovare tutti gli attachment
+                $query = "
+                    SELECT DISTINCT p.ID, pm_file.meta_value as file_path
+                    FROM {$wpdb->posts} p
+                    LEFT JOIN {$wpdb->postmeta} pm_file ON p.ID = pm_file.post_id AND pm_file.meta_key = '_wp_attached_file'
+                    WHERE p.ID IN (
+                        -- Query 1: Attachment con post_parent = annuncio-di-morte
+                        SELECT DISTINCT p1.ID
+                        FROM {$wpdb->posts} p1
+                        INNER JOIN {$wpdb->posts} parent ON p1.post_parent = parent.ID
+                        WHERE p1.post_type = 'attachment' 
+                        AND parent.post_type = 'annuncio-di-morte'
+                        
+                        UNION
+                        
+                        -- Query 2: Attachment collegati tramite campo 'fotografia'
+                        SELECT DISTINCT CAST(pm1.meta_value AS UNSIGNED) as ID
+                        FROM {$wpdb->postmeta} pm1
+                        INNER JOIN {$wpdb->posts} p2 ON pm1.post_id = p2.ID
+                        WHERE p2.post_type = 'annuncio-di-morte'
+                        AND pm1.meta_key = 'fotografia'
+                        AND pm1.meta_value != ''
+                        AND pm1.meta_value REGEXP '^[0-9]+$'
+                        
+                        UNION
+                        
+                        -- Query 3: Attachment collegati tramite campo 'immagine_annuncio_di_morte'
+                        SELECT DISTINCT CAST(pm2.meta_value AS UNSIGNED) as ID
+                        FROM {$wpdb->postmeta} pm2
+                        INNER JOIN {$wpdb->posts} p3 ON pm2.post_id = p3.ID
+                        WHERE p3.post_type = 'annuncio-di-morte'
+                        AND pm2.meta_key = 'immagine_annuncio_di_morte'
+                        AND pm2.meta_value != ''
+                        AND pm2.meta_value REGEXP '^[0-9]+$'
+                    )
+                    AND p.post_type = 'attachment'
+                    LIMIT %d
+                ";
+                
+                $attachment_data = $wpdb->get_results($wpdb->prepare($query, $batch_size), ARRAY_A);
+                $this->log("Eliminazione immagini della migrazione (parent + ACF)");
+            }
 
             if (empty($attachment_data)) {
                 return [
@@ -1756,31 +1843,13 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 $attachment_id = $attachment['ID'];
                 $attachment_ids[] = $attachment_id;
                 
-                // Elimina file fisico se esiste
-                if (!empty($attachment['file_path'])) {
-                    $file_path = $upload_dir['basedir'] . '/' . $attachment['file_path'];
-                    if (file_exists($file_path)) {
-                        unlink($file_path);
-                    }
-                }
+                // Usa wp_delete_attachment per eliminare file e thumbnails
+                $force_delete = true;
+                wp_delete_attachment($attachment_id, $force_delete);
+                $deleted++;
             }
             
-            if (!empty($attachment_ids)) {
-                // Eliminazione bulk
-                $ids_placeholders = implode(',', array_fill(0, count($attachment_ids), '%d'));
-                
-                // Elimina postmeta
-                $wpdb->query($wpdb->prepare("
-                    DELETE FROM {$wpdb->postmeta} 
-                    WHERE post_id IN ($ids_placeholders)
-                ", $attachment_ids));
-                
-                // Elimina posts
-                $deleted = $wpdb->query($wpdb->prepare("
-                    DELETE FROM {$wpdb->posts} 
-                    WHERE ID IN ($ids_placeholders)
-                ", $attachment_ids));
-            }
+            // Nota: wp_delete_attachment già gestisce l'eliminazione di post e postmeta
 
             // Memory cleanup
             wp_cache_flush();
@@ -1789,8 +1858,13 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             }
 
             // Conta quante immagini rimangono
-            $remaining_count = $this->count_migration_attachments();
+            $remaining_count = $this->count_migration_attachments($cutoff_date);
             $has_more = $remaining_count > 0;
+            
+            // Se non ci sono più immagini, pulisci anche il file della coda
+            if (!$has_more && empty($cutoff_date)) {
+                $this->cleanup_image_queue_files();
+            }
             
             $batch_message = "Eliminate $deleted immagini (rimangono: $remaining_count)";
             $messages[] = $batch_message;
@@ -1805,6 +1879,35 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             ];
         }
 
+        private function cleanup_image_queue_files()
+        {
+            try {
+                // Elimina il file della coda immagini
+                $queue_file = $this->upload_dir . 'image_download_queue.csv';
+                if (file_exists($queue_file)) {
+                    unlink($queue_file);
+                    $this->log("File coda immagini eliminato: $queue_file");
+                }
+                
+                // Reset del progresso per la coda immagini nel file di progresso
+                if (file_exists($this->progress_file)) {
+                    $progress = json_decode(file_get_contents($this->progress_file), true);
+                    if (isset($progress['image_download_queue.csv'])) {
+                        unset($progress['image_download_queue.csv']);
+                        file_put_contents($this->progress_file, json_encode($progress));
+                        $this->log("Progresso coda immagini resettato");
+                    }
+                }
+                
+                // Cancella anche eventuali scheduled cron per le immagini
+                wp_clear_scheduled_hook('dokan_mods_process_image_queue');
+                $this->log("Cron job processamento immagini cancellato");
+                
+            } catch (Exception $e) {
+                $this->log("Errore nella pulizia dei file della coda immagini: " . $e->getMessage());
+            }
+        }
+        
         private function delete_necrologi_optimized($offset, $batch_size)
         {
             global $wpdb;
