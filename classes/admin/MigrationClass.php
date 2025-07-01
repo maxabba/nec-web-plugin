@@ -71,7 +71,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             add_action('init', [$this, 'setupCronJobs']);
 
             // Ajax hooks
-            $ajax_actions = ['start_migration', 'check_migration_status', 'get_next_step', 'stop_migration','check_image_migration_status'];
+            $ajax_actions = ['start_migration', 'check_migration_status', 'get_next_step', 'stop_migration','check_image_migration_status', 'restart_image_downloads', 'stop_image_downloads', 'check_image_download_status'];
             foreach ($ajax_actions as $action) {
                 add_action("wp_ajax_$action", [$this, $action]);
             }
@@ -173,16 +173,19 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
         public function enqueue_scripts($hook)
         {
+            $this->debug_log("Hook verificato: $hook");
+            
             if ('dokan-mods_page_dokan-migration' !== $hook) {
+                $this->debug_log("Hook non corrispondente, script non caricati per: $hook");
                 return;
             }
 
-            wp_enqueue_script('migration-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/admin/migration.js', array('jquery'), '1.0', true);
+            wp_enqueue_script('migration-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/admin/migration.js', array('jquery'), '1.1', true);
             wp_localize_script('migration-script', 'migrationAjax', array(
                 'ajax_url' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('migration_nonce')
             ));
-            $this->debug_log("Script caricati per la pagina di migrazione");
+            $this->debug_log("Script caricati per la pagina di migrazione con hook: $hook");
         }
 
         public function migration_page()
@@ -215,6 +218,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
                 <button id="stop-migration" class="button button-secondary" style="display: none;">Stop Migration
                 </button>
+
                 <button id="resume-migration" class="button button-secondary" >Resume Migration
                 </button>
 
@@ -253,15 +257,60 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                                     <div class="warning-box">
                                         <h3>🚨 OBBLIGATORIO: Backup Database</h3>
                                         <p>Prima di procedere, è <strong>OBBLIGATORIO</strong> effettuare un backup completo del database.</p>
-                                        <p><strong>QUESTA OPERAZIONE ELIMINERÀ PERMANENTEMENTE:</strong></p>
-                                        <ul>
-                                            <li>✗ <span id="count-ringraziamenti">0</span> Ringraziamenti</li>
-                                            <li>✗ <span id="count-anniversari">0</span> Anniversari</li>
-                                            <li>✗ <span id="count-trigesimi">0</span> Trigesimi</li>
-                                            <li>✗ <span id="count-manifesti">0</span> Manifesti</li>
-                                            <li>✗ <span id="count-images">0</span> Immagini (PERSE PER SEMPRE)</li>
-                                            <li>✗ <span id="count-necrologi">0</span> Necrologi</li>
-                                        </ul>
+                                        <p><strong>SELEZIONA COSA ELIMINARE PERMANENTEMENTE:</strong></p>
+                                        <div class="cleanup-selection-grid">
+                                            <div class="cleanup-category">
+                                                <h4>📝 Post Types</h4>
+                                                <label class="cleanup-checkbox-label">
+                                                    <input type="checkbox" id="cleanup-necrologi" checked> 
+                                                    Annunci di morte (<span id="count-necrologi">0</span>)
+                                                </label>
+                                                <label class="cleanup-checkbox-label">
+                                                    <input type="checkbox" id="cleanup-trigesimi" checked> 
+                                                    Trigesimi (<span id="count-trigesimi">0</span>)
+                                                </label>
+                                                <label class="cleanup-checkbox-label">
+                                                    <input type="checkbox" id="cleanup-anniversari" checked> 
+                                                    Anniversari (<span id="count-anniversari">0</span>)
+                                                </label>
+                                                <label class="cleanup-checkbox-label">
+                                                    <input type="checkbox" id="cleanup-ringraziamenti" checked> 
+                                                    Ringraziamenti (<span id="count-ringraziamenti">0</span>)
+                                                </label>
+                                                <label class="cleanup-checkbox-label">
+                                                    <input type="checkbox" id="cleanup-manifesti" checked> 
+                                                    Manifesti (<span id="count-manifesti">0</span>)
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="cleanup-category">
+                                                <h4>🖼️ Immagini (PERSE PER SEMPRE)</h4>
+                                                <label class="cleanup-checkbox-label">
+                                                    <input type="checkbox" id="cleanup-images-necrologi" checked> 
+                                                    Immagini annunci di morte (<span id="count-images-necrologi">0</span>)
+                                                </label>
+                                                <label class="cleanup-checkbox-label">
+                                                    <input type="checkbox" id="cleanup-images-trigesimi" checked> 
+                                                    Immagini trigesimi (<span id="count-images-trigesimi">0</span>)
+                                                </label>
+                                                <label class="cleanup-checkbox-label">
+                                                    <input type="checkbox" id="cleanup-images-anniversari" checked> 
+                                                    Immagini anniversari (<span id="count-images-anniversari">0</span>)
+                                                </label>
+                                                <label class="cleanup-checkbox-label">
+                                                    <input type="checkbox" id="cleanup-images-general" checked> 
+                                                    Altre immagini migrazione (<span id="count-images-general">0</span>)
+                                                </label>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="cleanup-selection-actions">
+                                            <button type="button" id="select-all-cleanup" class="button button-secondary">Seleziona tutto</button>
+                                            <button type="button" id="deselect-all-cleanup" class="button button-secondary">Deseleziona tutto</button>
+                                            <button type="button" id="select-only-posts" class="button button-secondary">Solo post (no immagini)</button>
+                                            <button type="button" id="select-only-images" class="button button-secondary">Solo immagini</button>
+                                        </div>
+                                        
                                         <p style="color: #dc3545; font-weight: bold; font-size: 1.1em;">TOTALE: <span id="count-total">0</span> ELEMENTI</p>
                                     </div>
                                 </div>
@@ -359,6 +408,74 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                                 <button id="close-cleanup-modal" class="button button-primary button-large">
                                     Chiudi
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image Download Control Panel -->
+                <div style="margin-top: 30px; padding: 20px; border: 2px solid #007cba; border-radius: 5px; background-color: #f0f8ff;">
+                    <h3 style="color: #007cba;">📥 Controllo Download Immagini</h3>
+                    <p>Gestisci il processo di download delle immagini per necrologi e manifesti.</p>
+                    
+                    <!-- Status Display -->
+                    <div id="image-download-status" class="notice notice-info" style="margin: 15px 0;">
+                        <p>ℹ️ Caricamento status...</p>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div id="image-download-progress" style="display: none; margin: 15px 0;">
+                        <h4>Progresso Download</h4>
+                        <div style="background: #f1f1f1; border-radius: 4px; padding: 3px; margin: 10px 0;">
+                            <div id="image-download-progress-bar" style="background: #007cba; height: 24px; border-radius: 3px; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 14px; color: #666;">
+                            <span>Processate: <strong id="image-processed-count">0</strong>/<strong id="image-total-count">0</strong></span>
+                            <span id="image-progress-percentage">0%</span>
+                        </div>
+                        <div style="margin-top: 5px; font-size: 12px; color: #666;">
+                            <span>Status: <span id="image-status-text">-</span></span>
+                            <span style="margin-left: 15px;">Cron: <span id="image-cron-status">-</span></span>
+                            <span style="margin-left: 15px;">Rimanenti: <span id="image-remaining-count">-</span></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Control Buttons -->
+                    <div style="margin-top: 15px;">
+                        <button id="start-image-downloads" class="button button-primary" style="margin-right: 10px;">
+                            ▶️ Avvia Download
+                        </button>
+                        <button id="stop-image-downloads" class="button button-secondary" style="margin-right: 10px;">
+                            ⏹️ Ferma Download
+                        </button>
+                        <button id="restart-image-downloads" class="button button-secondary" style="margin-right: 10px;">
+                            🔄 Riavvia Download
+                        </button>
+                        <button id="refresh-image-status" class="button button-secondary">
+                            🔍 Aggiorna Status
+                        </button>
+                    </div>
+                    
+                    <!-- Detailed Stats -->
+                    <div id="image-download-stats" style="display: none; margin-top: 20px; padding: 15px; background: #fafafa; border-radius: 4px;">
+                        <h4>Statistiche Dettagliate</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                            <div>
+                                <strong>File Coda:</strong><br>
+                                <span id="queue-file-status">-</span><br>
+                                <span id="queue-file-size">-</span>
+                            </div>
+                            <div>
+                                <strong>Ultimo Aggiornamento:</strong><br>
+                                <span id="last-update-time">-</span>
+                            </div>
+                            <div>
+                                <strong>Prossimo Cron:</strong><br>
+                                <span id="next-cron-time">-</span>
+                            </div>
+                            <div>
+                                <strong>Completamento:</strong><br>
+                                <span id="completion-rate">-</span>
                             </div>
                         </div>
                     </div>
@@ -676,6 +793,61 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 .checkbox-label input[type="checkbox"] {
                     margin-right: 10px;
                     transform: scale(1.3);
+                }
+
+                /* Nuovi stili per selezione granulare cleanup */
+                .cleanup-selection-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 20px;
+                    margin: 20px 0;
+                }
+
+                .cleanup-category {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    border-radius: 5px;
+                    background: #f9f9f9;
+                }
+
+                .cleanup-category h4 {
+                    margin: 0 0 10px 0;
+                    color: #333;
+                    font-size: 14px;
+                    font-weight: bold;
+                }
+
+                .cleanup-checkbox-label {
+                    display: block;
+                    margin: 8px 0;
+                    cursor: pointer;
+                    font-weight: normal;
+                    font-size: 13px;
+                    color: #666;
+                }
+
+                .cleanup-checkbox-label input[type="checkbox"] {
+                    margin-right: 8px;
+                    transform: scale(1.1);
+                }
+
+                .cleanup-selection-actions {
+                    margin: 15px 0;
+                    text-align: center;
+                }
+
+                .cleanup-selection-actions .button {
+                    margin: 0 5px;
+                    font-size: 12px;
+                    padding: 4px 8px;
+                    height: auto;
+                }
+
+                @media (max-width: 768px) {
+                    .cleanup-selection-grid {
+                        grid-template-columns: 1fr;
+                        gap: 15px;
+                    }
                 }
 
                 .progress-container {
@@ -1520,6 +1692,252 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             wp_send_json_success("Progress reset successfully for $file_name");
         }
 
+        public function reset_image_queue_progress()
+        {
+            check_ajax_referer('migration_nonce', 'nonce');
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Insufficient permissions');
+                return;
+            }
+
+            $this->log("Reset image queue progress richiesto");
+            
+            $queue_file = $this->upload_dir . 'image_download_queue.csv';
+            $force = isset($_POST['force']) && $_POST['force'];
+            
+            // Check se il file queue esiste (skip se force)
+            if (!$force && !file_exists($queue_file)) {
+                wp_send_json_error('No image queue file found');
+                return;
+            }
+
+            // Se force, cancella completamente il file queue e ricostruisci
+            if ($force) {
+                $this->log("Force restart richiesto - cancellazione completa del file queue");
+                if (file_exists($queue_file)) {
+                    unlink($queue_file);
+                    $this->log("File queue cancellato");
+                }
+                
+                // Cancella anche log di errore se esiste
+                $error_log = $this->upload_dir . 'image_errors.log';
+                if (file_exists($error_log)) {
+                    unlink($error_log);
+                    $this->log("Log errori cancellato");
+                }
+            }
+
+            // Reset del progresso per il file queue
+            if (!file_exists($this->progress_file)) {
+                $progress = [];
+            } else {
+                $progress = json_decode(file_get_contents($this->progress_file), true) ?: [];
+            }
+
+            // Reset progress per image_download_queue.csv
+            $progress['image_download_queue.csv'] = [
+                'processed' => 0,
+                'total' => 0,
+                'percentage' => 0,
+                'status' => 'not_started'
+            ];
+
+            if (file_put_contents($this->progress_file, json_encode($progress)) === false) {
+                $this->log("ERRORE: Impossibile resettare il progresso image queue");
+                wp_send_json_error("Failed to reset image queue progress");
+                return;
+            }
+
+            // Force clear all caches
+            wp_cache_flush();
+            if (function_exists('opcache_reset')) {
+                opcache_reset();
+            }
+            
+            // Cancella TUTTI i possibili cron jobs per le immagini
+            $image_hooks = [
+                'dokan_mods_process_image_queue',
+                'dokan_mods_process_image_ricorrenze_queue', 
+                'dokan_mods_process_image_ringraziamenti_queue'
+            ];
+            
+            foreach ($image_hooks as $hook) {
+                // Cancella tutte le istanze programmate
+                while (wp_next_scheduled($hook)) {
+                    wp_unschedule_event(wp_next_scheduled($hook), $hook);
+                }
+                wp_unschedule_hook($hook);
+            }
+            $this->log("Tutti i cron jobs delle immagini cancellati");
+            
+            // Reset retry counts nel CSV se il file esiste
+            if (file_exists($queue_file)) {
+                $this->reset_retry_counts_in_queue($queue_file);
+            }
+
+            // Riprogramma il cron job per riavviare il download solo se il file esiste
+            if (file_exists($queue_file)) {
+                // Programma per esecuzione immediata (tra 60 secondi per stabilità)
+                wp_schedule_single_event(time() + 60, 'dokan_mods_process_image_queue');
+                $this->log("Cron job image queue riprogrammato per riavvio in 60 secondi");
+            } else {
+                $this->log("Nessun file queue trovato - cron job non riprogrammato");
+            }
+
+            $message = "Image queue progress reset successfully";
+            if ($force) {
+                $message .= " (force mode - queue file deleted)";
+            }
+            
+            $this->log($message);
+            wp_send_json_success($message);
+        }
+
+        public function check_image_queue_status()
+        {
+            check_ajax_referer('migration_nonce', 'nonce');
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Insufficient permissions');
+                return;
+            }
+
+            $queue_file = $this->upload_dir . 'image_download_queue.csv';
+            
+            if (!file_exists($queue_file)) {
+                wp_send_json_success([
+                    'queue_exists' => false,
+                    'total_images' => 0,
+                    'processed' => 0,
+                    'status' => 'no_queue'
+                ]);
+                return;
+            }
+
+            // Conta righe totali nel CSV
+            $total_lines = 0;
+            if (($handle = fopen($queue_file, 'r')) !== FALSE) {
+                while (($data = fgetcsv($handle)) !== FALSE) {
+                    $total_lines++;
+                }
+                fclose($handle);
+            }
+
+            // Ottieni progress
+            $progress = [];
+            if (file_exists($this->progress_file)) {
+                $progress = json_decode(file_get_contents($this->progress_file), true) ?: [];
+            }
+
+            $queue_progress = $progress['image_download_queue.csv'] ?? [
+                'processed' => 0,
+                'total' => $total_lines,
+                'percentage' => 0,
+                'status' => 'not_started'
+            ];
+
+            // Check se il cron è programmato
+            $cron_scheduled = wp_next_scheduled('dokan_mods_process_image_queue') !== false;
+
+            wp_send_json_success([
+                'queue_exists' => true,
+                'total_images' => $total_lines,
+                'processed' => $queue_progress['processed'],
+                'percentage' => $queue_progress['percentage'],
+                'status' => $queue_progress['status'],
+                'cron_scheduled' => $cron_scheduled
+            ]);
+        }
+
+        private function reset_retry_counts_in_queue($queue_file)
+        {
+            $temp_file = $queue_file . '.tmp';
+            
+            if (($input_handle = fopen($queue_file, 'r')) !== FALSE && 
+                ($output_handle = fopen($temp_file, 'w')) !== FALSE) {
+                
+                while (($data = fgetcsv($input_handle)) !== FALSE) {
+                    // Reset retry count (ultima colonna) a 0
+                    if (count($data) >= 5) {
+                        $data[4] = '0'; // Reset retry count
+                    }
+                    fputcsv($output_handle, $data);
+                }
+                
+                fclose($input_handle);
+                fclose($output_handle);
+                
+                // Sostituisci il file originale
+                if (rename($temp_file, $queue_file)) {
+                    $this->log("Retry counts resettati nel queue file");
+                } else {
+                    $this->log("Errore nel reset retry counts");
+                    if (file_exists($temp_file)) {
+                        unlink($temp_file);
+                    }
+                }
+            }
+        }
+
+        public function test_image_download()
+        {
+            check_ajax_referer('migration_nonce', 'nonce');
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Insufficient permissions');
+                return;
+            }
+
+            $this->log("Test image download richiesto");
+            
+            // Prendi una URL di test dal CSV se esiste
+            $queue_file = $this->upload_dir . 'image_download_queue.csv';
+            $test_url = 'https://necrologi.sciame.it/necrologi/22102013/0d30d7bafd974e2fa5f40270caaeed4b_Crop.jpg'; // Default test URL
+            
+            if (file_exists($queue_file)) {
+                if (($handle = fopen($queue_file, 'r')) !== FALSE) {
+                    $data = fgetcsv($handle);
+                    if ($data && isset($data[1])) {
+                        $test_url = $data[1];
+                    }
+                    fclose($handle);
+                }
+            }
+
+            $start_time = microtime(true);
+            
+            // Test con wp_remote_get (nuovo metodo)
+            $args = [
+                'timeout' => 15,
+                'redirection' => 5,
+                'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            ];
+            
+            $response = wp_remote_get($test_url, $args);
+            $end_time = microtime(true);
+            $duration = round($end_time - $start_time, 2);
+            
+            if (!is_wp_error($response)) {
+                $http_code = wp_remote_retrieve_response_code($response);
+                $content_length = strlen(wp_remote_retrieve_body($response));
+                
+                if ($http_code === 200) {
+                    wp_send_json_success([
+                        'message' => "✅ Test successful! Downloaded {$content_length} bytes in {$duration}s",
+                        'url' => $test_url,
+                        'duration' => $duration,
+                        'size' => $content_length,
+                        'method' => 'wp_remote_get'
+                    ]);
+                } else {
+                    wp_send_json_error("HTTP error: $http_code");
+                }
+            } else {
+                wp_send_json_error("Download failed: " . $response->get_error_message());
+            }
+        }
+
         public function bulk_cleanup_migration()
         {
             check_ajax_referer('migration_nonce', 'nonce');
@@ -1532,6 +1950,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             $step = sanitize_text_field($_POST['step'] ?? 'count');
             $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
             $cutoff_date = sanitize_text_field($_POST['cutoff_date'] ?? '');
+            $selected_items = $_POST['selected_items'] ?? [];
             
             // Batch sizes ottimizzati per velocità
             $batch_sizes = [
@@ -1539,7 +1958,10 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 'anniversari' => 500, 
                 'trigesimi' => 500,
                 'manifesti' => 500,
-                'images' => 200,
+                'images_necrologi' => 200,
+                'images_trigesimi' => 200,
+                'images_anniversari' => 200,
+                'images_general' => 200,
                 'necrologi' => 100  // Più lento per via degli attachment
             ];
             
@@ -1548,6 +1970,13 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
             $this->log("Bulk cleanup step: $step, offset: $offset, batch_size: $batch_size");
 
             try {
+                // Se non è 'count', verifica che lo step sia selezionato dall'utente
+                if ($step !== 'count' && !empty($selected_items) && !in_array($step, $selected_items)) {
+                    // Step non selezionato, skip e segnala come completato
+                    wp_send_json_success(['processed' => 0, 'total' => 0, 'completed' => true, 'skipped' => true]);
+                    return;
+                }
+                
                 switch($step) {
                     case 'count':
                         wp_send_json_success($this->count_all_migration_items($cutoff_date));
@@ -1569,8 +1998,20 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                         wp_send_json_success($this->delete_manifesti_optimized($offset, $batch_size));
                         break;
                         
-                    case 'images':
-                        wp_send_json_success($this->delete_all_migration_images($offset, $batch_size, $cutoff_date));
+                    case 'images_necrologi':
+                        wp_send_json_success($this->delete_images_by_type('annuncio-di-morte', $offset, $batch_size));
+                        break;
+                        
+                    case 'images_trigesimi':
+                        wp_send_json_success($this->delete_images_by_type('trigesimo', $offset, $batch_size));
+                        break;
+                        
+                    case 'images_anniversari':
+                        wp_send_json_success($this->delete_images_by_type('anniversario', $offset, $batch_size));
+                        break;
+                        
+                    case 'images_general':
+                        wp_send_json_success($this->delete_general_migration_images($offset, $batch_size, $cutoff_date));
                         break;
                         
                     case 'necrologi':
@@ -1590,18 +2031,39 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
         {
             global $wpdb;
             
-            $counts = [
-                'ringraziamenti' => $this->count_posts_by_type_optimized('ringraziamento'),
-                'anniversari' => $this->count_posts_by_type_optimized('anniversario'),
-                'trigesimi' => $this->count_posts_by_type_optimized('trigesimo'),
-                'manifesti' => $this->count_posts_by_type_optimized('manifesto'),
-                'necrologi' => $this->count_posts_by_type_optimized('annuncio-di-morte'),
-                'images' => $this->count_migration_attachments($cutoff_date)
-            ];
+            // Conteggi con logging dettagliato per debug
+            $counts = [];
+            
+            $counts['ringraziamenti'] = $this->count_posts_by_type_optimized('ringraziamento');
+            $this->log("DEBUG Conteggio ringraziamenti: " . $counts['ringraziamenti']);
+            
+            $counts['anniversari'] = $this->count_posts_by_type_optimized('anniversario');
+            $this->log("DEBUG Conteggio anniversari: " . $counts['anniversari']);
+            
+            $counts['trigesimi'] = $this->count_posts_by_type_optimized('trigesimo');
+            $this->log("DEBUG Conteggio trigesimi: " . $counts['trigesimi']);
+            
+            $counts['manifesti'] = $this->count_posts_by_type_optimized('manifesto');
+            $this->log("DEBUG Conteggio manifesti: " . $counts['manifesti']);
+            
+            $counts['necrologi'] = $this->count_posts_by_type_optimized('annuncio-di-morte');
+            $this->log("DEBUG Conteggio necrologi: " . $counts['necrologi']);
+            
+            $counts['images_necrologi'] = $this->count_images_by_post_type('annuncio-di-morte');
+            $this->log("DEBUG Conteggio images_necrologi: " . $counts['images_necrologi']);
+            
+            $counts['images_trigesimi'] = $this->count_images_by_post_type('trigesimo');
+            $this->log("DEBUG Conteggio images_trigesimi: " . $counts['images_trigesimi']);
+            
+            $counts['images_anniversari'] = $this->count_images_by_post_type('anniversario');
+            $this->log("DEBUG Conteggio images_anniversari: " . $counts['images_anniversari']);
+            
+            $counts['images_general'] = $this->count_general_migration_images($cutoff_date);
+            $this->log("DEBUG Conteggio images_general: " . $counts['images_general']);
             
             $total = array_sum($counts);
             
-            $this->log("Conteggio completo items migrazione: " . json_encode($counts) . " - Totale: $total");
+            $this->log("Conteggio granulare items migrazione: " . json_encode($counts) . " - Totale: $total");
             
             return [
                 'counts' => $counts,
@@ -1611,7 +2073,10 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                     'anniversari' => $counts['anniversari'], 
                     'trigesimi' => $counts['trigesimi'],
                     'manifesti' => $counts['manifesti'],
-                    'images' => $counts['images'],
+                    'images_necrologi' => $counts['images_necrologi'],
+                    'images_trigesimi' => $counts['images_trigesimi'],
+                    'images_anniversari' => $counts['images_anniversari'],
+                    'images_general' => $counts['images_general'],
                     'necrologi' => $counts['necrologi']
                 ]
             ];
@@ -1674,6 +2139,171 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 $this->log("Conteggio immagini migrazione: $parent_count (parent) + $acf_count (ACF) = $count totali");
             }
             
+            return intval($count);
+        }
+
+        private function count_images_by_post_type($post_type)
+        {
+            global $wpdb;
+            
+            $this->log("DEBUG: Conteggio immagini per post_type: $post_type");
+            
+            switch($post_type) {
+                case 'annuncio-di-morte':
+                    // Immagini annunci di morte - usando query separate per evitare problemi con UNION
+                    
+                    // Query 1: Immagini con parent relationship
+                    $parent_query = $wpdb->prepare("
+                        SELECT COUNT(DISTINCT p.ID)
+                        FROM {$wpdb->posts} p
+                        INNER JOIN {$wpdb->posts} parent ON p.post_parent = parent.ID
+                        WHERE p.post_type = 'attachment' 
+                        AND p.post_status = 'inherit'
+                        AND parent.post_type = %s
+                    ", $post_type);
+                    $this->log("DEBUG: Query parent - $parent_query");
+                    $parent_count = $wpdb->get_var($parent_query);
+                    if ($wpdb->last_error) {
+                        $this->log("ERRORE SQL parent: " . $wpdb->last_error);
+                    }
+                    
+                    // Query 2: Immagini ACF 'fotografia'
+                    $fotografia_query = $wpdb->prepare("
+                        SELECT COUNT(DISTINCT CAST(pm.meta_value AS UNSIGNED))
+                        FROM {$wpdb->postmeta} pm
+                        INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                        INNER JOIN {$wpdb->posts} att ON CAST(pm.meta_value AS UNSIGNED) = att.ID
+                        WHERE pm.meta_key = 'fotografia'
+                        AND p.post_type = %s
+                        AND pm.meta_value REGEXP '^[0-9]+$'
+                        AND pm.meta_value > 0
+                        AND att.post_type = 'attachment'
+                        AND att.post_status = 'inherit'
+                    ", $post_type);
+                    $this->log("DEBUG: Query fotografia - $fotografia_query");
+                    $fotografia_count = $wpdb->get_var($fotografia_query);
+                    if ($wpdb->last_error) {
+                        $this->log("ERRORE SQL fotografia: " . $wpdb->last_error);
+                    }
+                    
+                    // Query 3: Immagini ACF 'immagine_annuncio_di_morte'  
+                    $immagine_query = $wpdb->prepare("
+                        SELECT COUNT(DISTINCT CAST(pm.meta_value AS UNSIGNED))
+                        FROM {$wpdb->postmeta} pm
+                        INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                        INNER JOIN {$wpdb->posts} att ON CAST(pm.meta_value AS UNSIGNED) = att.ID
+                        WHERE pm.meta_key = 'immagine_annuncio_di_morte'
+                        AND p.post_type = %s
+                        AND pm.meta_value REGEXP '^[0-9]+$'
+                        AND pm.meta_value > 0
+                        AND att.post_type = 'attachment'
+                        AND att.post_status = 'inherit'
+                    ", $post_type);
+                    $this->log("DEBUG: Query immagine - $immagine_query");
+                    $immagine_count = $wpdb->get_var($immagine_query);
+                    if ($wpdb->last_error) {
+                        $this->log("ERRORE SQL immagine: " . $wpdb->last_error);
+                    }
+                    
+                    // Somma (nota: potrebbero esserci duplicati, ma per ora accettiamo l'approssimazione)
+                    $count = intval($parent_count) + intval($fotografia_count) + intval($immagine_count);
+                    
+                    $this->log("DEBUG annuncio-di-morte images: parent=$parent_count, fotografia=$fotografia_count, immagine=$immagine_count, totale=$count");
+                    break;
+                    
+                case 'trigesimo':
+                    // Immagini trigesimi - ACF 'immagine_annuncio_trigesimo'
+                    $query = $wpdb->prepare("
+                        SELECT COUNT(DISTINCT CAST(pm.meta_value AS UNSIGNED))
+                        FROM {$wpdb->postmeta} pm
+                        INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                        INNER JOIN {$wpdb->posts} att ON CAST(pm.meta_value AS UNSIGNED) = att.ID
+                        WHERE pm.meta_key = 'immagine_annuncio_trigesimo'
+                        AND p.post_type = %s
+                        AND pm.meta_value REGEXP '^[0-9]+$'
+                        AND pm.meta_value > 0
+                        AND att.post_type = 'attachment'
+                        AND att.post_status = 'inherit'
+                    ", $post_type);
+                    $this->log("DEBUG: Query trigesimo - $query");
+                    $count = $wpdb->get_var($query);
+                    if ($wpdb->last_error) {
+                        $this->log("ERRORE SQL trigesimo: " . $wpdb->last_error);
+                    }
+                    $this->log("DEBUG trigesimo images: count=$count");
+                    break;
+                    
+                case 'anniversario':
+                    // Immagini anniversari - ACF 'immagine_annuncio_anniversario'
+                    $query = $wpdb->prepare("
+                        SELECT COUNT(DISTINCT CAST(pm.meta_value AS UNSIGNED))
+                        FROM {$wpdb->postmeta} pm
+                        INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                        INNER JOIN {$wpdb->posts} att ON CAST(pm.meta_value AS UNSIGNED) = att.ID
+                        WHERE pm.meta_key = 'immagine_annuncio_anniversario'
+                        AND p.post_type = %s
+                        AND pm.meta_value REGEXP '^[0-9]+$'
+                        AND pm.meta_value > 0
+                        AND att.post_type = 'attachment'
+                        AND att.post_status = 'inherit'
+                    ", $post_type);
+                    $this->log("DEBUG: Query anniversario - $query");
+                    $count = $wpdb->get_var($query);
+                    if ($wpdb->last_error) {
+                        $this->log("ERRORE SQL anniversario: " . $wpdb->last_error);
+                    }
+                    $this->log("DEBUG anniversario images: count=$count");
+                    break;
+                    
+                default:
+                    $count = 0;
+                    break;
+            }
+            
+            return intval($count);
+        }
+
+        private function count_general_migration_images($cutoff_date = '')
+        {
+            global $wpdb;
+            
+            $this->log("DEBUG: Conteggio immagini generali, cutoff_date: '$cutoff_date'");
+            
+            if (!empty($cutoff_date)) {
+                // Con cutoff date, conta tutti gli attachment dopo quella data
+                $query = $wpdb->prepare("
+                    SELECT COUNT(DISTINCT ID) 
+                    FROM {$wpdb->posts}
+                    WHERE post_type = 'attachment' 
+                    AND post_status = 'inherit'
+                    AND post_date > %s
+                ", $cutoff_date);
+                $this->log("DEBUG: Query images general (con cutoff) - $query");
+                $count = $wpdb->get_var($query);
+                if ($wpdb->last_error) {
+                    $this->log("ERRORE SQL general images (cutoff): " . $wpdb->last_error);
+                }
+            } else {
+                // Senza cutoff date, usa conteggio semplificato
+                $query = "
+                    SELECT COUNT(DISTINCT p.ID)
+                    FROM {$wpdb->posts} p
+                    LEFT JOIN {$wpdb->posts} parent ON p.post_parent = parent.ID
+                    WHERE p.post_type = 'attachment'
+                    AND p.post_status = 'inherit'
+                    AND (
+                        parent.post_type IN ('annuncio-di-morte', 'trigesimo', 'anniversario', 'ringraziamento', 'manifesto')
+                        OR p.post_parent = 0
+                    )
+                ";
+                $this->log("DEBUG: Query images general (senza cutoff) - $query");
+                $count = $wpdb->get_var($query);
+                if ($wpdb->last_error) {
+                    $this->log("ERRORE SQL general images: " . $wpdb->last_error);
+                }
+            }
+            
+            $this->log("DEBUG general images: count=$count");
             return intval($count);
         }
 
@@ -1757,6 +2387,281 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 'next_offset' => 0,
                 'messages' => $messages,
                 'remaining' => $remaining_count
+            ];
+        }
+
+        private function delete_images_by_type($post_type, $offset, $batch_size)
+        {
+            global $wpdb;
+            
+            $attachment_ids = [];
+            
+            switch($post_type) {
+                case 'annuncio-di-morte':
+                    // Trova immagini annunci di morte
+                    $attachment_ids = $wpdb->get_col($wpdb->prepare("
+                        SELECT DISTINCT attachment_id FROM (
+                            SELECT p.ID as attachment_id
+                            FROM {$wpdb->posts} p
+                            INNER JOIN {$wpdb->posts} parent ON p.post_parent = parent.ID
+                            WHERE p.post_type = 'attachment' 
+                            AND p.post_status = 'inherit'
+                            AND parent.post_type = %s
+                            
+                            UNION
+                            
+                            SELECT CAST(pm.meta_value AS UNSIGNED) as attachment_id
+                            FROM {$wpdb->postmeta} pm
+                            INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                            INNER JOIN {$wpdb->posts} att ON CAST(pm.meta_value AS UNSIGNED) = att.ID
+                            WHERE pm.meta_key IN ('fotografia', 'immagine_annuncio_di_morte')
+                            AND p.post_type = %s
+                            AND pm.meta_value REGEXP '^[0-9]+$'
+                            AND pm.meta_value > 0
+                            AND att.post_type = 'attachment'
+                            AND att.post_status = 'inherit'
+                        ) as combined_images
+                        WHERE attachment_id > 0
+                        ORDER BY attachment_id
+                        LIMIT %d OFFSET %d
+                    ", $post_type, $post_type, $batch_size, $offset));
+                    break;
+                    
+                case 'trigesimo':
+                    // Trova immagini trigesimi
+                    $attachment_ids = $wpdb->get_col($wpdb->prepare("
+                        SELECT DISTINCT CAST(pm.meta_value AS UNSIGNED) as attachment_id
+                        FROM {$wpdb->postmeta} pm
+                        INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                        INNER JOIN {$wpdb->posts} att ON CAST(pm.meta_value AS UNSIGNED) = att.ID
+                        WHERE pm.meta_key = 'immagine_annuncio_trigesimo'
+                        AND p.post_type = %s
+                        AND pm.meta_value REGEXP '^[0-9]+$'
+                        AND pm.meta_value > 0
+                        AND att.post_type = 'attachment'
+                        AND att.post_status = 'inherit'
+                        ORDER BY attachment_id
+                        LIMIT %d OFFSET %d
+                    ", $post_type, $batch_size, $offset));
+                    break;
+                    
+                case 'anniversario':
+                    // Trova immagini anniversari
+                    $attachment_ids = $wpdb->get_col($wpdb->prepare("
+                        SELECT DISTINCT CAST(pm.meta_value AS UNSIGNED) as attachment_id
+                        FROM {$wpdb->postmeta} pm
+                        INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+                        INNER JOIN {$wpdb->posts} att ON CAST(pm.meta_value AS UNSIGNED) = att.ID
+                        WHERE pm.meta_key = 'immagine_annuncio_anniversario'
+                        AND p.post_type = %s
+                        AND pm.meta_value REGEXP '^[0-9]+$'
+                        AND pm.meta_value > 0
+                        AND att.post_type = 'attachment'
+                        AND att.post_status = 'inherit'
+                        ORDER BY attachment_id
+                        LIMIT %d OFFSET %d
+                    ", $post_type, $batch_size, $offset));
+                    break;
+                    
+                default:
+                    $attachment_ids = [];
+                    break;
+            }
+            
+            if (empty($attachment_ids)) {
+                return [
+                    'processed' => 0,
+                    'total' => 0,
+                    'completed' => true,
+                    'messages' => []
+                ];
+            }
+            
+            // Clear cache before processing
+            wp_cache_flush();
+            
+            $messages = [];
+            $deleted_count = 0;
+            
+            foreach ($attachment_ids as $attach_id) {
+                // Ensure attachment ID is an integer
+                $attach_id = intval($attach_id);
+                if ($attach_id <= 0) {
+                    $messages[] = "Errore: ID attachment non valido: $attach_id";
+                    continue;
+                }
+                
+                // Clear specific post cache
+                clean_post_cache($attach_id);
+                
+                // Verifica se l'attachment esiste prima di tentare l'eliminazione
+                $attachment_post = get_post($attach_id);
+                
+                // Enhanced debugging
+                if (!$attachment_post) {
+                    // Try direct database query as fallback
+                    $direct_check = $wpdb->get_row($wpdb->prepare(
+                        "SELECT ID, post_type, post_status FROM {$wpdb->posts} WHERE ID = %d",
+                        $attach_id
+                    ));
+                    
+                    if ($direct_check) {
+                        $messages[] = "Errore eliminazione immagine $post_type ID: $attach_id - Post trovato nel DB ma get_post() fallito. Tipo: {$direct_check->post_type}, Status: {$direct_check->post_status}";
+                    } else {
+                        $messages[] = "Errore eliminazione immagine $post_type ID: $attach_id - Attachment non trovato nel database";
+                    }
+                    continue;
+                }
+                
+                if ($attachment_post->post_type !== 'attachment') {
+                    $messages[] = "Errore eliminazione immagine $post_type ID: $attach_id - Tipo post errato: {$attachment_post->post_type}";
+                    continue;
+                }
+                
+                // Check post status
+                if ($attachment_post->post_status === 'trash') {
+                    $messages[] = "Avviso: Immagine $post_type ID: $attach_id già nel cestino - Skip";
+                    continue;
+                }
+                
+                if (wp_delete_attachment($attach_id, true)) {
+                    $deleted_count++;
+                    $messages[] = "Eliminata immagine $post_type ID: $attach_id";
+                } else {
+                    $file_path = get_attached_file($attach_id);
+                    $file_exists = $file_path && file_exists($file_path) ? 'presente' : 'assente';
+                    $messages[] = "Errore eliminazione immagine $post_type ID: $attach_id - File: $file_exists, Status: {$attachment_post->post_status}";
+                }
+            }
+            
+            $total_count = $this->count_images_by_post_type($post_type);
+            $remaining = max(0, $total_count - ($offset + $deleted_count));
+            
+            return [
+                'processed' => $deleted_count,
+                'total' => $total_count,
+                'completed' => $remaining == 0,
+                'next_offset' => $remaining > 0 ? $offset + $deleted_count : 0,
+                'messages' => $messages,
+                'remaining' => $remaining
+            ];
+        }
+
+        private function delete_general_migration_images($offset, $batch_size, $cutoff_date = '')
+        {
+            global $wpdb;
+            
+            $attachment_ids = [];
+            
+            if (!empty($cutoff_date)) {
+                // Con cutoff date, trova tutti gli attachment dopo quella data
+                $attachment_ids = $wpdb->get_col($wpdb->prepare("
+                    SELECT ID 
+                    FROM {$wpdb->posts}
+                    WHERE post_type = 'attachment' 
+                    AND post_status = 'inherit'
+                    AND post_date > %s
+                    ORDER BY ID
+                    LIMIT %d OFFSET %d
+                ", $cutoff_date, $batch_size, $offset));
+            } else {
+                // Trova immagini generiche della migrazione (non già categorizzate)
+                $attachment_ids = $wpdb->get_col($wpdb->prepare("
+                    SELECT DISTINCT p.ID
+                    FROM {$wpdb->posts} p
+                    LEFT JOIN {$wpdb->posts} parent ON p.post_parent = parent.ID
+                    LEFT JOIN {$wpdb->postmeta} pm1 ON p.ID = CAST(pm1.meta_value AS UNSIGNED) AND pm1.meta_key IN ('fotografia', 'immagine_annuncio_di_morte') AND pm1.meta_value REGEXP '^[0-9]+$'
+                    LEFT JOIN {$wpdb->postmeta} pm2 ON p.ID = CAST(pm2.meta_value AS UNSIGNED) AND pm2.meta_key IN ('immagine_annuncio_trigesimo', 'immagine_annuncio_anniversario') AND pm2.meta_value REGEXP '^[0-9]+$'
+                    WHERE p.post_type = 'attachment'
+                    AND p.post_status = 'inherit'
+                    AND (
+                        (parent.post_type IS NOT NULL AND parent.post_type IN ('annuncio-di-morte', 'trigesimo', 'anniversario', 'ringraziamento', 'manifesto'))
+                        OR pm1.meta_value IS NOT NULL
+                        OR pm2.meta_value IS NOT NULL
+                    )
+                    AND pm1.meta_value IS NULL  -- Esclude quelle già contate per necrologi
+                    AND pm2.meta_value IS NULL  -- Esclude quelle già contate per trigesimi/anniversari
+                    ORDER BY p.ID
+                    LIMIT %d OFFSET %d
+                ", $batch_size, $offset));
+            }
+            
+            if (empty($attachment_ids)) {
+                return [
+                    'processed' => 0,
+                    'total' => 0,
+                    'completed' => true,
+                    'messages' => []
+                ];
+            }
+            
+            // Clear cache before processing
+            wp_cache_flush();
+            
+            $messages = [];
+            $deleted_count = 0;
+            
+            foreach ($attachment_ids as $attach_id) {
+                // Ensure attachment ID is an integer
+                $attach_id = intval($attach_id);
+                if ($attach_id <= 0) {
+                    $messages[] = "Errore: ID attachment non valido: $attach_id";
+                    continue;
+                }
+                
+                // Clear specific post cache
+                clean_post_cache($attach_id);
+                
+                // Verifica se l'attachment esiste prima di tentare l'eliminazione
+                $attachment_post = get_post($attach_id);
+                
+                // Enhanced debugging
+                if (!$attachment_post) {
+                    // Try direct database query as fallback
+                    $direct_check = $wpdb->get_row($wpdb->prepare(
+                        "SELECT ID, post_type, post_status FROM {$wpdb->posts} WHERE ID = %d",
+                        $attach_id
+                    ));
+                    
+                    if ($direct_check) {
+                        $messages[] = "Errore eliminazione immagine generale ID: $attach_id - Post trovato nel DB ma get_post() fallito. Tipo: {$direct_check->post_type}, Status: {$direct_check->post_status}";
+                    } else {
+                        $messages[] = "Errore eliminazione immagine generale ID: $attach_id - Attachment non trovato nel database";
+                    }
+                    continue;
+                }
+                
+                if ($attachment_post->post_type !== 'attachment') {
+                    $messages[] = "Errore eliminazione immagine generale ID: $attach_id - Tipo post errato: {$attachment_post->post_type}";
+                    continue;
+                }
+                
+                // Check post status
+                if ($attachment_post->post_status === 'trash') {
+                    $messages[] = "Avviso: Immagine generale ID: $attach_id già nel cestino - Skip";
+                    continue;
+                }
+                
+                if (wp_delete_attachment($attach_id, true)) {
+                    $deleted_count++;
+                    $messages[] = "Eliminata immagine generale ID: $attach_id";
+                } else {
+                    $file_path = get_attached_file($attach_id);
+                    $file_exists = $file_path && file_exists($file_path) ? 'presente' : 'assente';
+                    $messages[] = "Errore eliminazione immagine generale ID: $attach_id - File: $file_exists, Status: {$attachment_post->post_status}";
+                }
+            }
+            
+            $total_count = $this->count_general_migration_images($cutoff_date);
+            $remaining = max(0, $total_count - ($offset + $deleted_count));
+            
+            return [
+                'processed' => $deleted_count,
+                'total' => $total_count,
+                'completed' => $remaining == 0,
+                'next_offset' => $remaining > 0 ? $offset + $deleted_count : 0,
+                'messages' => $messages,
+                'remaining' => $remaining
             ];
         }
 
@@ -1969,6 +2874,82 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 'messages' => $messages,
                 'remaining' => $remaining_count
             ];
+        }
+
+        public function restart_image_downloads()
+        {
+            if (!wp_verify_nonce($_POST['nonce'], 'migration_nonce')) {
+                wp_die('Security check failed');
+            }
+
+            try {
+                $necro_migration = $this->migration_tasks['necrologi'] ?? null;
+                if (!$necro_migration) {
+                    wp_send_json_error('Migration task not found');
+                    return;
+                }
+
+                $result = $necro_migration->force_restart_image_queue();
+                
+                if ($result['success']) {
+                    wp_send_json_success([
+                        'message' => $result['message'],
+                        'stats' => $result['stats'] ?? []
+                    ]);
+                } else {
+                    wp_send_json_error($result['message']);
+                }
+            } catch (Exception $e) {
+                wp_send_json_error('Error restarting image downloads: ' . $e->getMessage());
+            }
+        }
+
+        public function stop_image_downloads()
+        {
+            if (!wp_verify_nonce($_POST['nonce'], 'migration_nonce')) {
+                wp_die('Security check failed');
+            }
+
+            try {
+                $necro_migration = $this->migration_tasks['necrologi.csv'] ?? null;
+                if (!$necro_migration) {
+                    wp_send_json_error('Migration task not found');
+                    return;
+                }
+
+                $result = $necro_migration->stop_image_processing();
+                
+                if ($result['success']) {
+                    wp_send_json_success([
+                        'message' => $result['message'],
+                        'stats' => $result['stats'] ?? []
+                    ]);
+                } else {
+                    wp_send_json_error($result['message']);
+                }
+            } catch (Exception $e) {
+                wp_send_json_error('Error stopping image downloads: ' . $e->getMessage());
+            }
+        }
+
+        public function check_image_download_status()
+        {
+            if (!wp_verify_nonce($_POST['nonce'], 'migration_nonce')) {
+                wp_die('Security check failed');
+            }
+
+            try {
+                $necro_migration = $this->migration_tasks['necrologi.csv'] ?? null;
+                if (!$necro_migration) {
+                    wp_send_json_error('Migration task not found');
+                    return;
+                }
+
+                $status = $necro_migration->get_detailed_queue_status();
+                wp_send_json_success($status);
+            } catch (Exception $e) {
+                wp_send_json_error('Error checking status: ' . $e->getMessage());
+            }
         }
 
     }

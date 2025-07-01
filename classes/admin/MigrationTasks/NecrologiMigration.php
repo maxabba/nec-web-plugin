@@ -16,26 +16,15 @@ if (!defined('ABSPATH')) {
 if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
     class NecrologiMigration extends MigrationTasks
     {
-        private int $micro_batch_size = 20;
-        private int $query_chunk_size = 100;
-        private array $user_cache = [];
-        private array $post_cache = [];
-        private int $checkpoint_interval = 50;
-        private int $progress_update_interval = 10;
-        
         //private string $image_cron_hook = 'dokan_mods_download_images';
 
         private string $image_queue_file = 'image_download_queue.csv';
         private int $max_retries = 5;
-        private int $images_per_cron = 1000; // Aumentato per migliori prestazioni
-        private int $max_concurrent_downloads = 5; // Download paralleli
+        private int $images_per_cron = 500;
 
         public function __construct(String $upload_dir, String $progress_file, String $log_file, Int $batch_size)
         {
             parent::__construct($upload_dir, $progress_file, $log_file, $batch_size);
-            
-            $this->memory_limit_mb = 256;
-            $this->max_execution_time = 30;
 
             add_action('dokan_mods_process_image_queue', [$this, 'process_image_queue']);
 
@@ -77,41 +66,22 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             }
 
             $start_time = microtime(true);
-            $this->log("=== INIZIO BATCH MIGRATION per $file_name ===");
             $this->set_progress_status($file_name, 'ongoing');
 
             if(!$file = $this->load_file($file_name)){
-                $this->log("ERRORE: Impossibile caricare file $file_name");
                 return false;
             }
-            $this->log("File $file_name caricato con successo");
 
-            $progress = $this->first_call_check($file);
-            if (!$progress) {
-                $this->log("ERRORE: first_call_check fallito per $file_name");
+            if (!$progress = $this->first_call_check($file)) {
                 return false;
             }
-            $this->log("first_call_check completato - progresso: " . json_encode($progress));
 
             $processed = $progress['processed'];
             $total_rows = $progress['total'];
 
-            // Controllo sanità: non processare oltre il totale
-            if ($processed >= $total_rows) {
-                $this->log("Tutti i record sono già stati processati: $processed di $total_rows");
-                $this->set_progress_status($file_name, 'finished');
-                $this->schedule_image_processing();
-                return true;
-            }
-
             $header = $file->fgetcsv();             // Leggi l'header
 
-            // IMPORTANTE: seek deve considerare che abbiamo già letto l'header
-            // Se processed = 0, siamo già alla posizione 1 dopo aver letto l'header
-            if ($processed > 0) {
-                $file->seek($processed + 1);        // +1 per saltare l'header
-            }
-            // Se processed = 0, non fare seek perché siamo già dopo l'header
+            $file->seek($processed);                // Salta le righe già processate
 
             $batch_data = [];
             $batch_user_old_ids = [];
@@ -119,94 +89,44 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             $id_account_index = array_search('IdAccount', $header);
 
             // Raccolta dati batch
-            $rows_to_process = min($this->batch_size, $total_rows - $processed);
-            while (!$file->eof() && count($batch_data) < $rows_to_process) {
+            while (!$file->eof() && count($batch_data) < $this->batch_size) {
                 $data = $file->fgetcsv();
-                if (empty($data) || $data === [null]) continue;
-
-                // Ulteriore controllo per non superare il totale
-                if ($processed + count($batch_data) >= $total_rows) {
-                    $this->log("Raggiunto il limite totale di righe da processare");
-                    break;
-                }
+                if (empty($data)) continue;
 
                 $batch_data[] = $data;
                 $batch_user_old_ids[] = $data[$id_account_index];
                 $batch_post_old_ids[] = $data[array_search('ID', $header)];
             }
 
-            // Ottimizzazione: pre-fetch degli utenti esistenti con chunking
-            $existing_posts = $this->get_existing_posts_by_old_ids_chunked(array_unique($batch_post_old_ids));
+            // Ottimizzazione: pre-fetch degli utenti esistenti
+            $existing_posts = $this->get_existing_posts_by_old_ids(array_unique($batch_post_old_ids));
             $existing_users = $this->get_existing_users_by_old_ids(array_unique($batch_user_old_ids));
             unset($batch_user_old_ids); // Libera memoria
             unset($batch_post_old_ids); // Libera memoria
 
             $image_queue = [];
 
-            // Process batch con micro-batching
-            $batch_acf_updates = [];
-            $micro_batches = array_chunk($batch_data, $this->micro_batch_size);
-            
-            foreach ($micro_batches as $micro_batch) {
-                foreach ($micro_batch as $data) {
-                    $this->process_single_record(
-                        $data,
-                        $header,
-                        $existing_posts,
-                        $existing_users,
-                        $image_queue,
-                        $batch_acf_updates
-                    );
-                    $processed++;
-                    
-                    if ($processed % $this->progress_update_interval === 0) {
-                        $this->update_progress($file_name, $processed, $total_rows);
-                    }
-                    
-                    if ($processed % $this->checkpoint_interval === 0) {
-                        $this->log("Checkpoint: processati $processed di $total_rows record");
-                        wp_cache_flush();
-                        if (function_exists('gc_collect_cycles')) {
-                            gc_collect_cycles();
-                        }
-                    }
-                }
-                
-                // Batch insert ACF fields per questo micro-batch
-                if (!empty($batch_acf_updates)) {
-                    $this->batch_insert_acf_fields($batch_acf_updates);
-                    $batch_acf_updates = [];
-                }
-                
-                // Memory cleanup dopo ogni micro-batch
-                if (function_exists('gc_collect_cycles')) {
-                    gc_collect_cycles();
-                }
-            }
-            
-            // Final batch insert per eventuali ACF rimanenti
-            if (!empty($batch_acf_updates)) {
-                $this->batch_insert_acf_fields($batch_acf_updates);
+            // Process batch
+            foreach ($batch_data as $data) {
+
+                $this->process_single_record(
+                    $data,
+                    $header,
+                    $existing_posts,
+                    $existing_users,
+                    $image_queue
+                );
+                $processed++;
+                $this->update_progress($file_name, $processed, $total_rows);
             }
 
             // Cleanup
             unset($batch_data);
             $file = null; // Chiude il file
 
-            // Solo aggiunta alla coda per processamento asincrono
+            // Processamento immagini
             if (!empty($image_queue)) {
-                $image_count = count($image_queue);
-                $this->log("Aggiungendo $image_count immagini alla coda per download asincrono");
-                
-                $queue_start = microtime(true);
                 $this->image_queue($image_queue);
-                $queue_time = microtime(true) - $queue_start;
-                $this->log("Immagini aggiunte alla coda in {$queue_time}s - saranno processate dal cron job dedicato");
-                
-                // Assicurati che il cron job sia schedulato
-                if (!wp_next_scheduled('dokan_mods_process_image_queue')) {
-                    $this->schedule_image_processing();
-                }
             }
             unset($image_queue);
 
@@ -214,25 +134,19 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             $execution_time = $end_time - $start_time;
             $this->log("Batch execution time: {$execution_time} seconds");
 
+            $this->set_progress_status($file_name, 'completed');
+
             if ($processed >= $total_rows) {
                 $this->set_progress_status($file_name, 'finished');
                 $this->schedule_image_processing();
-                return true;
             }
 
-            $smart_status = $this->set_progress_status_smart($file_name, 'completed');
-            
-            if ($smart_status === 'auto_continue') {
-                $this->log("Auto-continuazione immediata possibile per $file_name");
-                return 'auto_continue';
-            }
-
-            return false;
+            return $processed >= $total_rows;
         }
 
 
 
-        private function process_single_record($data, $header, $existing_posts, $existing_users, &$image_queue, &$batch_acf_updates = null)
+        private function process_single_record($data, $header, $existing_posts, $existing_users, &$image_queue)
         {
             static $field_indexes = null;
 
@@ -272,19 +186,15 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             ]);
 
             if (!is_wp_error($post_id)) {
-                if ($batch_acf_updates !== null) {
-                    $this->prepare_acf_batch_update($post_id, $data, $field_indexes, $batch_acf_updates);
-                } else {
-                    $this->update_post_fields($post_id, $data, $field_indexes);
+                $this->update_post_fields($post_id, $data, $field_indexes);
+
+                // Gestione immagini
+                if ($data[$field_indexes['Foto']]) {
+                    $image_queue[] = ['profile_photo', $data[$field_indexes['Foto']], $post_id, $author_id];
                 }
 
-                // Gestione immagini - validazione prima di aggiungere alla coda
-                if (!empty($data[$field_indexes['Foto']]) && trim($data[$field_indexes['Foto']]) !== '') {
-                    $image_queue[] = ['profile_photo', trim($data[$field_indexes['Foto']]), $post_id, $author_id];
-                }
-
-                if (!empty($data[$field_indexes['ImmagineManifesto']]) && trim($data[$field_indexes['ImmagineManifesto']]) !== '') {
-                    $image_queue[] = ['manifesto_image', trim($data[$field_indexes['ImmagineManifesto']]), $post_id, $author_id];
+                if ($data[$field_indexes['ImmagineManifesto']]) {
+                    $image_queue[] = ['manifesto_image', $data[$field_indexes['ImmagineManifesto']], $post_id, $author_id];
                 }
 
                 $this->log("Annuncio di morte creato: ID $post_id, Nome {$data[$field_indexes['Nome']]} {$data[$field_indexes['Cognome']]}");
@@ -315,26 +225,13 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
 
         private function image_queue($image_queue)
         {
-            $this->log("=== INIZIO IMAGE QUEUE PROCESSING ===");
-            $queue_count = count($image_queue);
-            $this->log("Processing $queue_count immagini per la coda");
-            
             // Prepariamo un array di tutti gli URL per fare una singola query SQL
-            $url_start = microtime(true);
-            $image_urls = [];
-            foreach ($image_queue as $image) {
-                if (!empty($image[1])) {
-                    $image_urls[] = 'https://necrologi.sciame.it/necrologi/' . trim($image[1]);
-                }
-            }
-            $url_time = microtime(true) - $url_start;
-            $this->log("URL mapping completato in {$url_time}s per " . count($image_urls) . " URLs validi");
+            $image_urls = array_map(function ($image) {
+                return 'https://necrologi.sciame.it/necrologi/' . $image[1];
+            }, $image_queue);
 
             // Otteniamo tutti gli ID delle immagini esistenti con una singola query
-            $query_start = microtime(true);
             $existing_images = $this->get_images_ids_by_urls($image_urls);
-            $query_time = microtime(true) - $query_start;
-            $this->log("Query immagini esistenti completata in {$query_time}s - trovate " . count($existing_images) . " immagini");
 
             // Prepariamo il file per la coda una sola volta
             $queue_file = $this->upload_dir . $this->image_queue_file;
@@ -353,9 +250,8 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                     $read_file = null;
                 }
 
-                // Buffer per scritture batch
-                $new_entries = [];
-                $updated_count = 0;
+                // Apriamo il file per la scrittura
+                $write_file = new SplFileObject($queue_file, 'a');
 
                 foreach ($image_queue as $image) {
                     $image_type = $image[0];
@@ -363,54 +259,39 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                     $post_id = $image[2];
                     $author_id = $image[3];
 
-                    // Validazione del path immagine
-                    if(empty($image_path) || trim($image_path) === ''){
+                    if($image_path == ''){
                         continue;
                     }
-                    
-                    // Costruisci URL completo
-                    $image_url = 'https://necrologi.sciame.it/necrologi/' . trim($image_path);
+                    $image_url = 'https://necrologi.sciame.it/necrologi/' . $image_path;
 
                     // Controlliamo se l'immagine esiste già nella libreria
                     $existing_image_id = isset($existing_images[$image_url]) ? $existing_images[$image_url] : null;
 
                     if ($existing_image_id) {
+                        $this->log("Image already exists in media library: $image_url");
                         // Aggiorniamo i campi necessari
                         if ($image_type === 'profile_photo') {
                             update_field('fotografia', $existing_image_id, $post_id);
                         } elseif ($image_type === 'manifesto_image') {
                             update_field('immagine_annuncio_di_morte', $existing_image_id, $post_id);
                         }
-                        $updated_count++;
                         continue;
                     }
 
                     // Controlliamo se l'immagine è già in coda
                     $queue_key = implode('|', [$image_type, $image_url, $post_id, $author_id]);
                     if (isset($existing_queue[$queue_key])) {
+                        $this->log("Image already in queue: $image_url");
                         continue;
                     }
 
-                    // Aggiungiamo al buffer
-                    $new_entries[] = [$image_type, $image_url, $post_id, $author_id, 0];
-                    $existing_queue[$queue_key] = true; // Aggiorna cache locale
+                    // Aggiungiamo alla coda
+                    $write_file->fputcsv([$image_type, $image_url, $post_id, $author_id, 0]);
+                    $this->log("Image added to queue: $image_url");
                 }
-                
-                // Scrittura batch di tutte le nuove entry
-                if (!empty($new_entries)) {
-                    $write_file = new SplFileObject($queue_file, 'a');
-                    foreach ($new_entries as $entry) {
-                        $write_file->fputcsv($entry);
-                    }
-                    $write_file = null;
-                    $this->log("Added " . count($new_entries) . " new images to queue");
-                }
-                
-                if ($updated_count > 0) {
-                    $this->log("Updated $updated_count existing images in media library");
-                }
-                
-                $this->log("=== FINE IMAGE QUEUE PROCESSING - SUCCESS ===");
+
+                // Chiudiamo il file
+                $write_file = null;
 
                 return true;
             } catch (RuntimeException $e) {
@@ -427,41 +308,36 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                 return [];
             }
 
-            // Query ottimizzata per trovare immagini esistenti
-            // Usa LIKE per gestire differenze nei percorsi
-            $url_mapping = [];
-            $chunks = array_chunk($image_urls, 100); // Processa in chunks per evitare query troppo grandi
-            
-            foreach ($chunks as $chunk) {
-                $like_conditions = [];
-                $values = [];
-                
-                foreach ($chunk as $url) {
-                    $filename = basename($url);
-                    $like_conditions[] = "guid LIKE %s";
-                    $values[] = '%' . $wpdb->esc_like($filename);
-                }
-                
-                if (!empty($like_conditions)) {
-                    $query = "SELECT ID, guid FROM $wpdb->posts 
-                             WHERE post_type = 'attachment' 
-                             AND (" . implode(' OR ', $like_conditions) . ")";
-                    
-                    $prepared_query = $wpdb->prepare($query, $values);
-                    $results = $wpdb->get_results($prepared_query);
-                    
-                    foreach ($results as $result) {
-                        foreach ($chunk as $url) {
-                            if (basename($url) === basename($result->guid)) {
-                                $url_mapping[$url] = $result->ID;
-                                break;
-                            }
-                        }
-                    }
+            // Prepariamo i filename per la ricerca
+            $filenames = array_map('basename', $image_urls);
+
+            // Costruiamo la query dinamicamente con un'operazione di corrispondenza esatta
+            $placeholders = implode(',', array_fill(0, count($filenames), '%s'));
+
+            // Eseguiamo la query
+            $query = "
+                SELECT ID, guid 
+                FROM $wpdb->posts 
+                WHERE guid IN ($placeholders)";
+
+            // Prepariamo i parametri per la query
+            $prepared_query = $wpdb->prepare($query, ...$filenames);
+            $results = $wpdb->get_results($prepared_query);
+
+            // Creiamo un array associativo url => ID
+            $url_to_id = [];
+            foreach ($results as $result) {
+                $url_to_id[basename($result->guid)] = $result->ID;
+            }
+
+            // Mappiamo gli URL originali agli ID
+            $final_mapping = [];
+            foreach ($image_urls as $url) {
+                $filename = basename($url);
+                if (isset($url_to_id[$filename])) {
+                    $final_mapping[$url] = $url_to_id[$filename];
                 }
             }
-            
-            $final_mapping = $url_mapping;
 
             return $final_mapping;
         }
@@ -507,11 +383,10 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                 $progress = $this->get_progress($this->image_queue_file);
                 $processed = $progress['processed'];
 
-                // Raccogli batch di immagini da processare
-                $batch_images = [];
-                $batch_indexes = [];
-                
+                $batch_count = 0;  // Contatore per il numero di immagini processate in questo batch
+
                 foreach ($file as $index => $data) {
+
                     // Se la riga è vuota o mancano campi, saltala
                     if (empty($data) || count($data) < 5) continue;
 
@@ -519,64 +394,35 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                     if ($index < $processed) continue;
 
                     // Verifica se abbiamo raggiunto il limite del batch
-                    if (count($batch_images) >= $this->images_per_cron) {
-                        break;
+                    if ($batch_count >= $this->images_per_cron) {
+                        break; // Esci dal ciclo, il batch è completo
                     }
 
                     list($image_type, $image_url, $post_id, $author_id, $retry_count) = $data;
-                    
-                    // Skip se troppi retry
-                    if ($retry_count >= $this->max_retries) {
-                        $this->log("Skipping image after $retry_count retries: $image_url");
-                        $processed = $index + 1;
-                        continue;
+
+                    // Prova a scaricare e allegare l'immagine
+                    if ($this->download_and_attach_image($image_type, $image_url, $post_id, $author_id)) {
+                        $processed = $index + 1;  // Aggiorna il numero di righe processate
+                        $batch_count++;  // Incrementa il contatore del batch
+                        $this->update_progress($this->image_queue_file, $processed, $total_rows);  // Aggiorna lo stato del progresso
+                    } else {
+                        $retry_count++;
+                        // Non riscrivi la riga qui, il file rimane intatto e puoi tentare di nuovo nei batch successivi
                     }
-                    
-                    $batch_images[] = [
-                        'type' => $image_type,
-                        'url' => $image_url,
-                        'post_id' => $post_id,
-                        'author_id' => $author_id,
-                        'retry_count' => $retry_count,
-                        'index' => $index
-                    ];
-                    $batch_indexes[] = $index;
                 }
 
+                // Chiudi il file
                 $file = null;
 
-                // Processa il batch con download paralleli
-                if (!empty($batch_images)) {
-                    $this->log("Processing batch of " . count($batch_images) . " images");
-                    $results = $this->download_images_batch($batch_images);
-                    
-                    // Aggiorna il progresso basato sui risultati
-                    $last_processed_index = $processed;
-                    foreach ($results as $index => $success) {
-                        if ($success) {
-                            $last_processed_index = max($last_processed_index, $batch_images[$index]['index'] + 1);
-                        }
-                    }
-                    
-                    $processed = $last_processed_index;
-                    $this->update_progress($this->image_queue_file, $processed, $total_rows);
-                    
-                    // Aggiorna il file della coda con i retry per le immagini fallite
-                    $this->update_queue_file_with_retries($queue_file, $batch_images, $results);
-                }
-
-                // Se abbiamo completato tutte le righe, segna come finished
+                // Se abbiamo completato tutte le righe, possiamo segnare il progresso come "finished"
                 if ($processed >= $total_rows) {
                     $this->set_progress_status($this->image_queue_file, 'finished');
-                    $this->log("Image queue processing completed. Total processed: $processed");
                 } else {
                     $this->set_progress_status($this->image_queue_file, 'completed');
-                    $remaining = $total_rows - $processed;
-                    $this->log("Batch completed. Processed: $processed, Remaining: $remaining");
                 }
 
             } catch (Exception $e) {
-                $this->log("Error in process_image_queue: " . $e->getMessage());
+                $this->log("Error: " . $e->getMessage());
                 $this->set_progress_status($this->image_queue_file, 'error');
             }
         }
@@ -584,235 +430,61 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
 
 
 
-        private function get_existing_posts_by_old_ids_chunked($old_ids, $post_types = ['annuncio-di-morte'])
+        private function download_and_attach_image($image_type, $image_url, $post_id, $author_id)
         {
-            if (empty($old_ids)) {
-                return [];
-            }
-
-            $all_results = [];
-            $chunks = array_chunk($old_ids, $this->query_chunk_size);
-            
-            foreach ($chunks as $chunk) {
-                $chunk_results = parent::get_existing_posts_by_old_ids($chunk, $post_types);
-                $all_results = array_merge($all_results, $chunk_results);
-                
-                if (function_exists('gc_collect_cycles')) {
-                    gc_collect_cycles();
-                }
-            }
-            
-            return $all_results;
-        }
-
-        private function prepare_acf_batch_update($post_id, $data, $field_indexes, &$batch_acf_updates)
-        {
-            $fields = [
-                'id_old' => $data[$field_indexes['ID']],
-                'nome' => $data[$field_indexes['Nome']],
-                'cognome' => $data[$field_indexes['Cognome']],
-                'eta' => intval($data[$field_indexes['Anni']]),
-                'data_di_morte' => $data[$field_indexes['DataMorte']],
-                'testo_annuncio_di_morte' => $data[$field_indexes['Testo']] ?: $data[$field_indexes['AltTesto']],
-                'citta' => $this->format_luogo($data[$field_indexes['Luogo']]),
-                'funerale_data' => $data[$field_indexes['DataFunerale']]
-            ];
-
-            foreach ($fields as $field_key => $value) {
-                $batch_acf_updates[] = [
-                    'post_id' => $post_id,
-                    'meta_key' => $field_key,
-                    'meta_value' => $value
-                ];
-            }
-        }
-
-        private function batch_insert_acf_fields($batch_updates)
-        {
-            if (empty($batch_updates)) {
-                return;
-            }
-
-            global $wpdb;
-            
-            $values = [];
-            $placeholders = [];
-            
-            foreach ($batch_updates as $update) {
-                $values[] = $update['post_id'];
-                $values[] = $update['meta_key'];
-                $values[] = maybe_serialize($update['meta_value']);
-                $placeholders[] = '(%d, %s, %s)';
-            }
-            
-            $sql = "INSERT INTO {$wpdb->postmeta} (post_id, meta_key, meta_value) VALUES " . 
-                   implode(', ', $placeholders) . 
-                   " ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)";
-            
-            $prepared_sql = $wpdb->prepare($sql, $values);
-            $wpdb->query($prepared_sql);
-        }
-
-        private function download_images_batch($batch_images)
-        {
-            if (empty($batch_images)) {
-                return [];
-            }
-
-            $results = array_fill(0, count($batch_images), false);
-            $multi_handle = curl_multi_init();
-            $curl_handles = [];
-            
-            // Configurazione ottimizzata per performance
-            curl_multi_setopt($multi_handle, CURLMOPT_MAXCONNECTS, $this->max_concurrent_downloads);
-            curl_multi_setopt($multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
-            
-            // Inizializza i handle cURL
-            foreach ($batch_images as $index => $image) {
-                $ch = curl_init();
+            try {
+                $ch = curl_init($image_url);
                 curl_setopt_array($ch, [
-                    CURLOPT_URL => $image['url'],
                     CURLOPT_RETURNTRANSFER => true,
                     CURLOPT_FOLLOWLOCATION => true,
-                    CURLOPT_TIMEOUT => 30,
-                    CURLOPT_CONNECTTIMEOUT => 10,
-                    CURLOPT_SSL_VERIFYPEER => false,
-                    CURLOPT_SSL_VERIFYHOST => false,
-                    CURLOPT_USERAGENT => 'WordPress/' . get_bloginfo('version'),
-                    CURLOPT_ENCODING => 'gzip, deflate',
-                    CURLOPT_MAXREDIRS => 5
+                    CURLOPT_TIMEOUT => 30
                 ]);
-                
-                curl_multi_add_handle($multi_handle, $ch);
-                $curl_handles[$index] = $ch;
-            }
-            
-            // Esegui download paralleli
-            $running = 0;
-            do {
-                $status = curl_multi_exec($multi_handle, $running);
-                if ($running) {
-                    curl_multi_select($multi_handle, 1.0);
-                }
-                
-                // Processa handle completati
-                while ($info = curl_multi_info_read($multi_handle)) {
-                    $ch = $info['handle'];
-                    $index = array_search($ch, $curl_handles, true);
-                    
-                    if ($index !== false) {
-                        if ($info['result'] === CURLE_OK) {
-                            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                            if ($http_code === 200) {
-                                $content = curl_multi_getcontent($ch);
-                                if ($content && strlen($content) > 0) {
-                                    $results[$index] = $this->save_downloaded_image(
-                                        $content,
-                                        $batch_images[$index]
-                                    );
-                                } else {
-                                    $this->log("Empty content for: " . $batch_images[$index]['url']);
-                                }
-                            } else {
-                                $this->log("HTTP $http_code for: " . $batch_images[$index]['url']);
-                            }
-                        } else {
-                            $error = curl_error($ch);
-                            $this->log("cURL error for " . $batch_images[$index]['url'] . ": $error");
-                        }
-                        
-                        curl_multi_remove_handle($multi_handle, $ch);
-                        curl_close($ch);
-                    }
-                }
-            } while ($running > 0 || $status === CURLM_CALL_MULTI_PERFORM);
-            
-            curl_multi_close($multi_handle);
-            
-            return $results;
-        }
 
-        private function save_downloaded_image($image_data, $image_info)
-        {
-            try {
+                $image_data = curl_exec($ch);
+                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($http_code !== 200 || !$image_data) {
+                    throw new RuntimeException("Download failed with HTTP code: $http_code");
+                }
+
                 $upload_dir = wp_upload_dir();
-                $filename = wp_unique_filename($upload_dir['path'], basename($image_info['url']));
+                $filename = wp_unique_filename($upload_dir['path'], basename($image_url));
                 $upload_file = $upload_dir['path'] . '/' . $filename;
-                
+
                 if (!file_put_contents($upload_file, $image_data)) {
-                    throw new RuntimeException("Failed to save image file");
+                    throw new RuntimeException("Failed to save image");
                 }
-                
-                // Verifica che il file sia un'immagine valida
-                $file_type = wp_check_filetype($filename, null);
-                if (!in_array($file_type['type'], ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'])) {
-                    unlink($upload_file);
-                    throw new RuntimeException("Invalid image type: " . $file_type['type']);
-                }
-                
+
                 $attachment = [
-                    'post_mime_type' => $file_type['type'],
-                    'post_title' => sanitize_file_name(pathinfo($filename, PATHINFO_FILENAME)),
+                    'post_mime_type' => wp_check_filetype($filename, null)['type'],
+                    'post_title' => sanitize_file_name($filename),
                     'post_status' => 'inherit',
-                    'post_author' => $image_info['author_id'] ?: 1,
+                    'post_author' => $author_id ?: 1,
                 ];
-                
-                $attach_id = wp_insert_attachment($attachment, $upload_file, $image_info['post_id']);
+
+                $attach_id = wp_insert_attachment($attachment, $upload_file, $post_id);
                 if (is_wp_error($attach_id)) {
-                    unlink($upload_file);
                     throw new RuntimeException($attach_id->get_error_message());
                 }
-                
-                require_once(ABSPATH . 'wp-admin/includes/image.php');
-                $attach_data = wp_generate_attachment_metadata($attach_id, $upload_file);
-                wp_update_attachment_metadata($attach_id, $attach_data);
-                
-                // Aggiorna il campo ACF appropriato
-                if ($image_info['type'] === 'profile_photo') {
-                    update_field('fotografia', $attach_id, $image_info['post_id']);
-                } elseif ($image_info['type'] === 'manifesto_image') {
-                    update_field('immagine_annuncio_di_morte', $attach_id, $image_info['post_id']);
-                }
-                
-                $this->log("Successfully saved image: $filename for post " . $image_info['post_id']);
-                return true;
-                
-            } catch (Exception $e) {
-                $this->log("Error saving image: " . $e->getMessage());
-                return false;
-            }
-        }
 
-        private function update_queue_file_with_retries($queue_file, $batch_images, $results)
-        {
-            try {
-                // Leggi tutto il file in memoria
-                $all_rows = [];
-                $file = new SplFileObject($queue_file, 'r');
-                $file->setFlags(SplFileObject::READ_CSV);
-                
-                foreach ($file as $row) {
-                    if (!empty($row) && count($row) >= 5) {
-                        $all_rows[] = $row;
-                    }
-                }
-                $file = null;
-                
-                // Aggiorna i retry count per le immagini fallite
-                foreach ($batch_images as $index => $image) {
-                    if (!$results[$index] && isset($all_rows[$image['index']])) {
-                        $all_rows[$image['index']][4] = $image['retry_count'] + 1;
-                    }
-                }
-                
-                // Riscrivi il file
-                $file = new SplFileObject($queue_file, 'w');
-                foreach ($all_rows as $row) {
-                    $file->fputcsv($row);
-                }
-                
+                require_once(ABSPATH . 'wp-admin/includes/image.php');
+                wp_update_attachment_metadata(
+                    $attach_id,
+                    wp_generate_attachment_metadata($attach_id, $upload_file)
+                );
+
+                update_field(
+                    $image_type === 'profile_photo' ? 'fotografia' : 'immagine_annuncio_di_morte',
+                    $attach_id,
+                    $post_id
+                );
+
+                return true;
+
             } catch (Exception $e) {
-                $this->log("Error updating queue file: " . $e->getMessage());
+                $this->log("Error processing $image_url: " . $e->getMessage());
+                return false;
             }
         }
 
@@ -869,6 +541,130 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             return $luogo;
         }
 
+        public function force_restart_image_queue()
+        {
+            try {
+                $queue_file = $this->upload_dir . $this->image_queue_file;
+                
+                // Stop any running cron
+                wp_clear_scheduled_hook('dokan_mods_process_image_queue');
+                
+                // Reset progress status
+                $this->set_progress_status($this->image_queue_file, 'pending');
+                $this->update_progress($this->image_queue_file, 0, 0);
+                
+                // Get queue stats before restart
+                $stats = $this->get_detailed_queue_status();
+                
+                // Reschedule the cron job
+                if (file_exists($queue_file) && filesize($queue_file) > 0) {
+                    $this->schedule_image_processing();
+                    $message = 'Image download queue restarted successfully. Processing will begin shortly.';
+                } else {
+                    $message = 'No image queue file found. Queue restart not needed.';
+                }
+                
+                $this->log("Image queue force restart: " . $message);
+                
+                return [
+                    'success' => true,
+                    'message' => $message,
+                    'stats' => $stats
+                ];
+                
+            } catch (Exception $e) {
+                $error_msg = 'Failed to restart image queue: ' . $e->getMessage();
+                $this->log($error_msg);
+                return [
+                    'success' => false,
+                    'message' => $error_msg
+                ];
+            }
+        }
+
+        public function stop_image_processing()
+        {
+            try {
+                // Stop the cron job
+                wp_clear_scheduled_hook('dokan_mods_process_image_queue');
+                
+                // Set status to stopped
+                $this->set_progress_status($this->image_queue_file, 'stopped');
+                
+                // Get final stats
+                $stats = $this->get_detailed_queue_status();
+                
+                $message = 'Image download processing stopped successfully.';
+                $this->log("Image processing stopped by user request");
+                
+                return [
+                    'success' => true,
+                    'message' => $message,
+                    'stats' => $stats
+                ];
+                
+            } catch (Exception $e) {
+                $error_msg = 'Failed to stop image processing: ' . $e->getMessage();
+                $this->log($error_msg);
+                return [
+                    'success' => false,
+                    'message' => $error_msg
+                ];
+            }
+        }
+
+        public function get_detailed_queue_status()
+        {
+            $queue_file = $this->upload_dir . $this->image_queue_file;
+            $progress = $this->get_progress($this->image_queue_file);
+            $status = $this->get_progress_status($this->image_queue_file);
+            
+            // If progress total is 0 but file exists, count rows
+            $total_rows = $progress['total'] ?? 0;
+            if ($total_rows == 0 && file_exists($queue_file) && filesize($queue_file) > 0) {
+                try {
+                    $file = new SplFileObject($queue_file, 'r');
+                    $file->setFlags(SplFileObject::READ_CSV);
+                    $file->seek(PHP_INT_MAX);
+                    $total_rows = $file->key();
+                    $file = null;
+                } catch (Exception $e) {
+                    $this->log("Error counting queue file rows: " . $e->getMessage());
+                }
+            }
+            
+            $result = [
+                'queue_exists' => file_exists($queue_file),
+                'file_size' => file_exists($queue_file) ? filesize($queue_file) : 0,
+                'status' => $status,
+                'processed' => $progress['processed'] ?? 0,
+                'total' => $total_rows,
+                'percentage' => $total_rows > 0 ? round(($progress['processed'] ?? 0) / $total_rows * 100, 2) : 0,
+                'cron_scheduled' => wp_next_scheduled('dokan_mods_process_image_queue') !== false,
+                'next_cron_time' => wp_next_scheduled('dokan_mods_process_image_queue'),
+                'last_update' => $progress['last_update'] ?? null
+            ];
+            
+            // Calculate additional stats
+            if ($result['total'] > 0) {
+                $result['remaining'] = $result['total'] - $result['processed'];
+                $result['completion_rate'] = round(($result['processed'] / $result['total']) * 100, 2);
+            } else {
+                $result['remaining'] = 0;
+                $result['completion_rate'] = 0;
+            }
+            
+            // Add estimated time if processing
+            if ($result['status'] === 'ongoing' && $result['processed'] > 0) {
+                $elapsed_time = time() - strtotime($result['last_update'] ?? 'now');
+                if ($elapsed_time > 0 && $result['remaining'] > 0) {
+                    $avg_time_per_image = $elapsed_time / $result['processed'];
+                    $result['estimated_completion'] = $result['remaining'] * $avg_time_per_image;
+                }
+            }
+            
+            return $result;
+        }
 
 
     }

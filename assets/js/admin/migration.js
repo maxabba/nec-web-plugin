@@ -411,6 +411,66 @@ jQuery(document).ready(function ($) {
 
     initializeMigrationWizard();
     initializeAdvancedCleanup(); // Inizializzazione cleanup
+    
+    // ========================
+    // CLEANUP BUTTON HANDLERS
+    // ========================
+    
+    // Seleziona tutto
+    $('#select-all-cleanup').on('click', function() {
+        $('.cleanup-checkbox-label input[type="checkbox"]').prop('checked', true);
+        updateTotalCount();
+    });
+    
+    // Deseleziona tutto
+    $('#deselect-all-cleanup').on('click', function() {
+        $('.cleanup-checkbox-label input[type="checkbox"]').prop('checked', false);
+        updateTotalCount();
+    });
+    
+    // Solo post (no immagini)
+    $('#select-only-posts').on('click', function() {
+        $('.cleanup-checkbox-label input[type="checkbox"]').prop('checked', false);
+        $('#cleanup-necrologi, #cleanup-trigesimi, #cleanup-anniversari, #cleanup-ringraziamenti, #cleanup-manifesti').prop('checked', true);
+        updateTotalCount();
+    });
+    
+    // Solo immagini
+    $('#select-only-images').on('click', function() {
+        $('.cleanup-checkbox-label input[type="checkbox"]').prop('checked', false);
+        $('#cleanup-images-necrologi, #cleanup-images-trigesimi, #cleanup-images-anniversari, #cleanup-images-general').prop('checked', true);
+        updateTotalCount();
+    });
+    
+    // Aggiorna conteggio quando si cambiano le selezioni
+    $('.cleanup-checkbox-label input[type="checkbox"]').on('change', function() {
+        updateTotalCount();
+    });
+
+    function updateTotalCount() {
+        let total = 0;
+        $('.cleanup-checkbox-label input[type="checkbox"]:checked').each(function() {
+            const id = $(this).attr('id');
+            const countElement = $('#count-' + id.replace('cleanup-', '').replace('_', '-'));
+            if (countElement.length) {
+                total += parseInt(countElement.text()) || 0;
+            }
+        });
+        $('#count-total').text(total);
+    }
+
+    // Debug: Check if migrationAjax is available
+    console.log('migrationAjax available:', typeof migrationAjax !== 'undefined');
+    if (typeof migrationAjax !== 'undefined') {
+        console.log('migrationAjax:', migrationAjax);
+        
+        // Initialize Image Download Controls only if migrationAjax is available
+        initializeImageDownloadControls();
+    } else {
+        console.log('Skipping image download controls initialization - migrationAjax not available on this page');
+        // Hide the image download control panel if it exists
+        $('#image-download-status').parent().hide();
+    }
 
 });
 
@@ -581,8 +641,11 @@ function loadCleanupItemCounts() {
                 jQuery('#count-anniversari').text(counts.anniversari || 0);
                 jQuery('#count-trigesimi').text(counts.trigesimi || 0);
                 jQuery('#count-manifesti').text(counts.manifesti || 0);
-                jQuery('#count-images').text(counts.images || 0);
                 jQuery('#count-necrologi').text(counts.necrologi || 0);
+                jQuery('#count-images-necrologi').text(counts.images_necrologi || 0);
+                jQuery('#count-images-trigesimi').text(counts.images_trigesimi || 0);
+                jQuery('#count-images-anniversari').text(counts.images_anniversari || 0);
+                jQuery('#count-images-general').text(counts.images_general || 0);
                 jQuery('#count-total').text(total || 0);
                 
                 // Salva i dati per il cleanup
@@ -604,6 +667,29 @@ function loadCleanupItemCounts() {
 
 function startAdvancedCleanup() {
     console.log('Starting advanced cleanup...');
+    
+    // Raccogliere selezioni utente
+    const selectedItems = [];
+    
+    if (jQuery('#cleanup-necrologi').is(':checked')) selectedItems.push('necrologi');
+    if (jQuery('#cleanup-trigesimi').is(':checked')) selectedItems.push('trigesimi');
+    if (jQuery('#cleanup-anniversari').is(':checked')) selectedItems.push('anniversari');
+    if (jQuery('#cleanup-ringraziamenti').is(':checked')) selectedItems.push('ringraziamenti');
+    if (jQuery('#cleanup-manifesti').is(':checked')) selectedItems.push('manifesti');
+    if (jQuery('#cleanup-images-necrologi').is(':checked')) selectedItems.push('images_necrologi');
+    if (jQuery('#cleanup-images-trigesimi').is(':checked')) selectedItems.push('images_trigesimi');
+    if (jQuery('#cleanup-images-anniversari').is(':checked')) selectedItems.push('images_anniversari');
+    if (jQuery('#cleanup-images-general').is(':checked')) selectedItems.push('images_general');
+    
+    // Validazione
+    if (selectedItems.length === 0) {
+        alert('Seleziona almeno un elemento da eliminare!');
+        return;
+    }
+    
+    // Salvare per uso successivo
+    window.selectedCleanupItems = selectedItems;
+    console.log('Selected cleanup items:', selectedItems);
     
     cleanupInProgress = true;
     currentCleanupStep = 0;
@@ -638,7 +724,7 @@ function processNextCleanupStep() {
         return;
     }
     
-    const stepNames = ['ringraziamenti', 'anniversari', 'trigesimi', 'manifesti', 'images', 'necrologi'];
+    const stepNames = ['ringraziamenti', 'anniversari', 'trigesimi', 'manifesti', 'images_necrologi', 'images_trigesimi', 'images_anniversari', 'images_general', 'necrologi'];
     
     if (currentCleanupStep >= stepNames.length) {
         // Cleanup completato
@@ -673,7 +759,8 @@ function processCleanupBatch(stepName, offset) {
             nonce: migrationAjax.nonce,
             step: stepName,
             offset: offset,
-            cutoff_date: cutoffDate
+            cutoff_date: cutoffDate,
+            selected_items: window.selectedCleanupItems || []
         },
         success: function(response) {
             if (response.success) {
@@ -806,7 +893,10 @@ function getStepDisplayName(stepName) {
         'anniversari': 'Anniversari',
         'trigesimi': 'Trigesimi',
         'manifesti': 'Manifesti',
-        'images': 'Immagini',
+        'images_necrologi': 'Immagini Annunci di Morte',
+        'images_trigesimi': 'Immagini Trigesimi',
+        'images_anniversari': 'Immagini Anniversari',
+        'images_general': 'Altre Immagini Migrazione',
         'necrologi': 'Necrologi'
     };
     
@@ -817,5 +907,255 @@ function getCleanupDuration() {
     // Placeholder per durata - potresti implementare un timer
     return 'N/A';
 }
+
+
+// ================================
+// IMAGE DOWNLOAD CONTROL SYSTEM
+// ================================
+
+function initializeImageDownloadControls() {
+    // Check if migrationAjax is available before initializing
+    if (typeof migrationAjax === 'undefined') {
+        console.log('migrationAjax not available, skipping image download controls initialization');
+        return;
+    }
+    
+    // Initial status check
+    checkImageDownloadStatus();
+    
+    // Event handlers for buttons
+    jQuery('#start-image-downloads').on('click', function() {
+        startImageDownloads();
+    });
+
+    jQuery('#stop-image-downloads').on('click', function() {
+        stopImageDownloads();
+    });
+
+    jQuery('#restart-image-downloads').on('click', function() {
+        restartImageDownloads();
+    });
+
+    jQuery('#refresh-image-status').on('click', function() {
+        checkImageDownloadStatus();
+    });
+    
+    // Auto-refresh every 30 seconds when visible
+    setInterval(function() {
+        if (!jQuery('#progress-container').is(':visible') && typeof migrationAjax !== 'undefined' && migrationAjax) {
+            checkImageDownloadStatus();
+        }
+    }, 30000);
+}
+
+function startImageDownloads() {
+    if (typeof migrationAjax === 'undefined') {
+        alert('Migration AJAX not available');
+        return;
+    }
+
+    jQuery('#start-image-downloads').prop('disabled', true).text('▶️ Avvio...');
+
+    jQuery.ajax({
+        url: migrationAjax.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'restart_image_downloads',
+            nonce: migrationAjax.nonce
+        },
+        success: function(response) {
+            if (response.success) {
+                updateImageDownloadStatus('success', '✅ Download immagini avviato con successo!');
+                setTimeout(checkImageDownloadStatus, 2000);
+            } else {
+                updateImageDownloadStatus('error', '❌ Errore nell\'avvio: ' + response.data);
+            }
+        },
+        error: function() {
+            updateImageDownloadStatus('error', '❌ Errore di connessione');
+        },
+        complete: function() {
+            jQuery('#start-image-downloads').prop('disabled', false).text('▶️ Avvia Download');
+        }
+    });
+}
+
+function stopImageDownloads() {
+    if (typeof migrationAjax === 'undefined' || !migrationAjax) {
+        alert('Migration AJAX not available');
+        return;
+    }
+    
+    if (!confirm('Sei sicuro di voler fermare il download delle immagini? Il processo può essere riavviato in qualsiasi momento.')) {
+        return;
+    }
+
+    jQuery('#stop-image-downloads').prop('disabled', true).text('⏹️ Fermando...');
+
+    jQuery.ajax({
+        url: migrationAjax.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'stop_image_downloads',
+            nonce: migrationAjax.nonce
+        },
+        success: function(response) {
+            if (response.success) {
+                updateImageDownloadStatus('warning', '⏹️ Download immagini fermato con successo');
+                setTimeout(checkImageDownloadStatus, 1000);
+            } else {
+                updateImageDownloadStatus('error', '❌ Errore nel fermare: ' + response.data);
+            }
+        },
+        error: function() {
+            updateImageDownloadStatus('error', '❌ Errore di connessione');
+        },
+        complete: function() {
+            $('#stop-image-downloads').prop('disabled', false).text('⏹️ Ferma Download');
+        }
+    });
+}
+
+function restartImageDownloads() {
+    if (typeof migrationAjax === 'undefined' || !migrationAjax) {
+        alert('Migration AJAX not available');
+        return;
+    }
+    
+    if (!confirm('Sei sicuro di voler riavviare il download delle immagini? Questo resetterà il progresso e ricomincerà dall\'inizio.')) {
+        return;
+    }
+
+    jQuery('#restart-image-downloads').prop('disabled', true).text('🔄 Riavviando...');
+
+    jQuery.ajax({
+        url: migrationAjax.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'restart_image_downloads',
+            nonce: migrationAjax.nonce
+        },
+        success: function(response) {
+            if (response.success) {
+                updateImageDownloadStatus('success', '🔄 Download immagini riavviato con successo!');
+                setTimeout(checkImageDownloadStatus, 2000);
+            } else {
+                updateImageDownloadStatus('error', '❌ Errore nel riavvio: ' + response.data);
+            }
+        },
+        error: function() {
+            updateImageDownloadStatus('error', '❌ Errore di connessione');
+        },
+        complete: function() {
+            jQuery('#restart-image-downloads').prop('disabled', false).text('🔄 Riavvia Download');
+        }
+    });
+}
+
+function checkImageDownloadStatus() {
+    if (typeof migrationAjax === 'undefined' || !migrationAjax) {
+        console.log('migrationAjax not available, skipping image download status check');
+        return;
+    }
+
+    jQuery.ajax({
+        url: migrationAjax.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'check_image_download_status',
+            nonce: migrationAjax.nonce
+        },
+        success: function(response) {
+            if (response.success) {
+                updateImageDownloadUI(response.data);
+            } else {
+                updateImageDownloadStatus('error', 'Errore nel controllo status: ' + response.data);
+            }
+        },
+        error: function() {
+            updateImageDownloadStatus('error', 'Errore di connessione nel controllo status');
+        }
+    });
+}
+
+function updateImageDownloadUI(data) {
+    // Update main status message
+    let statusClass = 'notice-info';
+    let statusMessage = '';
+    let showProgress = false;
+    
+    if (!data.queue_exists) {
+        statusClass = 'notice-info';
+        statusMessage = 'ℹ️ Nessun file di coda trovato. Le immagini vengono scaricate automaticamente durante la migrazione.';
+    } else if (data.status === 'finished') {
+        statusClass = 'notice-success';
+        statusMessage = '✅ Tutte le immagini sono state scaricate con successo!';
+        showProgress = true;
+    } else if (data.status === 'ongoing') {
+        statusClass = 'notice-warning';
+        statusMessage = '⚠️ Download immagini in corso. Controlla i log per i dettagli.';
+        showProgress = true;
+    } else if (data.status === 'stopped') {
+        statusClass = 'notice-warning';
+        statusMessage = '⏸️ Download immagini fermato manualmente.';
+        showProgress = true;
+    } else if (!data.cron_scheduled) {
+        statusClass = 'notice-error';
+        statusMessage = '❌ Cron job non programmato. Clicca "Avvia Download" per iniziare.';
+        showProgress = true;
+    } else {
+        statusClass = 'notice-info';
+        statusMessage = 'ℹ️ Coda pronta per il download. ' + data.total + ' immagini in attesa.';
+        showProgress = true;
+    }
+    
+    // Update status display
+    $('#image-download-status').removeClass('notice-info notice-warning notice-error notice-success').addClass(statusClass);
+    $('#image-download-status p').text(statusMessage);
+    
+    // Show/hide and update progress bar
+    if (showProgress && data.total > 0) {
+        $('#image-download-progress').show();
+        $('#image-processed-count').text(data.processed);
+        $('#image-total-count').text(data.total);
+        $('#image-progress-percentage').text(data.percentage.toFixed(1) + '%');
+        $('#image-download-progress-bar').css('width', data.percentage + '%');
+        $('#image-status-text').text(data.status);
+        $('#image-cron-status').text(data.cron_scheduled ? '✅ Attivo' : '❌ Non programmato');
+        $('#image-remaining-count').text(data.remaining);
+        
+        // Show detailed stats
+        $('#image-download-stats').show();
+        $('#queue-file-status').text(data.queue_exists ? 'Presente' : 'Assente');
+        $('#queue-file-size').text(formatBytes(data.file_size));
+        $('#last-update-time').text(data.last_update ? formatTime(data.last_update) : 'Mai');
+        $('#next-cron-time').text(data.next_cron_time ? formatTime(data.next_cron_time) : 'Non programmato');
+        $('#completion-rate').text(data.completion_rate + '%');
+    } else {
+        $('#image-download-progress').hide();
+        $('#image-download-stats').hide();
+    }
+}
+
+function updateImageDownloadStatus(type, message) {
+    const statusClass = 'notice-' + type;
+    jQuery('#image-download-status').removeClass('notice-info notice-warning notice-error notice-success').addClass(statusClass);
+    jQuery('#image-download-status p').text(message);
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function formatTime(timestamp) {
+    if (!timestamp) return 'N/A';
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleString('it-IT');
+}
+
 
 

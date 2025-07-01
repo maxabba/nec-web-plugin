@@ -14,11 +14,7 @@ if (!defined('ABSPATH')) {
 if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
     class RicorrenzeMigration extends MigrationTasks
     {
-        private int $micro_batch_size = 20;
-        private int $query_chunk_size = 100;
         private array $necrologio_cache = [];
-        private int $checkpoint_interval = 50;
-        private int $progress_update_interval = 10;
 
         private string $image_cron_hook = 'dokan_mods_download_images';
 
@@ -113,9 +109,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                     return false;
                 }
 
-                $progress = $this->first_call_check($file);
-                if (!$progress) {
-                    $this->log("ERRORE: first_call_check fallito per $file_name");
+                if (!$progress = $this->first_call_check($file)) {
                     return false;
                 }
 
@@ -139,50 +133,16 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                     $batch_post_old_ids[] = $data[array_search('ID', $header)];
                 }
 
-                // Controllo post esistenti con chunking
-                $existing_posts = $this->get_existing_posts_by_old_ids_chunked($batch_post_old_ids);
+                // Controllo post esistenti
+                $existing_posts = $this->get_existing_posts_by_old_ids($batch_post_old_ids);
                 unset($batch_post_old_ids);
-                
+
                 $image_queue = [];
 
-                // Process batch con micro-batching
-                $batch_acf_updates = [];
-                $micro_batches = array_chunk($batch_data, $this->micro_batch_size);
-                
-                foreach ($micro_batches as $micro_batch) {
-                    foreach ($micro_batch as $data) {
-                        $this->process_single_record($data, $header, $existing_posts, $image_queue, $batch_acf_updates);
-                        $processed++;
-                        
-                        if ($processed % $this->progress_update_interval === 0) {
-                            $this->update_progress($file_name, $processed, $total_rows);
-                        }
-                        
-                        if ($processed % $this->checkpoint_interval === 0) {
-                            $this->log("Checkpoint: processati $processed di $total_rows record");
-                            $this->set_progress_status($file_name, 'ongoing'); // Aggiorna timestamp
-                            wp_cache_flush();
-                            if (function_exists('gc_collect_cycles')) {
-                                gc_collect_cycles();
-                            }
-                        }
-                    }
-                    
-                    // Batch insert ACF fields per questo micro-batch
-                    if (!empty($batch_acf_updates)) {
-                        $this->batch_insert_acf_fields($batch_acf_updates);
-                        $batch_acf_updates = [];
-                    }
-                    
-                    // Memory cleanup dopo ogni micro-batch
-                    if (function_exists('gc_collect_cycles')) {
-                        gc_collect_cycles();
-                    }
-                }
-                
-                // Final batch insert per eventuali ACF rimanenti
-                if (!empty($batch_acf_updates)) {
-                    $this->batch_insert_acf_fields($batch_acf_updates);
+                foreach ($batch_data as $data) {
+                    $this->process_single_record($data, $header, $existing_posts, $image_queue);
+                    $processed++;
+                    $this->update_progress($file_name, $processed, $total_rows);
                 }
 
                 unset($batch_data);
@@ -190,7 +150,6 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
                 if (!empty($image_queue)) {
                     $this->image_queue($image_queue);
-                    $this->download_images_concurrent($image_queue);
                 }
                 unset($image_queue);
 
@@ -202,20 +161,11 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 if ($processed >= $total_rows) {
                     $this->set_progress_status($file_name, 'finished');
                     $this->schedule_image_processing();
-                    return true;
+                } else {
+                    $this->set_progress_status($file_name, 'completed');
                 }
 
-                $smart_status = $this->set_progress_status_smart($file_name, 'completed');
-                
-                // Log delle prestazioni del batch
-                $this->log("Batch completato - Memoria: " . $this->get_memory_usage() . ", Tempo: {$execution_time}s");
-                
-                if ($smart_status === 'auto_continue') {
-                    $this->log("Auto-continuazione immediata possibile per $file_name");
-                    return 'auto_continue';
-                }
-
-                return false;
+                return $processed >= $total_rows;
             }
 
             return false; // Se lo stato non rientra in nessuno dei casi previsti
@@ -238,33 +188,6 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             return $is_active;
         }
 
-        protected function should_continue_immediately($file_name)
-        {
-            $current_memory = $this->get_memory_usage_mb();
-            $execution_time = microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'];
-            
-            $progress = $this->get_progress($file_name);
-            $has_more_work = $progress['processed'] < $progress['total'];
-            
-            $memory_ok = $current_memory < $this->memory_limit_mb;
-            $time_ok = $execution_time < $this->max_execution_time;
-            
-            $this->log("Memory check: {$current_memory}MB/{$this->memory_limit_mb}MB - Time: {$execution_time}s/{$this->max_execution_time}s - More work: " . ($has_more_work ? 'yes' : 'no'));
-            
-            return $has_more_work && $memory_ok && $time_ok;
-        }
-
-        protected function set_progress_status_smart($file, $status, $auto_continue = true)
-        {
-            $this->set_progress_status($file, $status);
-            
-            if ($auto_continue && $status === 'completed' && $this->should_continue_immediately($file)) {
-                $this->log("Auto-triggering immediate continuation for $file");
-                return 'auto_continue';
-            }
-            
-            return $status;
-        }
 
         protected function get_memory_usage()
         {
@@ -287,7 +210,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
         }
 
 
-        private function process_single_record($data, $header, $existing_posts, &$image_queue, &$batch_acf_updates = null)
+        private function process_single_record($data, $header, $existing_posts, &$image_queue)
         {
 
             static $field_indexes = null;
@@ -296,13 +219,14 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             if ($field_indexes === null) {
                 $field_indexes = [
                     'ID' => array_search('ID', $header),
-                    'Tipo' => array_search('Tipo', $header),
+                    'TipoRicorrenza' => array_search('TipoRicorrenza', $header),
                     'IdNecrologio' => array_search('IdNecrologio', $header),
                     'Data' => array_search('Data', $header),
                     'Foto' => array_search('Foto', $header),
                     'Testo' => array_search('Testo', $header),
                     'Pubblicato' => array_search('Pubblicato', $header),
-                    'Anni' => array_search('Anni', $header),
+                    'AltreInfo' => array_search('AltreInfo', $header),
+                    'Layout' => array_search('Layout', $header)
                 ];
             }
 
@@ -314,11 +238,16 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 return;
             }
 
-            $tipo = $data[array_search('Tipo', $header)];
-            if ($tipo == 0) {
-                $this->log("Tipo non valido per ID: $id");
+            // Analizza il tipo di ricorrenza dal CSV
+            $tipo_ricorrenza_string = $data[$field_indexes['TipoRicorrenza']];
+            $is_trigesimo = $this->classify_ricorrenza_type($tipo_ricorrenza_string);
+            
+            if (empty($tipo_ricorrenza_string)) {
+                $this->log("TipoRicorrenza vuoto per ID: $id");
                 return; // Salta questo record
             }
+            
+            $this->log("DEBUG ID $id: TipoRicorrenza='$tipo_ricorrenza_string' -> " . ($is_trigesimo ? 'trigesimo' : 'anniversario'));
 
 
             $necrologio_old_id = $data[$field_indexes['IdNecrologio']];
@@ -337,14 +266,43 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
             // Recupero città
             $citta = get_field('citta', $necrologio->ID);
+            
+            // Recupero data di morte o usa data pubblicazione come fallback
+            $data_di_morte = get_field('data_di_morte', $necrologio->ID);
+            $base_date = $data_di_morte ? $data_di_morte : $necrologio->post_date;
+            $this->log("ID $id: Base date per calcolo: $base_date (morte: " . ($data_di_morte ? 'si' : 'no') . ")");
 
             // Determina tipo di post e autore
-            $post_type = $tipo == 1 ? 'trigesimo' : 'anniversario';
+            $post_type = $is_trigesimo ? 'trigesimo' : 'anniversario';
             $author_id = $necrologio->post_author;
+            
+            // Estrai numero anniversario (anche per trigesimi, per consistenza)
+            $anniversary_number = null;
+            if (!$is_trigesimo) {
+                $anniversary_number = $this->extract_anniversary_number($tipo_ricorrenza_string);
+                if ($anniversary_number === null) {
+                    $anniversary_number = 1; // Default se non trovato
+                    $this->log("ID $id: Numero anniversario non trovato, uso default: 1");
+                }
+            }
 
             // Calcolo della data di pubblicazione
-            $pub_date = ($tipo == 1) ? date('Y-m-d H:i:s', strtotime($necrologio->post_date . ' +30 days')) :
-                date('Y-m-d H:i:s', strtotime($necrologio->post_date . ' +' . $data[$field_indexes['Anni']] . ' year'));
+            if ($is_trigesimo) {
+                // Trigesimo: base_date + 30 giorni
+                $pub_date = date('Y-m-d H:i:s', strtotime($base_date . ' +30 days'));
+                $this->log("ID $id: Calcolata data trigesimo: $pub_date");
+            } else {
+                // Calcola data: base_date + N anni
+                $pub_date = date('Y-m-d H:i:s', strtotime($base_date . ' +' . $anniversary_number . ' year'));
+                $this->log("ID $id: Calcolata data anniversario n.$anniversary_number: $pub_date");
+                
+                // Validazione data
+                $year = date('Y', strtotime($pub_date));
+                if ($year > 2100) {
+                    $this->log("ERRORE ID $id: Anno calcolato non valido: $year. Uso data originale dal CSV.");
+                    $pub_date = $data[$field_indexes['Data']]; // Usa la data dal CSV come fallback
+                }
+            }
 
             // Creazione del nuovo post
             $post_id = wp_insert_post(array(
@@ -356,16 +314,28 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             ));
 
             if (!is_wp_error($post_id)) {
-                if ($batch_acf_updates !== null) {
-                    $this->prepare_acf_batch_update($post_id, $data, $field_indexes, $necrologio, $tipo, $citta, $batch_acf_updates);
-                } else {
-                    // Aggiornamento campi diretto (fallback)
-                    $this->update_ricorrenza_fields_direct($post_id, $data, $field_indexes, $necrologio, $tipo, $citta);
+                // Aggiornamento campi
+                update_field('annuncio_di_morte', $necrologio->ID, $post_id);
+                update_field('id_old', $id, $post_id);
+
+                if ($is_trigesimo) { // Trigesimo
+                    update_field('_data', $data[$field_indexes['Data']], $post_id);
+                    update_field('testo_annuncio_trigesimo', $data[$field_indexes['Testo']], $post_id);
+                } else { // Anniversario
+                    update_field('anniversario_data', $data[$field_indexes['Data']], $post_id);
+                    update_field('testo_annuncio_anniversario', $data[$field_indexes['Testo']], $post_id);
+                    // Usa il numero estratto invece del campo 'Anni' inesistente
+                    update_field('anniversario_n_anniversario', $anniversary_number, $post_id);
+                    $this->log("ID $id: Salvato numero anniversario: $anniversary_number");
+                }
+
+                if ($citta) {
+                    update_field('citta', $citta, $post_id);
                 }
 
                 // Gestione immagine
                 if ($data[$field_indexes['Foto']]) {
-                        $image_type = $tipo == 1 ? 'trigesimo' : 'anniversario';
+                        $image_type = $is_trigesimo ? 'trigesimo' : 'anniversario';
                         $image_queue[] = [$image_type, $data[$field_indexes['Foto']], $post_id, $author_id];
                 }
 
@@ -500,270 +470,10 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             return $final_mapping;
         }
 
-        private function get_existing_posts_by_old_ids_chunked($old_ids, $post_types = ['trigesimo', 'anniversario'])
-        {
-            if (empty($old_ids)) {
-                return [];
-            }
 
-            $all_results = [];
-            $chunks = array_chunk($old_ids, $this->query_chunk_size);
-            
-            foreach ($chunks as $chunk) {
-                $chunk_results = parent::get_existing_posts_by_old_ids($chunk, $post_types);
-                $all_results = array_merge($all_results, $chunk_results);
-                
-                if (function_exists('gc_collect_cycles')) {
-                    gc_collect_cycles();
-                }
-            }
-            
-            return $all_results;
-        }
 
-        private function prepare_acf_batch_update($post_id, $data, $field_indexes, $necrologio, $tipo, $citta, &$batch_acf_updates)
-        {
-            $batch_acf_updates[] = [
-                'post_id' => $post_id,
-                'meta_key' => 'annuncio_di_morte',
-                'meta_value' => $necrologio->ID
-            ];
-            
-            if ($tipo == 1) { // Trigesimo
-                $date_value = $data[$field_indexes['Data']];
-                if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
-                    $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
-                }
-                
-                if (!empty($date_value)) {
-                    $batch_acf_updates[] = [
-                        'post_id' => $post_id,
-                        'meta_key' => 'trigesimo_data',
-                        'meta_value' => $date_value
-                    ];
-                    $batch_acf_updates[] = [
-                        'post_id' => $post_id,
-                        'meta_key' => '_trigesimo_data',
-                        'meta_value' => 'field_6734d2e598b99'
-                    ];
-                }
-                
-                $batch_acf_updates[] = [
-                    'post_id' => $post_id,
-                    'meta_key' => 'testo_annuncio_trigesimo',
-                    'meta_value' => $data[$field_indexes['Testo']]
-                ];
-            } else { // Anniversario
-                $date_value = $data[$field_indexes['Data']];
-                if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
-                    $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
-                }
-                
-                if (!empty($date_value)) {
-                    $batch_acf_updates[] = [
-                        'post_id' => $post_id,
-                        'meta_key' => 'anniversario_data',
-                        'meta_value' => $date_value
-                    ];
-                    $batch_acf_updates[] = [
-                        'post_id' => $post_id,
-                        'meta_key' => '_anniversario_data',
-                        'meta_value' => 'field_665ec95bca23d'
-                    ];
-                }
-                
-                $batch_acf_updates[] = [
-                    'post_id' => $post_id,
-                    'meta_key' => 'testo_annuncio_anniversario',
-                    'meta_value' => $data[$field_indexes['Testo']]
-                ];
-                
-                $batch_acf_updates[] = [
-                    'post_id' => $post_id,
-                    'meta_key' => 'anniversario_n_anniversario',
-                    'meta_value' => $data[$field_indexes['Anni']]
-                ];
-            }
-            
-            if ($citta) {
-                $batch_acf_updates[] = [
-                    'post_id' => $post_id,
-                    'meta_key' => 'citta',
-                    'meta_value' => $citta
-                ];
-            }
-        }
 
-        private function update_ricorrenza_fields_direct($post_id, $data, $field_indexes, $necrologio, $tipo, $citta)
-        {
-            update_field('annuncio_di_morte', $necrologio->ID, $post_id);
 
-            if ($tipo == 1) { // Trigesimo
-                $date_value = $data[$field_indexes['Data']];
-
-                if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
-                    $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
-                }
-
-                $existing_key = get_post_meta($post_id, '_trigesimo_data', true);
-
-                if (!empty($date_value)) {
-                    update_post_meta($post_id, 'trigesimo_data', $date_value);
-
-                    if (empty($existing_key) || $existing_key !== 'field_6734d2e598b99') {
-                        update_post_meta($post_id, '_trigesimo_data', 'field_6734d2e598b99');
-                    }
-                }
-
-                update_field('testo_annuncio_trigesimo', $data[$field_indexes['Testo']], $post_id);
-            } else { // Anniversario
-                $date_value = $data[$field_indexes['Data']];
-
-                if (!empty($data[$field_indexes['Data']]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$field_indexes['Data']])) {
-                    $date_value = str_replace('-', '', $data[$field_indexes['Data']]);
-                }
-
-                $existing_key = get_post_meta($post_id, '_anniversario_data', true);
-
-                if (!empty($date_value)) {
-                    update_post_meta($post_id, 'anniversario_data', $date_value);
-
-                    if (empty($existing_key) || $existing_key !== 'field_665ec95bca23d') {
-                        update_post_meta($post_id, '_anniversario_data', 'field_665ec95bca23d');
-                    }
-                }
-
-                update_field('testo_annuncio_anniversario', $data[$field_indexes['Testo']], $post_id);
-                update_field('anniversario_n_anniversario', $data[$field_indexes['Anni']], $post_id);
-            }
-
-            if ($citta) {
-                update_field('citta', $citta, $post_id);
-            }
-        }
-
-        private function batch_insert_acf_fields($batch_updates)
-        {
-            if (empty($batch_updates)) {
-                return;
-            }
-
-            global $wpdb;
-            
-            $values = [];
-            $placeholders = [];
-            
-            foreach ($batch_updates as $update) {
-                $values[] = $update['post_id'];
-                $values[] = $update['meta_key'];
-                $values[] = maybe_serialize($update['meta_value']);
-                $placeholders[] = '(%d, %s, %s)';
-            }
-            
-            $sql = "INSERT INTO {$wpdb->postmeta} (post_id, meta_key, meta_value) VALUES " . 
-                   implode(', ', $placeholders) . 
-                   " ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)";
-            
-            $prepared_sql = $wpdb->prepare($sql, $values);
-            $wpdb->query($prepared_sql);
-        }
-
-        private function download_images_concurrent($image_queue)
-        {
-            if (empty($image_queue) || count($image_queue) < 2) {
-                return;
-            }
-
-            $multi_handle = curl_multi_init();
-            $curl_handles = [];
-            $max_concurrent = 3;
-            $running = 0;
-            
-            curl_multi_setopt($multi_handle, CURLMOPT_MAXCONNECTS, $max_concurrent);
-            
-            $i = 0;
-            do {
-                while ($running < $max_concurrent && $i < count($image_queue)) {
-                    $image = $image_queue[$i];
-                    $image_url = 'https://necrologi.sciame.it/necrologi/' . $image[1];
-                    
-                    $ch = curl_init();
-                    curl_setopt_array($ch, [
-                        CURLOPT_URL => $image_url,
-                        CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_FOLLOWLOCATION => true,
-                        CURLOPT_TIMEOUT => 30,
-                        CURLOPT_CONNECTTIMEOUT => 10
-                    ]);
-                    
-                    curl_multi_add_handle($multi_handle, $ch);
-                    $curl_handles[$i] = $ch;
-                    $i++;
-                    $running++;
-                }
-                
-                curl_multi_exec($multi_handle, $running);
-                curl_multi_select($multi_handle);
-                
-                while ($info = curl_multi_info_read($multi_handle)) {
-                    $ch = $info['handle'];
-                    $index = array_search($ch, $curl_handles);
-                    
-                    if ($index !== false && $info['result'] === CURLE_OK) {
-                        $content = curl_multi_getcontent($ch);
-                        $this->save_ricorrenza_image_as_attachment($content, $image_queue[$index]);
-                    }
-                    
-                    curl_multi_remove_handle($multi_handle, $ch);
-                    curl_close($ch);
-                    unset($curl_handles[$index]);
-                    $running--;
-                }
-                
-            } while ($running > 0 || $i < count($image_queue));
-            
-            curl_multi_close($multi_handle);
-        }
-
-        private function save_ricorrenza_image_as_attachment($image_data, $image_info)
-        {
-            if (!$image_data) {
-                return false;
-            }
-            
-            list($image_type, $image_path, $post_id, $author_id) = $image_info;
-            
-            $upload_dir = wp_upload_dir();
-            $filename = wp_unique_filename($upload_dir['path'], basename($image_path));
-            $upload_file = $upload_dir['path'] . '/' . $filename;
-            
-            if (!file_put_contents($upload_file, $image_data)) {
-                return false;
-            }
-            
-            $attachment = [
-                'post_mime_type' => wp_check_filetype($filename, null)['type'],
-                'post_title' => sanitize_file_name($filename),
-                'post_status' => 'inherit',
-                'post_author' => $author_id ?: 1,
-            ];
-            
-            $attach_id = wp_insert_attachment($attachment, $upload_file, $post_id);
-            if (is_wp_error($attach_id)) {
-                return false;
-            }
-            
-            require_once(ABSPATH . 'wp-admin/includes/image.php');
-            wp_update_attachment_metadata($attach_id, wp_generate_attachment_metadata($attach_id, $upload_file));
-            
-            if ($image_type === 'trigesimo') {
-                update_field('immagine_annuncio_trigesimo', $attach_id, $post_id);
-            } elseif ($image_type === 'anniversario') {
-                update_field('immagine_annuncio_anniversario', $attach_id, $post_id);
-            }
-            
-            return true;
-        }
 
         protected function get_existing_posts_by_old_ids($old_ids, $post_types = ['trigesimo', 'anniversario'])
         {
@@ -1073,6 +783,127 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
         {
             $varianti_anniversario = ['anniversario', 'annuale', 'ricorrenza'];
             return count(array_intersect($parole, $varianti_anniversario)) > 0;
+        }
+
+        /**
+         * Classifica il tipo di ricorrenza basandosi sulla stringa TipoRicorrenza del CSV
+         * @param string $tipo_ricorrenza_string Il valore della colonna TipoRicorrenza
+         * @return bool true se è un trigesimo, false se è un anniversario
+         */
+        private function classify_ricorrenza_type($tipo_ricorrenza_string)
+        {
+            if (empty($tipo_ricorrenza_string)) {
+                return false; // Default ad anniversario se vuoto
+            }
+            
+            // Converte in minuscolo per il confronto case-insensitive
+            $tipo_lower = strtolower(trim($tipo_ricorrenza_string));
+            
+            // Pattern per identificare trigesimi (incluse variazioni e errori di battitura)
+            $trigesimo_patterns = [
+                'trigesimo',
+                'triggesimo', 
+                'trigesima',
+                'triggesima',
+                'tigesimo',    // Errore di battitura comune nel CSV
+                'trigsimo',
+                'tricesimo',
+                'trigeseimo',
+                'triigesimo',
+                '30',
+                'trent'
+            ];
+            
+            // Controlla se contiene pattern di trigesimo
+            foreach ($trigesimo_patterns as $pattern) {
+                if (strpos($tipo_lower, $pattern) !== false) {
+                    return true;
+                }
+            }
+            
+            // Se non è trigesimo, è anniversario (default)
+            return false;
+        }
+
+        /**
+         * Estrae il numero dell'anniversario dalla stringa TipoRicorrenza
+         * Gestisce tutti i pattern trovati nell'analisi del CSV
+         * @param string $tipo_ricorrenza_string Il valore della colonna TipoRicorrenza
+         * @return int|null Il numero dell'anniversario o null se non trovato/non applicabile
+         */
+        private function extract_anniversary_number($tipo_ricorrenza_string)
+        {
+            if (empty($tipo_ricorrenza_string)) {
+                return null;
+            }
+
+            // Array per memorizzare tutti i numeri trovati
+            $found_numbers = [];
+
+            // Pattern 1: N° ANNIVERSARIO o N°ANNIVERSARIO (con simbolo grado)
+            if (preg_match_all('/(\d+)°\s*ANNIVERSARIO/i', $tipo_ricorrenza_string, $matches)) {
+                foreach ($matches[1] as $num) {
+                    $found_numbers[] = intval($num);
+                }
+            }
+
+            // Pattern 2: Nº ANNIVERSARIO (con simbolo ordinale)
+            if (preg_match_all('/(\d+)º\s*ANNIVERSARIO/i', $tipo_ricorrenza_string, $matches)) {
+                foreach ($matches[1] as $num) {
+                    $found_numbers[] = intval($num);
+                }
+            }
+
+            // Pattern 3: N ANNIVERSARIO (solo numero e spazio)
+            if (preg_match_all('/(\d+)\s+ANNIVERSARIO/i', $tipo_ricorrenza_string, $matches)) {
+                foreach ($matches[1] as $num) {
+                    $found_numbers[] = intval($num);
+                }
+            }
+
+            // Pattern 4: anniversarioN (numero alla fine)
+            if (preg_match('/anniversario\s*(\d+)/i', $tipo_ricorrenza_string, $matches)) {
+                $found_numbers[] = intval($matches[1]);
+            }
+
+            // Pattern 5: Abbreviazioni (ann, ANN) con numero
+            if (preg_match('/(\d+)\s*ann/i', $tipo_ricorrenza_string, $matches)) {
+                $found_numbers[] = intval($matches[1]);
+            }
+
+            // Pattern 6: Gestione errori di battitura comuni
+            $typo_patterns = [
+                '/(\d+)°\s*ANNIV[A-Z]*SARIO/i',  // ANNIVESARIO, ANNIIVERSARIO, etc.
+                '/(\d+)°\s*AMMIVERSARIO/i',        // AMMIVERSARIO
+                '/(\d+)°\s*ANIVERSARIO/i',         // ANIVERSARIO
+                '/(\d+)°\s*ANNIVERSAIO/i',         // ANNIVERSAIO
+                '/(\d+)°\s*ANNIVERSAQRIO/i'        // ANNIVERSAQRIO
+            ];
+
+            foreach ($typo_patterns as $pattern) {
+                if (preg_match($pattern, $tipo_ricorrenza_string, $matches)) {
+                    $found_numbers[] = intval($matches[1]);
+                }
+            }
+
+            // Se abbiamo trovato dei numeri, restituisci il primo valido
+            if (!empty($found_numbers)) {
+                // Filtra numeri validi (range ragionevole 1-100)
+                foreach ($found_numbers as $num) {
+                    if ($num >= 1 && $num <= 100) {
+                        $this->log("Estratto numero anniversario: $num da '$tipo_ricorrenza_string'");
+                        return $num;
+                    }
+                }
+            }
+
+            // Se non troviamo numeri ma è chiaramente un anniversario, default a 1
+            if (stripos($tipo_ricorrenza_string, 'ann') !== false && !$this->classify_ricorrenza_type($tipo_ricorrenza_string)) {
+                $this->log("Anniversario senza numero specifico, default a 1: '$tipo_ricorrenza_string'");
+                return 1;
+            }
+
+            return null;
         }
 
 
