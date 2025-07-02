@@ -167,7 +167,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
         public function enqueue_scripts($hook)
         {
-            if ('product-templates_page_product-templates-migration' !== $hook) {
+            if ('dokan-mods_page_dokan-migration' !== $hook) {
                 return;
             }
 
