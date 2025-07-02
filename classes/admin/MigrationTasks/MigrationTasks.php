@@ -306,5 +306,82 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             return $memory;
         }
 
+        protected function detectCsvFormat($file_path)
+        {
+            $this->log("Detecting CSV format for: $file_path");
+
+            try {
+                // Leggi un campione del file per analizzarlo
+                $handle = fopen($file_path, 'r');
+                if (!$handle) {
+                    throw new RuntimeException("Cannot open file for format detection");
+                }
+
+                // Leggi le prime 5 righe per analisi
+                $sample_lines = [];
+                $line_count = 0;
+                while (($line = fgets($handle)) !== false && $line_count < 5) {
+                    $sample_lines[] = $line;
+                    $line_count++;
+                }
+                fclose($handle);
+
+                if (empty($sample_lines)) {
+                    throw new RuntimeException("File appears to be empty");
+                }
+
+                // Detecta encoding
+                $sample_text = implode('', $sample_lines);
+                $encoding = mb_detect_encoding($sample_text, ['UTF-8', 'ISO-8859-1', 'Windows-1252', 'ASCII'], true);
+                $this->log("Detected encoding: " . ($encoding ?: 'unknown'));
+
+                // Detecta delimitatore analizzando la frequenza dei caratteri
+                $delimiters = [',', ';', "\t", '|'];
+                $delimiter_counts = [];
+
+                foreach ($delimiters as $delimiter) {
+                    $count = 0;
+                    foreach ($sample_lines as $line) {
+                        $count += substr_count($line, $delimiter);
+                    }
+                    $delimiter_counts[$delimiter] = $count;
+                }
+
+                // Il delimitatore più frequente è probabilmente quello corretto
+                arsort($delimiter_counts);
+                $detected_delimiter = key($delimiter_counts);
+
+                $this->log("Delimiter counts: " . json_encode($delimiter_counts));
+                $this->log("Detected delimiter: " . ($detected_delimiter === "\t" ? "TAB" : $detected_delimiter));
+
+                // Verifica se ci sono quote nel file
+                $has_quotes = strpos($sample_text, '"') !== false;
+                $enclosure = $has_quotes ? '"' : '';
+
+                // Conta le righe reali usando il delimitatore detectato
+                $test_count = $this->countLinesSimple($file_path);
+                $this->log("Simple line count: $test_count lines");
+
+                return [
+                    'delimiter' => $detected_delimiter,
+                    'enclosure' => $enclosure,
+                    'escape' => '\\',
+                    'encoding' => $encoding,
+                    'line_count' => $test_count
+                ];
+
+            } catch (Exception $e) {
+                $this->log("Error detecting CSV format: " . $e->getMessage());
+                // Ritorna valori di default
+                return [
+                    'delimiter' => ',',
+                    'enclosure' => '"',
+                    'escape' => '\\',
+                    'encoding' => 'UTF-8',
+                    'line_count' => 0
+                ];
+            }
+        }
+
     }
 }
