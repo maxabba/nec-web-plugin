@@ -102,10 +102,18 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $processed = $progress['processed'];
                 $total_rows = $progress['total'];
 
+                // Ensure CSV control is set correctly before reading header
+                $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
+                $this->log("DEBUG: CSV control set to delimiter: '{$this->csv_delimiter}', enclosure: '{$this->csv_enclosure}'");
+
                 $header = $file->fgetcsv(); // Leggi l'header
+                $this->log("DEBUG: Header read: " . print_r($header, true));
 
                 // Riposizionamento lettura CSV per continuare dal progresso attuale
                 $file->seek($processed); // Salta le righe già processate
+
+                // Ensure CSV control is maintained after seek
+                $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
 
                 $batch_data = [];
                 $batch_post_old_ids = [];

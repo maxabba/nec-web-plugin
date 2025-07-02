@@ -20,6 +20,11 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
         protected $log_file;
         protected $batch_size;
 
+        // CSV format parameters
+        protected $csv_delimiter = null; // null = auto-detect
+        protected $csv_enclosure = '"';
+        protected $csv_escape = '\\';
+
         public function __construct(string $upload_dir, string $progress_file, string $log_file, int $batch_size)
         {
             $this->upload_dir = $upload_dir;
@@ -30,21 +35,82 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
 
         protected function countCsvRows(SplFileObject $file)
         {
-            try {
-                $file->seek(PHP_INT_MAX);
-                $total_rows = $file->key();
-                $file->rewind();
-                return $total_rows;
-            } catch (RuntimeException $e) {
-                // Fallback method for very large files
-                $rows = 0;
-                $file->rewind();
-                while (!$file->eof()) {
-                    $file->fgets();
-                    $rows++;
+            $file_path = $file->getRealPath();
+            $this->log("Inizio conteggio righe CSV per file: $file_path");
+
+            // Prima detecta il formato del CSV
+            $csv_format = $this->detectCsvFormat($file_path);
+
+            // SEMPRE usa il conteggio CSV per accuratezza, specialmente con delimitatore ';'
+            $csv_count = $this->countCsvRowsWithFormat($file, $csv_format);
+
+            // Confronta con conteggio semplice solo per logging
+            if ($csv_format['line_count'] > 0) {
+                $simple_data_rows = max(0, $csv_format['line_count'] - 1);
+                $ratio = $simple_data_rows > 0 ? $csv_format['line_count'] / ($csv_count + 1) : 0;
+
+                $this->log("Conteggio linee fisiche: {$csv_format['line_count']}, Conteggio record CSV: " . ($csv_count + 1));
+
+                if ($ratio > 5) {
+                    $this->log("NOTA: Il file contiene campi multi-riga (ratio: " . round($ratio, 1) . ":1)");
+                    $this->log("Questo è normale per CSV con testo su più righe dentro virgolette");
                 }
+            }
+
+            $this->log("Conteggio CSV finale: $csv_count righe dati (escludendo header)");
+            return $csv_count;
+        }
+
+
+        protected function countCsvRowsWithFormat(SplFileObject $file, array $csv_format)
+        {
+            $count = 0;
+            $file->rewind();
+
+            // Configura i parametri CSV corretti
+            $file->setCsvControl(
+                $csv_format['delimiter'],
+                $csv_format['enclosure'],
+                $csv_format['escape']
+            );
+
+            $this->log("Conteggio CSV con parametri - Delimiter: '{$csv_format['delimiter']}', Enclosure: '{$csv_format['enclosure']}'");
+
+            try {
+                while (!$file->eof()) {
+                    $row = $file->fgetcsv();
+
+                    // Conta solo righe valide (non false, non null, non array vuoto)
+                    if ($row !== false && $row !== null && $row !== [null]) {
+                        // Verifica che almeno un campo non sia vuoto
+                        $has_content = false;
+                        foreach ($row as $field) {
+                            if ($field !== null && $field !== '') {
+                                $has_content = true;
+                                break;
+                            }
+                        }
+
+                        if ($has_content) {
+                            $count++;
+                        }
+                    }
+                }
+
                 $file->rewind();
-                return $rows - 1; // -1 per l'header
+
+                // Resetta i parametri CSV ai default
+                $file->setCsvControl(',', '"', '\\');
+
+                $data_rows = max(0, $count - 1);
+                $this->log("Conteggio CSV completato: $count righe totali, $data_rows righe dati (escludendo header)");
+
+                return $data_rows;
+
+            } catch (Exception $e) {
+                $this->log("Errore nel conteggio CSV: " . $e->getMessage());
+                $file->rewind();
+                return 0;
             }
         }
 
@@ -55,8 +121,26 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
 
             try {
                 // Utilizzo di SplFileObject per una migliore gestione della memoria
+                $csv_format = $this->detectCsvFormat($csvFile);
+
+                // Crea SplFileObject
                 $file = new SplFileObject($csvFile, 'r');
                 $file->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY | SplFileObject::DROP_NEW_LINE);
+
+                // Configura i parametri CSV corretti
+                $file->setCsvControl(
+                    $csv_format['delimiter'],
+                    $csv_format['enclosure'],
+                    $csv_format['escape']
+                );
+
+                $this->log("File loaded with CSV parameters - Delimiter: '{$csv_format['delimiter']}', Enclosure: '{$csv_format['enclosure']}', Line count: {$csv_format['line_count']}");
+
+                // Salva i parametri CSV per uso futuro
+                $this->csv_delimiter = $csv_format['delimiter'];
+                $this->csv_enclosure = $csv_format['enclosure'];
+                $this->csv_escape = $csv_format['escape'];
+
                 return $file;
             } catch (RuntimeException $e) {
                 $this->log("Errore nell'apertura del file di input: " . $e->getMessage());
