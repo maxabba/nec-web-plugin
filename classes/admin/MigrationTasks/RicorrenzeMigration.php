@@ -20,7 +20,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
 
         private string $image_queue_file = 'image_download_queue_ricorrenze.csv';
-        private int $max_retries = 5;
+        private string $cron_hook = 'dokan_mods_process_image_ricorrenze_queue';
         private int $images_per_cron = 500;
 
         public function __construct(string $upload_dir, string $progress_file, string $log_file, int $batch_size)
@@ -49,14 +49,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
         private function schedule_image_processing()
         {
-
-            // Programma l'evento se non è già programmato
-            if (!wp_next_scheduled('dokan_mods_process_image_ricorrenze_queue')) {
-                $this->log('Scheduling image processing event.');
-                wp_schedule_event(time(), 'every_one_minute', 'dokan_mods_process_image_ricorrenze_queue');
-            } else {
-                $this->log('Image processing event already scheduled.');
-            }
+            $this->scheduleImageProcessing($this->cron_hook);
         }
 
 
@@ -116,10 +109,18 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $processed = $progress['processed'];
                 $total_rows = $progress['total'];
 
+                // Ensure CSV control is set correctly before reading header
+                $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
+                $this->log("DEBUG: CSV control set to delimiter: '{$this->csv_delimiter}', enclosure: '{$this->csv_enclosure}'");
+                
                 $header = $file->fgetcsv(); // Leggi l'header
+                $this->log("DEBUG: Header read: " . print_r($header, true));
 
                 // Riposizionamento lettura CSV per continuare dal progresso attuale
                 $file->seek($processed); // Salta le righe già processate
+                
+                // Ensure CSV control is maintained after seek
+                $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
 
                 $batch_data = [];
                 $batch_post_old_ids = [];
@@ -149,7 +150,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $file = null;
 
                 if (!empty($image_queue)) {
-                    $this->image_queue($image_queue);
+                    $this->addToImageQueue($image_queue, $this->image_queue_file);
                 }
                 unset($image_queue);
 
@@ -171,43 +172,10 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             return false; // Se lo stato non rientra in nessuno dei casi previsti
         }
 
-        private function is_process_active($file)
-        {
-            $progress = json_decode(file_get_contents($this->progress_file), true);
-            
-            if (!isset($progress[$file]['status_timestamp'])) {
-                $this->log("Nessun timestamp trovato per $file");
-                return false;
-            }
-            
-            $elapsed = time() - $progress[$file]['status_timestamp'];
-            $is_active = $elapsed <= 90; // 90 secondi di timeout
-            
-            $this->log("Controllo processo per $file: elapsed={$elapsed}s, active=" . ($is_active ? 'true' : 'false'));
-            
-            return $is_active;
-        }
+        // OLD is_process_active method removed - now using inherited method from parent class
 
 
-        protected function get_memory_usage()
-        {
-            $mem_usage = memory_get_usage(true);
-
-            if ($mem_usage < 1024) {
-                $memory = $mem_usage . " bytes";
-            } elseif ($mem_usage < 1048576) {
-                $memory = round($mem_usage / 1024, 2) . " KB";
-            } else {
-                $memory = round($mem_usage / 1048576, 2) . " MB";
-            }
-
-            return $memory;
-        }
-
-        protected function get_memory_usage_mb()
-        {
-            return round(memory_get_usage(true) / 1048576, 2);
-        }
+        // OLD get_memory_usage and get_memory_usage_mb methods removed - now using inherited methods from parent class
 
 
         private function process_single_record($data, $header, $existing_posts, &$image_queue)
@@ -333,10 +301,10 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                     update_field('citta', $citta, $post_id);
                 }
 
-                // Gestione immagine
+                // Gestione immagine con formato standardizzato
                 if ($data[$field_indexes['Foto']]) {
                         $image_type = $is_trigesimo ? 'trigesimo' : 'anniversario';
-                        $image_queue[] = [$image_type, $data[$field_indexes['Foto']], $post_id, $author_id];
+                        $image_queue[] = [$image_type, 'https://necrologi.sciame.it/necrologi/' . $data[$field_indexes['Foto']], $post_id, $author_id];
                 }
 
                 $this->log("Ricorrenza creata: ID $post_id, Tipo: $post_type");
@@ -347,128 +315,13 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
 
 
-        private function image_queue($image_queue)
-        {
-            // Prepariamo un array di tutti gli URL per fare una singola query SQL
-            $image_urls = array_map(function ($image) {
-                return 'https://necrologi.sciame.it/necrologi/' . $image[1];
-            }, $image_queue);
-
-            // Otteniamo tutti gli ID delle immagini esistenti con una singola query
-            $existing_images = $this->get_images_ids_by_urls($image_urls);
-
-            // Prepariamo il file per la coda una sola volta
-            $queue_file = $this->upload_dir . $this->image_queue_file;
-
-            try {
-                // Leggiamo il contenuto esistente della coda
-                $existing_queue = [];
-                if (file_exists($queue_file)) {
-                    $read_file = new SplFileObject($queue_file, 'r');
-                    $read_file->setFlags(SplFileObject::READ_CSV);
-                    foreach ($read_file as $data) {
-                        if (!$data || count($data) < 4) continue;
-                        $key = implode('|', array_slice($data, 0, 4));
-                        $existing_queue[$key] = true;
-                    }
-                    $read_file = null;
-                }
-
-                // Apriamo il file per la scrittura
-                $write_file = new SplFileObject($queue_file, 'a');
-
-                foreach ($image_queue as $image) {
-                    $image_type = $image[0];
-                    $image_path = $image[1];
-                    $post_id = $image[2];
-                    $author_id = $image[3];
-
-                    if ($image_path == '') {
-                        continue;
-                    }
-                    $image_url = 'https://necrologi.sciame.it/necrologi/' . $image_path;
-
-                    // Controlliamo se l'immagine esiste già nella libreria
-                    $existing_image_id = $existing_images[$image_url] ?? null;
-
-                    if ($existing_image_id) {
-                        $this->log("Image already exists in media library: $image_url");
-                        // Aggiorniamo i campi necessari
-                        if ($image_type === 'trigesimo') {
-                            update_field('immagine_annuncio_trigesimo', $existing_image_id, $post_id);
-                        } elseif ($image_type === 'anniversario') {
-                            update_field('immagine_annuncio_anniversario', $existing_image_id, $post_id);
-                        }
-                        continue;
-                    }
-
-                    // Controlliamo se l'immagine è già in coda
-                    $queue_key = implode('|', [$image_type, $image_url, $post_id, $author_id]);
-                    if (isset($existing_queue[$queue_key])) {
-                        $this->log("Image already in queue: $image_url");
-                        continue;
-                    }
-
-                    // Aggiungiamo alla coda
-                    $write_file->fputcsv([$image_type, $image_url, $post_id, $author_id, 0]);
-                    $this->log("Image added to queue: $image_url");
-                }
-
-                // Chiudiamo il file
-                $write_file = null;
-
-                return true;
-            } catch (RuntimeException $e) {
-                $this->log("Errore nella gestione del file di coda delle immagini: " . $e->getMessage());
-                return false;
-            }
-        }
+        // OLD image_queue method removed - now using centralized addToImageQueue in parent class
 
 
 
 
 
-        private function get_images_ids_by_urls($image_urls)
-        {
-            global $wpdb;
-
-            if (empty($image_urls)) {
-                return [];
-            }
-
-            // Prepariamo i filename per la ricerca
-            $filenames = array_map('basename', $image_urls);
-
-            // Costruiamo la query dinamicamente con un'operazione di corrispondenza esatta
-            $placeholders = implode(',', array_fill(0, count($filenames), '%s'));
-
-            // Eseguiamo la query
-            $query = "
-                SELECT ID, guid 
-                FROM $wpdb->posts 
-                WHERE guid IN ($placeholders)";
-
-            // Prepariamo i parametri per la query
-            $prepared_query = $wpdb->prepare($query, ...$filenames);
-            $results = $wpdb->get_results($prepared_query);
-
-            // Creiamo un array associativo url => ID
-            $url_to_id = [];
-            foreach ($results as $result) {
-                $url_to_id[basename($result->guid)] = $result->ID;
-            }
-
-            // Mappiamo gli URL originali agli ID
-            $final_mapping = [];
-            foreach ($image_urls as $url) {
-                $filename = basename($url);
-                if (isset($url_to_id[$filename])) {
-                    $final_mapping[$url] = $url_to_id[$filename];
-                }
-            }
-
-            return $final_mapping;
-        }
+        // OLD get_images_ids_by_urls method removed - existing image detection now handled by centralized system
 
 
 
@@ -501,185 +354,12 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
         public function process_image_queue()
         {
-
-            $queue_file = $this->upload_dir . $this->image_queue_file;
-
-
-            //if progress status is finished remove the schedule
-            if ($this->get_progress_status($this->image_queue_file) === 'finished') {
-                $this->log("Image processing finished. Removing schedule.");
-                wp_clear_scheduled_hook('dokan_mods_process_image_ricorrenze_queue');
-                return;
-            }
-
-            if (!file_exists($queue_file)) {
-                $this->log("Queue file does not exist");
-                return;
-            }
-
-            // Controllo se il processo è attualmente attivo
-            if ($this->get_progress_status($this->image_queue_file) === 'ongoing') {
-                if ($this->is_process_active($this->image_queue_file)) {
-                    $this->log("Image processing already in progress");
-                    return;
-                } else {
-                    $this->log("Image processing rilevato come bloccato - continuazione automatica");
-                    $this->set_progress_status($this->image_queue_file, 'completed');
-                }
-            }
-
-            try {
-                $file = new SplFileObject($queue_file, 'r');
-                $file->setFlags(SplFileObject::READ_CSV);
-
-                // Conta il numero totale di righe
-                $file->seek(PHP_INT_MAX);
-                $total_rows = $file->key();
-                $file->rewind();
-
-                if ($total_rows === 0) {
-                    unlink($queue_file);
-                    $this->log("Empty queue file removed");
-                    return;
-                }
-
-                $this->set_progress_status($this->image_queue_file, 'ongoing');
-
-                // Inizializza il tracking del progresso
-                $progress = $this->get_progress($this->image_queue_file);
-                $processed = $progress['processed'];
-
-                $batch_count = 0;  // Contatore per il numero di immagini processate in questo batch
-
-                foreach ($file as $index => $data) {
-
-                    // Se la riga è vuota o mancano campi, saltala
-                    if (empty($data) || count($data) < 5) continue;
-
-                    // Salta le righe già processate
-                    if ($index < $processed) continue;
-
-                    // Verifica se abbiamo raggiunto il limite del batch
-                    if ($batch_count >= $this->images_per_cron) {
-                        break; // Esci dal ciclo, il batch è completo
-                    }
-
-                    list($image_type, $image_url, $post_id, $author_id, $retry_count) = $data;
-
-                    // Scarica e carica l'immagine con gestione errori migliorata
-                    if($this->download_and_upload_image($image_type,$image_url, $post_id, $author_id)){
-                        $processed = $index + 1;  // Aggiorna il numero di righe processate
-                        $batch_count++;  // Incrementa il contatore del batch
-                        $this->update_progress($this->image_queue_file, $processed, $total_rows);  // Aggiorna lo stato del progresso
-                        $this->log("Immagine processata con successo: $image_url");
-                    } else {
-                        $retry_count++;
-                        $this->log("Errore nel download dell'immagine $image_url (tentativo $retry_count/{$this->max_retries})");
-                        
-                        // Se abbiamo superato il numero massimo di tentativi, salta questa immagine
-                        if ($retry_count >= $this->max_retries) {
-                            $this->log("Saltando immagine $image_url dopo {$this->max_retries} tentativi falliti");
-                            $processed = $index + 1; // Salta questa riga
-                            $batch_count++;
-                            $this->update_progress($this->image_queue_file, $processed, $total_rows);
-                        }
-                    }
-                }
-
-                $file = null;
-
-                // Se abbiamo completato tutte le righe, possiamo segnare il progresso come "finished"
-                if ($processed >= $total_rows) {
-                    $this->set_progress_status($this->image_queue_file, 'finished');
-                    $this->log("Processamento immagini completato per {$this->image_queue_file}");
-                    // Rimuovi il file di coda completato
-                    if (file_exists($queue_file)) {
-                        unlink($queue_file);
-                        $this->log("File di coda rimosso: {$this->image_queue_file}");
-                    }
-                } else {
-                    $this->set_progress_status($this->image_queue_file, 'completed');
-                    $this->log("Batch immagini completato: $processed/$total_rows processate");
-                }
-
-            }
-        catch
-            (Exception $e) {
-                $this->log("Error: " . $e->getMessage());
-                $this->set_progress_status($this->image_queue_file, 'error');
-            }
+            // Use centralized image queue processing
+            $this->processImageQueue($this->image_queue_file, $this->cron_hook, $this->images_per_cron);
         }
 
 
-        private function download_and_upload_image($image_type, $image_url, $post_id, $author_id)
-        {
-            try {
-                $ch = curl_init($image_url);
-                curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_FOLLOWLOCATION => true,
-                    CURLOPT_TIMEOUT => 30
-                ]);
-
-                $image_data = curl_exec($ch);
-                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-
-                if ($http_code !== 200 || !$image_data) {
-                    throw new RuntimeException("Download fallito con codice HTTP: $http_code");
-                }
-
-                // Preparazione per l'upload
-                $upload_dir = wp_upload_dir();
-                $filename = basename($image_url);
-                $unique_filename = wp_unique_filename($upload_dir['path'], $filename);
-                $upload_file = $upload_dir['path'] . '/' . $unique_filename;
-
-                if (!file_put_contents($upload_file, $image_data)) {
-                    throw new RuntimeException("Impossibile salvare l'immagine: $upload_file");
-                }
-
-                // Creazione dell'attachment
-                $wp_filetype = wp_check_filetype($filename, null);
-                $attachment = [
-                    'post_mime_type' => $wp_filetype['type'],
-                    'post_title' => sanitize_file_name($filename),
-                    'post_content' => '',
-                    'post_status' => 'inherit',
-                    'post_author' => $author_id ?: 1,
-                ];
-
-                // Inserimento dell'attachment
-                $attach_id = wp_insert_attachment($attachment, $upload_file, $post_id);
-                if (is_wp_error($attach_id)) {
-                    throw new RuntimeException($attach_id->get_error_message());
-                }
-
-                // Generazione dei metadata dell'immagine
-                require_once(ABSPATH . 'wp-admin/includes/image.php');
-                $attach_data = wp_generate_attachment_metadata($attach_id, $upload_file);
-                wp_update_attachment_metadata($attach_id, $attach_data);
-
-                // Aggiornamento dei campi ACF in base al tipo di immagine
-                switch ($image_type) {
-                    case 'trigesimo':
-                        update_field('immagine_annuncio_trigesimo', $attach_id, $post_id);
-                        break;
-                    case 'anniversario':
-                        update_field('immagine_annuncio_anniversario', $attach_id, $post_id);
-                        break;
-                    default:
-                        $this->log("Tipo di immagine non riconosciuto: $image_type");
-                        break;
-                }
-
-                return true;
-
-            } catch (Exception $e) {
-                $this->log("Errore nel processare l'immagine $image_url: " . $e->getMessage());
-                return false;
-            }
-        }
+        // OLD download_and_upload_image method removed - now using centralized downloadAndAttachImage in parent class
 
 
         private function manipola_dati($input_file)

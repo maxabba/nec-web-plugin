@@ -122,22 +122,127 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
         private function initializeTasks(): void
         {
-            $common_params = [
-                $this->upload_dir,
-                $this->progress_file,
-                $this->log_file,
-                $this->batch_size
-            ];
-
-            // Initialize task instances
+            // Create unique progress file for each migration type
+            $base_progress_path = dirname($this->progress_file);
+            
+            // Initialize task instances with unique progress files
             $this->migration_tasks = [
-                'necrologi' => new NecrologiMigration(...$common_params),
-                'accounts' => new AccountsMigration(...$common_params),
-                'ricorrenze' => new RicorrenzeMigration(...$common_params),
-                'manifesti' => new ManifestiMigration(...$common_params),
-                'ringraziamenti' => new RingraziamentiMigration(...$common_params)  // Aggiunta nuova istanza
-
+                'necrologi' => new NecrologiMigration(
+                    $this->upload_dir,
+                    $base_progress_path . '/migration_progress_necrologi.json',
+                    $this->log_file,
+                    $this->batch_size
+                ),
+                'accounts' => new AccountsMigration(
+                    $this->upload_dir,
+                    $base_progress_path . '/migration_progress_accounts.json',
+                    $this->log_file,
+                    $this->batch_size
+                ),
+                'ricorrenze' => new RicorrenzeMigration(
+                    $this->upload_dir,
+                    $base_progress_path . '/migration_progress_ricorrenze.json',
+                    $this->log_file,
+                    $this->batch_size
+                ),
+                'manifesti' => new ManifestiMigration(
+                    $this->upload_dir,
+                    $base_progress_path . '/migration_progress_manifesti.json',
+                    $this->log_file,
+                    $this->batch_size
+                ),
+                'ringraziamenti' => new RingraziamentiMigration(
+                    $this->upload_dir,
+                    $base_progress_path . '/migration_progress_ringraziamenti.json',
+                    $this->log_file,
+                    $this->batch_size
+                )
             ];
+            
+            // Migrate existing progress data if present
+            $this->migrateExistingProgress();
+        }
+        
+        /**
+         * Get the correct progress file for a given CSV file
+         */
+        private function get_progress_file_for_migration($file): string
+        {
+            $base_progress_path = dirname($this->progress_file);
+            
+            // Map CSV files to their migration types
+            $file_to_type_map = [
+                'accounts.csv' => 'accounts',
+                'necrologi.csv' => 'necrologi', 
+                'ricorrenze.csv' => 'ricorrenze',
+                'manifesti.csv' => 'manifesti',
+                'ringraziamenti.csv' => 'ringraziamenti',
+                'image_download_queue.csv' => 'necrologi',
+                'image_download_queue_ricorrenze.csv' => 'ricorrenze',
+                'image_download_queue_ringraziamenti.csv' => 'ringraziamenti'
+            ];
+            
+            $type = $file_to_type_map[$file] ?? 'default';
+            return $base_progress_path . '/migration_progress_' . $type . '.json';
+        }
+        
+        /**
+         * Migrate data from old single progress file to new separate files
+         */
+        private function migrateExistingProgress(): void
+        {
+            // Check if old progress file exists
+            if (!file_exists($this->progress_file)) {
+                return;
+            }
+            
+            // Read old progress data
+            $old_progress = json_decode(file_get_contents($this->progress_file), true);
+            if (empty($old_progress)) {
+                return;
+            }
+            
+            $base_progress_path = dirname($this->progress_file);
+            $migrated = false;
+            
+            // Map CSV files to their migration types
+            $file_to_type_map = [
+                'accounts.csv' => 'accounts',
+                'necrologi.csv' => 'necrologi',
+                'ricorrenze.csv' => 'ricorrenze',
+                'manifesti.csv' => 'manifesti',
+                'ringraziamenti.csv' => 'ringraziamenti',
+                'image_download_queue.csv' => 'necrologi',
+                'image_download_queue_ricorrenze.csv' => 'ricorrenze',
+                'image_download_queue_ringraziamenti.csv' => 'ringraziamenti'
+            ];
+            
+            // Migrate data to new files
+            foreach ($old_progress as $file => $data) {
+                if (isset($file_to_type_map[$file])) {
+                    $type = $file_to_type_map[$file];
+                    $new_progress_file = $base_progress_path . '/migration_progress_' . $type . '.json';
+                    
+                    // Read existing data if file exists
+                    $new_progress = [];
+                    if (file_exists($new_progress_file)) {
+                        $new_progress = json_decode(file_get_contents($new_progress_file), true) ?: [];
+                    }
+                    
+                    // Add migrated data
+                    $new_progress[$file] = $data;
+                    
+                    // Write to new file
+                    file_put_contents($new_progress_file, json_encode($new_progress, JSON_PRETTY_PRINT));
+                    $migrated = true;
+                }
+            }
+            
+            // Rename old file to backup if migration successful
+            if ($migrated) {
+                rename($this->progress_file, $this->progress_file . '.backup.' . time());
+                error_log("Migrated progress data from single file to separate files");
+            }
         }
 
         public function setupCronJobs(): void
@@ -1039,11 +1144,14 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
         {
             $default = ['processed' => 0, 'total' => 0, 'percentage' => 0];
 
-            if (!file_exists($this->progress_file)) {
+            // Get the correct progress file for the migration type
+            $progress_file = $this->get_progress_file_for_migration($file);
+            
+            if (!file_exists($progress_file)) {
                 return $default;
             }
 
-            $progress = @json_decode(file_get_contents($this->progress_file), true);
+            $progress = @json_decode(file_get_contents($progress_file), true);
 
             return isset($progress[$file]['processed'], $progress[$file]['total'], $progress[$file]['percentage'])
                 ? $progress[$file]
@@ -1137,13 +1245,28 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
 
         private function get_progress_status($file)
         {
-            $progress = json_decode(file_get_contents($this->progress_file), true);
+            // Get the correct progress file for the migration type
+            $progress_file = $this->get_progress_file_for_migration($file);
+            
+            if (!file_exists($progress_file)) {
+                return 'not_started';
+            }
+            
+            $progress = json_decode(file_get_contents($progress_file), true);
             return isset($progress[$file]['status']) ? $progress[$file]['status'] : 'not_started';
         }
         
         private function is_process_active($file)
         {
-            $progress = json_decode(file_get_contents($this->progress_file), true);
+            // Get the correct progress file for the migration type
+            $progress_file = $this->get_progress_file_for_migration($file);
+            
+            if (!file_exists($progress_file)) {
+                $this->log("File di progresso non trovato per $file - considerato non attivo");
+                return false;
+            }
+            
+            $progress = json_decode(file_get_contents($progress_file), true);
             
             if (!isset($progress[$file]['status_timestamp'])) {
                 $this->log("Nessun timestamp trovato per $file - considerato non attivo");
@@ -1176,17 +1299,27 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 return;
             }
 
-            // Verifica esistenza file con early return
-            if (!is_readable($this->progress_file)) {
-                $this->debug_log("Il file di progresso non esiste in check_migration_status");
-                wp_send_json_success('Progress file not found.');
-                return;
+            // Leggi i progressi da tutti i file di progresso
+            $base_progress_path = dirname($this->progress_file);
+            $progress = [];
+            
+            // Leggi da tutti i file di progresso esistenti
+            $progress_files = glob($base_progress_path . '/migration_progress_*.json');
+            foreach ($progress_files as $progress_file) {
+                if (is_readable($progress_file)) {
+                    $progress_content = file_get_contents($progress_file);
+                    $file_progress = $progress_content ? json_decode($progress_content, true) : [];
+                    if (is_array($file_progress)) {
+                        $progress = array_merge($progress, $file_progress);
+                    }
+                }
             }
-
-            // Lettura file ottimizzata con cache dei risultati
-
-            $progress_content = file_get_contents($this->progress_file);
-            $progress = $progress_content ? json_decode($progress_content, true) : [];
+            
+            // Fallback per retrocompatibilità con il file di progresso originale
+            if (empty($progress) && is_readable($this->progress_file)) {
+                $progress_content = file_get_contents($this->progress_file);
+                $progress = $progress_content ? json_decode($progress_content, true) : [];
+            }
 
 
             // Ottimizzazione lettura log con SplFileObject
@@ -1249,17 +1382,27 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 return;
             }
 
-            // Verifica esistenza file con early return
-            if (!is_readable($this->progress_file)) {
-                $this->debug_log("Il file di progresso non esiste in check_image_migration_status");
-                wp_send_json_success('Progress file not found.');
-                return;
+            // Leggi i progressi da tutti i file di progresso
+            $base_progress_path = dirname($this->progress_file);
+            $progress = [];
+            
+            // Leggi da tutti i file di progresso esistenti
+            $progress_files = glob($base_progress_path . '/migration_progress_*.json');
+            foreach ($progress_files as $progress_file) {
+                if (is_readable($progress_file)) {
+                    $progress_content = file_get_contents($progress_file);
+                    $file_progress = $progress_content ? json_decode($progress_content, true) : [];
+                    if (is_array($file_progress)) {
+                        $progress = array_merge($progress, $file_progress);
+                    }
+                }
             }
-
-            // Lettura file ottimizzata con cache dei risultati
-
-            $progress_content = file_get_contents($this->progress_file);
-            $progress = $progress_content ? json_decode($progress_content, true) : [];
+            
+            // Fallback per retrocompatibilità con il file di progresso originale
+            if (empty($progress) && is_readable($this->progress_file)) {
+                $progress_content = file_get_contents($this->progress_file);
+                $progress = $progress_content ? json_decode($progress_content, true) : [];
+            }
 
             //if in progress exist key starting with image_download_queue
             $image_download_queue = array_filter($progress, function($key) {
@@ -1278,8 +1421,11 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
         {
             $this->debug_log("Inizializzazione progresso: $file");
 
-            $progress = file_exists($this->progress_file)
-                ? json_decode(file_get_contents($this->progress_file), true) ?: []
+            // Get the correct progress file for the migration type
+            $progress_file = $this->get_progress_file_for_migration($file);
+            
+            $progress = file_exists($progress_file)
+                ? json_decode(file_get_contents($progress_file), true) ?: []
                 : [];
 
             $progress[$file] = [
@@ -1289,7 +1435,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationClass')) {
                 'status' => 'not_started'
             ];
 
-            if (file_put_contents($this->progress_file, json_encode($progress)) === false) {
+            if (file_put_contents($progress_file, json_encode($progress)) === false) {
                 $this->debug_log("Errore nella scrittura del progresso");
                 return;
             }

@@ -124,7 +124,7 @@ jQuery(document).ready(function ($) {
     }
 
     function checkStatus() {
-        console.log('checkStatus called');
+        console.log('checkStatus called - checking multiple progress files');
 
         jQuery.ajax({
             url: migrationAjax.ajax_url,
@@ -150,27 +150,44 @@ jQuery(document).ready(function ($) {
                         $('#migration-log').html(data.log.replace(/\n/g, '<br>'));
                     }
 
-                    // Check if there's progress data for the current file
+                    // Enhanced logic to handle multiple progress files
+                    let shouldContinueChecking = false;
+                    let currentFileFinished = false;
+                    
+                    // Check current file status
                     if (data.progress[currentFile]) {
                         const fileStatus = data.progress[currentFile].status;
+                        console.log(`Current file ${currentFile} status: ${fileStatus}`);
 
-                        // Continue checking if status is 'ongoing' or 'completed'
                         if (fileStatus === 'ongoing' || fileStatus === 'completed') {
-                            setTimeout(checkStatus, 1000);
-                        }
-                        // Only proceed to next step if status is 'finished'
-                        else if (fileStatus === 'finished') {
-                            $('#progress-container').hide();
-                            $('#stop-migration, #resume-migration').hide();
-                            getNextStep();
-                        }
-                        // If status is undefined or unknown, keep checking
-                        else {
-                            console.warn('Unknown status for file:', currentFile);
-                            setTimeout(checkStatus, 1000);
+                            shouldContinueChecking = true;
+                        } else if (fileStatus === 'finished') {
+                            currentFileFinished = true;
+                        } else {
+                            console.warn('Unknown status for current file:', currentFile, fileStatus);
+                            shouldContinueChecking = true; // Keep checking for unknown statuses
                         }
                     } else {
                         console.error('No progress data for current file:', currentFile);
+                        shouldContinueChecking = true; // Keep checking if no data
+                    }
+                    
+                    // Also check if any other migration files are still processing
+                    for (const file in data.progress) {
+                        const status = data.progress[file].status;
+                        if (status === 'ongoing' || status === 'completed') {
+                            console.log(`File ${file} still processing with status: ${status}`);
+                            shouldContinueChecking = true;
+                        }
+                    }
+
+                    if (currentFileFinished) {
+                        console.log(`Current file ${currentFile} finished, proceeding to next step`);
+                        $('#progress-container').hide();
+                        $('#stop-migration, #resume-migration').hide();
+                        getNextStep();
+                    } else if (shouldContinueChecking) {
+                        setTimeout(checkStatus, 1000);
                     }
                 } else {
                     handleWPError(response);
@@ -184,7 +201,7 @@ jQuery(document).ready(function ($) {
 
 
     function checkStatusImage() {
-        console.log('checkStatus called');
+        console.log('checkStatusImage called for multiple progress files');
 
         jQuery.ajax({
             url: migrationAjax.ajax_url,
@@ -197,47 +214,30 @@ jQuery(document).ready(function ($) {
                 if (response.success && response.data) {
                     const data = response.data;
                     if (data.progress && typeof data.progress === 'object') {
-                        for (const file in data.progress) {
-                            if (data.progress[file].percentage <= 100) {
-                                // If the progress bar for the file doesn't exist, create it
-                                const fileId = file.replace('.', '-');
-                                let fileProgressElement = $('#file-progress-' + fileId);
-                                if (fileProgressElement.length === 0) {
-                                    $('#migration-log').after(`
-                                    <div id="file-progress-${fileId}" class="file-progress">
-                                        <div class="file-name">${file}: <span class="file-percentage">0%</span></div>
-                                        <div class="progress-bar"><div class="progress"></div></div>
-                                        <div class="processed-row">Processed: <span class="processed-count">0</span>/<span class="total-count">0</span></div>
-                                    </div>
-                                `);
-                                    fileProgressElement = $('#file-progress-' + fileId);
-                                }
-                                const progress = data.progress[file];
-                                const percentageText = progress.percentage.toFixed(2) + '%';
-                                const percentageWidth = progress.percentage + '%';
-                                fileProgressElement.find('.file-percentage').text(percentageText);
-                                fileProgressElement.find('.progress').css('width', percentageWidth);
-                                fileProgressElement.find('.processed-count').text(progress.processed);
-                                fileProgressElement.find('.total-count').text(progress.total);
-                            }
-                        }
+                        updateImageProgressDisplay(data.progress);
                     } else {
                         console.warn('Invalid progress data:', data.progress);
                     }
 
-                    // Check if all files have completed the migration
+                    // Check if all image queues have completed
                     let completed = true;
+                    let hasActiveQueues = false;
 
                     for (const file in data.progress) {
-                        if (data.progress[file].percentage < 100) {
+                        hasActiveQueues = true;
+                        const status = data.progress[file].status;
+                        if (status !== 'finished' && data.progress[file].percentage < 100) {
                             completed = false;
                             break;
                         }
                     }
 
-                    if (!completed) {
-                        console.log('Setting timeout for next status check'); // Debugging message for the timer
-                        setTimeout(checkStatusImage, 2000); // 2 seconds interval
+                    if (!completed && hasActiveQueues) {
+                        console.log('Image queues still processing, checking again in 2 seconds');
+                        setTimeout(checkStatusImage, 2000);
+                    } else if (completed && hasActiveQueues) {
+                        console.log('All image queues completed');
+                        updateImageDownloadStatus('success', '✅ Tutti i download delle immagini sono stati completati!');
                     }
 
                 } else {
@@ -248,6 +248,74 @@ jQuery(document).ready(function ($) {
             },
             error: handleAjaxError
         });
+    }
+
+    function updateImageProgressDisplay(progressData) {
+        // Enhanced function to handle multiple image queue progress files
+        for (const file in progressData) {
+            const progress = progressData[file];
+            
+            // Create unique ID for this progress display
+            const fileId = file.replace(/[^a-zA-Z0-9]/g, '-');
+            let fileProgressElement = $('#file-progress-' + fileId);
+            
+            if (fileProgressElement.length === 0) {
+                // Create progress bar for this image queue
+                const displayName = getImageQueueDisplayName(file);
+                $('#migration-log').after(`
+                    <div id="file-progress-${fileId}" class="file-progress image-queue-progress">
+                        <div class="file-name">${displayName}: <span class="file-percentage">0%</span> 
+                            <span class="queue-status">[${progress.status || 'unknown'}]</span>
+                        </div>
+                        <div class="progress-bar"><div class="progress"></div></div>
+                        <div class="processed-row">
+                            Processed: <span class="processed-count">0</span>/<span class="total-count">0</span>
+                            <span class="queue-info"> | Status: <span class="status-text">unknown</span></span>
+                        </div>
+                    </div>
+                `);
+                fileProgressElement = $('#file-progress-' + fileId);
+            }
+            
+            // Update progress display
+            const percentage = Math.min(100, Math.max(0, progress.percentage || 0));
+            const percentageText = percentage.toFixed(2) + '%';
+            const percentageWidth = percentage + '%';
+            
+            fileProgressElement.find('.file-percentage').text(percentageText);
+            fileProgressElement.find('.progress').css('width', percentageWidth);
+            fileProgressElement.find('.processed-count').text(progress.processed || 0);
+            fileProgressElement.find('.total-count').text(progress.total || 0);
+            fileProgressElement.find('.status-text').text(progress.status || 'unknown');
+            fileProgressElement.find('.queue-status').text('[' + (progress.status || 'unknown') + ']');
+            
+            // Add visual status indicators
+            fileProgressElement.removeClass('status-ongoing status-completed status-finished status-error');
+            if (progress.status) {
+                fileProgressElement.addClass('status-' + progress.status);
+            }
+            
+            // Hide completed queues after a delay
+            if (progress.status === 'finished' && percentage >= 100) {
+                setTimeout(() => {
+                    fileProgressElement.fadeOut(2000, function() {
+                        $(this).remove();
+                    });
+                }, 5000);
+            }
+        }
+    }
+    
+    function getImageQueueDisplayName(filename) {
+        // Convert queue filenames to user-friendly names
+        const displayNames = {
+            'image_download_queue.csv': 'Immagini Necrologi',
+            'image_download_queue_ricorrenze.csv': 'Immagini Ricorrenze',
+            'image_download_queue_ringraziamenti.csv': 'Immagini Ringraziamenti',
+            'image_download_queue_manifesti.csv': 'Immagini Manifesti'
+        };
+        
+        return displayNames[filename] || filename.replace('_', ' ').replace('.csv', '');
     }
 
 
@@ -351,7 +419,7 @@ jQuery(document).ready(function ($) {
                 }
             }).insertAfter($('#migration-log'));
 
-            // Add CSS for fade animation
+            // Add CSS for fade animation and image queue progress
             $('<style>')
                 .text(`
             .error-notification {
@@ -360,6 +428,33 @@ jQuery(document).ready(function ($) {
             }
             .error-notification.fade-out {
                 opacity: 0;
+            }
+            .image-queue-progress {
+                border-left: 4px solid #0073aa;
+                background: #f9f9f9;
+                margin: 5px 0;
+                padding: 10px;
+            }
+            .image-queue-progress.status-ongoing {
+                border-left-color: #ffb900;
+                background: #fff8e1;
+            }
+            .image-queue-progress.status-finished {
+                border-left-color: #00a32a;
+                background: #f0f8f0;
+            }
+            .image-queue-progress.status-error {
+                border-left-color: #d63638;
+                background: #fff0f0;
+            }
+            .queue-status {
+                font-size: 0.9em;
+                color: #666;
+                font-weight: normal;
+            }
+            .queue-info {
+                font-size: 0.9em;
+                color: #666;
             }
         `)
                 .appendTo('head');
