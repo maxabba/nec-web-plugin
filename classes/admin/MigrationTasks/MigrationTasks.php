@@ -7,6 +7,9 @@ use RuntimeException;
 use SplFileObject;
 use WP_Query;
 
+// Custom exception for permanent failures
+class PermanentFailureException extends Exception {}
+
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
@@ -691,32 +694,35 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                 if (file_exists($queue_path)) {
                     $lines = file($queue_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
                     $check_lines = array_slice($lines, -1000); // Only check last 1000 entries
-                    
+
                     foreach ($check_lines as $line) {
                         $data = str_getcsv($line);
                         if (count($data) >= 4) {
-                            $key = implode('|', array_slice($data, 0, 4));
+                            // Usa md5 per un checksum veloce della chiave
+                            $key_parts = array_slice($data, 0, 4);
+                            $key = md5(implode('|', $key_parts));
                             $existing_keys[$key] = true;
                         }
                     }
                 }
-                
+
                 // Filter out duplicates
                 $unique_images = [];
                 $duplicates_count = 0;
-                
+
                 foreach ($images as $image) {
                     if (count($image) < 4) continue;
-                    
+
                     list($image_type, $image_url, $post_id, $author_id) = $image;
                     if (empty($image_url)) continue;
-                    
-                    $key = implode('|', [$image_type, $image_url, $post_id, $author_id]);
+
+                    // Crea checksum per la chiave corrente
+                    $key = md5("$image_type|$image_url|$post_id|$author_id");
                     if (isset($existing_keys[$key])) {
                         $duplicates_count++;
                         continue;
                     }
-                    
+
                     $existing_keys[$key] = true; // Prevent duplicates within this batch
                     $unique_images[] = [$image_type, $image_url, $post_id, $author_id, 0, 0];
                 }
@@ -726,23 +732,27 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                     return true;
                 }
                 
-                // Simple file append
-                $file_handle = fopen($queue_path, 'a');
-                if (!$file_handle) {
-                    $this->log("ERROR: Cannot open queue file for writing: $queue_path");
+                // Optimized file append using SplFileObject
+                try {
+                    $file = new SplFileObject($queue_path, 'a');
+                    $file->setCsvControl(',', '"', '\\');
+                    
+                    $written_count = 0;
+                    foreach ($unique_images as $image_data) {
+                        if ($file->fputcsv($image_data) !== false) {
+                            $written_count++;
+                        } else {
+                            $this->log("ERROR: Failed to write image data: " . implode(',', $image_data));
+                        }
+                    }
+                    
+                    // SplFileObject automatically handles file closure
+                    $file = null;
+                    
+                } catch (RuntimeException $e) {
+                    $this->log("ERROR: Cannot open queue file for writing: $queue_path - " . $e->getMessage());
                     return false;
                 }
-                
-                $written_count = 0;
-                foreach ($unique_images as $image_data) {
-                    if (fputcsv($file_handle, $image_data) !== false) {
-                        $written_count++;
-                    } else {
-                        $this->log("ERROR: Failed to write image data: " . implode(',', $image_data));
-                    }
-                }
-                
-                fclose($file_handle);
                 
                 $this->log("Successfully added $written_count images to queue (skipped $duplicates_count duplicates)");
                 return $written_count > 0;
@@ -944,25 +954,49 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             }
 
             try {
-                // Read all unprocessed rows
+                // Initialize progress if not exists and get current progress
+                $progress = $this->getImageQueueProgress($queue_file);
+                $processed_count = $progress['processed'] ?? 0;
+                
+                // Initialize progress file if first time processing
+                if ($progress['total'] === 0) {
+                    $total_rows_count = $this->countCsvRowsEfficient($queue_path);
+                    $this->updateImageQueueProgress($queue_file, $processed_count, $total_rows_count);
+                    $this->log("Initialized image queue progress: 0/$total_rows_count");
+                }
+                
+                // Read unprocessed rows sequentially from current position
                 $unprocessed_rows = [];
+                $unprocessed_positions = []; // Track absolute CSV row positions
                 $total_rows = 0;
+                $found_unprocessed = 0;
                 
                 $file = new SplFileObject($queue_path, 'r');
                 $file->setFlags(SplFileObject::READ_CSV);
                 $file->setCsvControl(',', '"', '\\');
                 
+                $absolute_row_index = 0;
                 foreach ($file as $data) {
-                    if (empty($data) || count($data) < 6) continue;
+                    if (empty($data) || count($data) < 6) {
+                        $absolute_row_index++;
+                        continue;
+                    }
                     
                     $total_rows++;
                     $processed = (int)($data[5] ?? 0); // processed flag
                     
-                    if ($processed === 0) {
+                    // Sequential processing: only collect next batch of unprocessed rows
+                    if ($processed === 0 && $found_unprocessed < $max_per_batch) {
                         $unprocessed_rows[] = $data;
+                        $unprocessed_positions[] = $absolute_row_index; // Store absolute position
+                        $found_unprocessed++;
                     }
+                    
+                    $absolute_row_index++;
                 }
                 $file = null;
+                
+                $this->log("Sequential processing: found $found_unprocessed unprocessed rows from total $total_rows (already processed: $processed_count)");
 
                 if (empty($unprocessed_rows)) {
                     $this->setImageQueueProgressStatus($queue_file, 'finished');
@@ -978,10 +1012,11 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
 
                 $this->setImageQueueProgressStatus($queue_file, 'ongoing');
 
-                // Process batch
-                $processed_count = $total_rows - count($unprocessed_rows);
+                // Process batch with real-time updates
                 $batch_count = 0;
-                $rows_to_mark = [];
+                
+                // Calculate actual processed count from progress (more reliable than calculation)
+                $current_processed = $progress['processed'] ?? 0;
 
                 foreach ($unprocessed_rows as $index => $data) {
                     if ($batch_count >= $max_per_batch) {
@@ -989,48 +1024,414 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                     }
 
                     list($image_type, $image_url, $post_id, $author_id, $retry_count) = $data;
+                    $absolute_row_index = $unprocessed_positions[$index];
                     
-                    if ($this->downloadAndAttachImage($image_type, $image_url, (int)$post_id, (int)$author_id)) {
-                        $rows_to_mark[] = $index;
-                        $batch_count++;
-                        $this->log("Image processed successfully: $image_url");
-                    } else {
-                        $retry_count++;
-                        $this->log("Error downloading image $image_url (attempt $retry_count/5)");
-                        
-                        if ($retry_count >= 5) {
-                            $this->log("Skipping image $image_url after 5 failed attempts");
-                            $rows_to_mark[] = $index;
-                            $batch_count++;
+                    try {
+                        if ($this->downloadAndAttachImage($image_type, $image_url, (int)$post_id, (int)$author_id)) {
+                            // Immediately mark this single row as processed
+                            if ($this->markSingleRowAsProcessed($queue_path, $absolute_row_index)) {
+                                $batch_count++;
+                                $current_processed++;
+                                
+                                // Update progress immediately after each successful image
+                                $this->updateImageQueueProgress($queue_file, $current_processed, $total_rows);
+                                $percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
+                                
+                                $this->log("Image processed successfully: $image_url (CSV row: $absolute_row_index) - Progress: $current_processed/$total_rows ({$percentage}%)");
+                            } else {
+                                $this->log("ERROR: Failed to mark CSV row $absolute_row_index as processed for $image_url");
+                            }
                         } else {
-                            // Update retry count in the row
-                            $unprocessed_rows[$index][4] = $retry_count;
+                            $retry_count++;
+                            $this->log("Error downloading image $image_url (attempt $retry_count/5)");
+                            
+                            // Update retry count in CSV immediately
+                            $this->updateRetryCountInCsv($queue_path, $absolute_row_index, $retry_count);
+                            
+                            if ($retry_count >= 5) {
+                                // Mark failed image as processed to skip it
+                                if ($this->markSingleRowAsProcessed($queue_path, $absolute_row_index)) {
+                                    $batch_count++;
+                                    $current_processed++;
+                                    
+                                    // Update progress immediately after marking as skipped
+                                    $this->updateImageQueueProgress($queue_file, $current_processed, $total_rows);
+                                    $percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
+                                    
+                                    $this->log("Skipping image $image_url after 5 failed attempts (CSV row: $absolute_row_index) - Progress: $current_processed/$total_rows ({$percentage}%)");
+                                } else {
+                                    $this->log("ERROR: Failed to mark failed CSV row $absolute_row_index as processed for $image_url");
+                                }
+                            } else {
+                                // Update retry count in the row - but don't mark as processed yet
+                                $unprocessed_rows[$index][4] = $retry_count;
+                            }
+                        }
+                    } catch (PermanentFailureException $e) {
+                        // Permanent failures (404, 403, malformed URL) - mark as processed immediately
+                        $this->log("Permanent failure for $image_url: " . $e->getMessage());
+                        
+                        if ($this->markSingleRowAsProcessed($queue_path, $absolute_row_index)) {
+                            $batch_count++;
+                            $current_processed++;
+                            
+                            // Update progress immediately
+                            $this->updateImageQueueProgress($queue_file, $current_processed, $total_rows);
+                            $percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
+                            
+                            $this->log("Skipped permanently failed image (CSV row: $absolute_row_index) - Progress: $current_processed/$total_rows ({$percentage}%)");
+                        } else {
+                            $this->log("ERROR: Failed to mark permanent failure CSV row $absolute_row_index as processed");
                         }
                     }
                 }
 
-                // Mark processed rows and update file (using optimized method)
-                if (!empty($rows_to_mark)) {
-                    $this->markRowsAsProcessedOptimized($queue_path, $rows_to_mark);
-                }
+                // Final progress check and logging
+                $final_percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
+                $this->log("Batch completed: processed $batch_count images - Total progress: $current_processed/$total_rows ({$final_percentage}%)");
 
-                // Update progress (using dedicated image queue methods)
-                $new_processed = $processed_count + count($rows_to_mark);
-                $this->updateImageQueueProgress($queue_file, $new_processed, $total_rows);
-
-                if ($new_processed >= $total_rows) {
+                if ($current_processed >= $total_rows) {
                     $this->setImageQueueProgressStatus($queue_file, 'finished');
                     wp_clear_scheduled_hook($cron_hook);
                     $this->log("Image processing completed for $queue_file - cron job cleared: $cron_hook");
                 } else {
                     $this->setImageQueueProgressStatus($queue_file, 'completed');
-                    $this->log("Image batch completed: $new_processed/$total_rows processed");
+                    $this->log("Image batch completed: $current_processed/$total_rows processed ({$final_percentage}%) - Next batch will continue from position " . ($current_processed + 1));
                 }
 
             } catch (Exception $e) {
-                $this->log("Error processing image queue: " . $e->getMessage());
+                $this->log("ERROR: Exception in image queue processing: " . $e->getMessage());
+                $this->log("ERROR: Stack trace: " . $e->getTraceAsString());
                 $this->setImageQueueProgressStatus($queue_file, 'error');
             }
+        }
+        
+        /**
+         * Validate image queue processing integrity
+         */
+        protected function validateImageQueueIntegrity(string $queue_file): array
+        {
+            $queue_path = $this->upload_dir . $queue_file;
+            $validation_result = [
+                'total_rows' => 0,
+                'processed_rows' => 0,
+                'unprocessed_rows' => 0,
+                'invalid_rows' => 0,
+                'issues' => []
+            ];
+            
+            if (!file_exists($queue_path)) {
+                $validation_result['issues'][] = "Queue file does not exist: $queue_file";
+                return $validation_result;
+            }
+            
+            try {
+                $file = new SplFileObject($queue_path, 'r');
+                $file->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY);
+                $file->setCsvControl(',', '"', '\\');
+                
+                $row_index = 0;
+                foreach ($file as $data) {
+                    $row_index++;
+                    
+                    if (empty($data) || count($data) < 6) {
+                        $validation_result['invalid_rows']++;
+                        $validation_result['issues'][] = "Invalid row $row_index: " . json_encode($data);
+                        continue;
+                    }
+                    
+                    $validation_result['total_rows']++;
+                    $processed = (int)($data[5] ?? 0);
+                    
+                    if ($processed === 1) {
+                        $validation_result['processed_rows']++;
+                    } else {
+                        $validation_result['unprocessed_rows']++;
+                    }
+                }
+                
+                $file = null;
+                
+                // Compare with progress file
+                $progress = $this->getImageQueueProgress($queue_file);
+                if ($progress['processed'] !== $validation_result['processed_rows']) {
+                    $validation_result['issues'][] = "Progress mismatch: progress file shows {$progress['processed']} but CSV has {$validation_result['processed_rows']} processed rows";
+                }
+                
+                if ($progress['total'] !== $validation_result['total_rows']) {
+                    $validation_result['issues'][] = "Total mismatch: progress file shows {$progress['total']} but CSV has {$validation_result['total_rows']} total rows";
+                }
+                
+            } catch (Exception $e) {
+                $validation_result['issues'][] = "Error validating queue: " . $e->getMessage();
+            }
+            
+            return $validation_result;
+        }
+        
+        /**
+         * Test and validate sequential processing works correctly
+         */
+        protected function testSequentialProcessing(string $queue_file): array
+        {
+            $queue_path = $this->upload_dir . $queue_file;
+            $test_result = [
+                'success' => false,
+                'issues' => [],
+                'statistics' => [
+                    'total_rows' => 0,
+                    'processed_rows' => 0,
+                    'sequential_blocks' => 0,
+                    'gap_count' => 0,
+                    'first_unprocessed' => null,
+                    'last_processed' => null
+                ]
+            ];
+            
+            if (!file_exists($queue_path)) {
+                $test_result['issues'][] = "Queue file does not exist: $queue_file";
+                return $test_result;
+            }
+            
+            try {
+                $file = new SplFileObject($queue_path, 'r');
+                $file->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY);
+                $file->setCsvControl(',', '"', '\\');
+                
+                $row_index = 0;
+                $last_processed_index = -1;
+                $in_processed_block = false;
+                $blocks = 0;
+                $gaps = 0;
+                $first_unprocessed = null;
+                
+                foreach ($file as $data) {
+                    if (empty($data) || count($data) < 6) {
+                        $row_index++;
+                        continue;
+                    }
+                    
+                    $test_result['statistics']['total_rows']++;
+                    $processed = (int)($data[5] ?? 0);
+                    
+                    if ($processed === 1) {
+                        $test_result['statistics']['processed_rows']++;
+                        $test_result['statistics']['last_processed'] = $row_index;
+                        
+                        if (!$in_processed_block) {
+                            $blocks++;
+                            $in_processed_block = true;
+                        }
+                        
+                        // Check for gaps
+                        if ($last_processed_index >= 0 && $row_index > $last_processed_index + 1) {
+                            $gaps++;
+                        }
+                        
+                        $last_processed_index = $row_index;
+                    } else {
+                        if ($first_unprocessed === null) {
+                            $test_result['statistics']['first_unprocessed'] = $row_index;
+                        }
+                        $in_processed_block = false;
+                    }
+                    
+                    $row_index++;
+                }
+                
+                $file = null;
+                
+                $test_result['statistics']['sequential_blocks'] = $blocks;
+                $test_result['statistics']['gap_count'] = $gaps;
+                
+                // Validation logic
+                $test_result['success'] = true;
+                
+                // Check for excessive gaps (more than 5% of processed rows suggests non-sequential processing)
+                if ($test_result['statistics']['processed_rows'] > 0) {
+                    $gap_ratio = $gaps / $test_result['statistics']['processed_rows'];
+                    if ($gap_ratio > 0.05) {
+                        $test_result['issues'][] = "High gap ratio detected: {$gap_ratio} (gaps: $gaps, processed: {$test_result['statistics']['processed_rows']})";
+                        $test_result['success'] = false;
+                    }
+                }
+                
+                // Check if we have too many sequential blocks (should be 1 for perfect sequential processing)
+                if ($blocks > 3) {
+                    $test_result['issues'][] = "Too many sequential blocks: $blocks (indicates non-sequential processing)";
+                    $test_result['success'] = false;
+                }
+                
+                // Compare with progress file
+                $progress = $this->getImageQueueProgress($queue_file);
+                if ($progress['processed'] !== $test_result['statistics']['processed_rows']) {
+                    $test_result['issues'][] = "Progress file mismatch: progress shows {$progress['processed']}, CSV has {$test_result['statistics']['processed_rows']}";
+                    $test_result['success'] = false;
+                }
+                
+                if ($test_result['success']) {
+                    $this->log("Sequential processing validation PASSED for $queue_file");
+                } else {
+                    $this->log("Sequential processing validation FAILED for $queue_file: " . implode(', ', $test_result['issues']));
+                }
+                
+            } catch (Exception $e) {
+                $test_result['issues'][] = "Error during validation: " . $e->getMessage();
+                $test_result['success'] = false;
+            }
+            
+            return $test_result;
+        }
+        
+        /**
+         * Mark a single row as processed immediately (real-time CSV update)
+         */
+        protected function markSingleRowAsProcessed(string $queue_path, int $absolute_row_index): bool
+        {
+            $temp_file = $queue_path . '.single_tmp';
+            
+            try {
+                $read_file = new SplFileObject($queue_path, 'r');
+                $read_file->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY);
+                $read_file->setCsvControl(',', '"', '\\');
+                
+                $write_file = new SplFileObject($temp_file, 'w');
+                
+                $current_row_index = 0;
+                $updated = false;
+                
+                foreach ($read_file as $data) {
+                    if (empty($data) || count($data) < 6) {
+                        $current_row_index++;
+                        continue;
+                    }
+                    
+                    // Mark this specific row as processed
+                    if ($current_row_index === $absolute_row_index && $data[5] == 0) {
+                        $data[5] = 1; // Set processed flag
+                        $updated = true;
+                        $this->log("Marked CSV row $absolute_row_index as processed");
+                    }
+                    
+                    $write_file->fputcsv($data);
+                    $current_row_index++;
+                }
+                
+                $read_file = null;
+                $write_file = null;
+                
+                // Atomic replacement only if we actually updated something
+                if ($updated && rename($temp_file, $queue_path)) {
+                    return true;
+                } else {
+                    if (file_exists($temp_file)) {
+                        unlink($temp_file);
+                    }
+                    return false;
+                }
+                
+            } catch (Exception $e) {
+                $this->log("ERROR: Failed to mark single row as processed: " . $e->getMessage());
+                
+                // Cleanup on error
+                if (file_exists($temp_file)) {
+                    unlink($temp_file);
+                }
+                
+                return false;
+            }
+        }
+
+        /**
+         * Update retry count for a specific row in CSV
+         */
+        protected function updateRetryCountInCsv(string $queue_path, int $absolute_row_index, int $new_retry_count): bool
+        {
+            $temp_file = $queue_path . '.retry_tmp';
+            
+            try {
+                $read_file = new SplFileObject($queue_path, 'r');
+                $read_file->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY);
+                $read_file->setCsvControl(',', '"', '\\');
+                
+                $write_file = new SplFileObject($temp_file, 'w');
+                
+                $current_row_index = 0;
+                $updated = false;
+                
+                foreach ($read_file as $data) {
+                    if (empty($data) || count($data) < 6) {
+                        $current_row_index++;
+                        continue;
+                    }
+                    
+                    // Update retry count for this specific row
+                    if ($current_row_index === $absolute_row_index && $data[5] == 0) {
+                        $data[4] = $new_retry_count; // Update retry count
+                        $updated = true;
+                        $this->log("Updated retry count to $new_retry_count for CSV row $absolute_row_index");
+                    }
+                    
+                    $write_file->fputcsv($data);
+                    $current_row_index++;
+                }
+                
+                $read_file = null;
+                $write_file = null;
+                
+                // Atomic replacement only if we actually updated something
+                if ($updated && rename($temp_file, $queue_path)) {
+                    return true;
+                } else {
+                    if (file_exists($temp_file)) {
+                        unlink($temp_file);
+                    }
+                    return false;
+                }
+                
+            } catch (Exception $e) {
+                $this->log("Error updating retry count: " . $e->getMessage());
+                if (file_exists($temp_file)) {
+                    unlink($temp_file);
+                }
+                return false;
+            }
+        }
+
+        /**
+         * Validate image URL format
+         */
+        protected function isValidImageUrl(string $url): bool
+        {
+            // Basic URL validation
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                return false;
+            }
+            
+            // Check for malformed URLs ending with just '-'
+            if (preg_match('/\/necrologi\/-$/', $url)) {
+                return false;
+            }
+            
+            // Check that URL has a proper filename with image extension
+            $path_parts = pathinfo(parse_url($url, PHP_URL_PATH));
+            
+            // Must have a filename
+            if (empty($path_parts['filename']) || $path_parts['filename'] === '-') {
+                return false;
+            }
+            
+            // Check for valid image extensions
+            if (!isset($path_parts['extension'])) {
+                return false;
+            }
+            
+            $valid_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+            if (!in_array(strtolower($path_parts['extension']), $valid_extensions)) {
+                return false;
+            }
+            
+            return true;
         }
 
         /**
@@ -1039,6 +1440,11 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
         protected function downloadAndAttachImage(string $image_type, string $image_url, int $post_id, int $author_id): bool
         {
             try {
+                // Validate URL before attempting download
+                if (!$this->isValidImageUrl($image_url)) {
+                    throw new PermanentFailureException("Invalid or malformed image URL: $image_url");
+                }
+                
                 // Download image
                 $ch = curl_init($image_url);
                 curl_setopt_array($ch, [
@@ -1049,8 +1455,20 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
 
                 $image_data = curl_exec($ch);
                 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curl_error = curl_error($ch);
                 curl_close($ch);
 
+                // Check for curl errors
+                if ($curl_error) {
+                    $this->log("cURL error downloading $image_url: $curl_error");
+                    throw new RuntimeException("Network error: $curl_error");
+                }
+
+                // Handle specific HTTP errors
+                if ($http_code === 404 || $http_code === 403) {
+                    throw new PermanentFailureException("Permanent failure for $image_url: HTTP $http_code");
+                }
+                
                 if ($http_code !== 200 || !$image_data) {
                     throw new RuntimeException("Download failed with HTTP code: $http_code");
                 }
@@ -1087,6 +1505,10 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                 // Update ACF field based on image type
                 return $this->updateImageField($image_type, $attach_id, $post_id);
 
+            } catch (PermanentFailureException $e) {
+                // Log permanent failures and re-throw to handle in caller
+                $this->log("Permanent failure: " . $e->getMessage());
+                throw $e;
             } catch (Exception $e) {
                 $this->log("Error processing image $image_url: " . $e->getMessage());
                 return false;
@@ -1340,32 +1762,94 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
         {
             $progress_file = $this->getImageQueueProgressFile($queue_file);
             
-            // Validation
-            if ($processed > $total) {
-                $this->log("WARNING: Processed ($processed) > Total ($total) for $queue_file - adjusting");
-                $processed = $total;
+            try {
+                // Validation
+                if ($processed > $total) {
+                    $this->log("WARNING: Processed ($processed) > Total ($total) for $queue_file - adjusting");
+                    $processed = $total;
+                }
+                
+                if ($processed < 0) {
+                    $this->log("WARNING: Negative processed count ($processed) for $queue_file - setting to 0");
+                    $processed = 0;
+                }
+                
+                if ($total < 0) {
+                    $this->log("WARNING: Negative total count ($total) for $queue_file - setting to 0");
+                    $total = 0;
+                }
+                
+                $percentage = $total > 0 ? round(($processed / $total) * 100, 2) : 0;
+                
+                // Ensure directory exists
+                $progress_dir = dirname($progress_file);
+                if (!is_dir($progress_dir)) {
+                    if (!wp_mkdir_p($progress_dir)) {
+                        $this->log("ERROR: Failed to create progress directory: $progress_dir");
+                        return;
+                    }
+                }
+                
+                // Load existing progress data with error handling
+                $progress_data = [];
+                if (file_exists($progress_file)) {
+                    $file_contents = file_get_contents($progress_file);
+                    if ($file_contents === false) {
+                        $this->log("ERROR: Failed to read progress file: $progress_file");
+                        return;
+                    }
+                    
+                    $progress_data = json_decode($file_contents, true);
+                    if ($progress_data === null) {
+                        $this->log("WARNING: Invalid JSON in progress file: $progress_file - creating new");
+                        $progress_data = [];
+                    }
+                }
+                
+                // Update progress for this queue
+                $progress_data[$queue_file] = [
+                    'processed' => $processed,
+                    'total' => $total,
+                    'percentage' => $percentage,
+                    'status' => $progress_data[$queue_file]['status'] ?? 'ongoing',
+                    'status_timestamp' => $progress_data[$queue_file]['status_timestamp'] ?? time(),
+                    'last_update' => date('Y-m-d H:i:s')
+                ];
+                
+                // Write with atomic operation using temp file
+                $temp_file = $progress_file . '.tmp';
+                $json_data = json_encode($progress_data);
+                
+                if ($json_data === false) {
+                    $this->log("ERROR: Failed to encode JSON for progress file: $progress_file");
+                    return;
+                }
+                
+                $bytes_written = file_put_contents($temp_file, $json_data);
+                if ($bytes_written === false) {
+                    $this->log("ERROR: Failed to write temp progress file: $temp_file");
+                    return;
+                }
+                
+                if (!rename($temp_file, $progress_file)) {
+                    $this->log("ERROR: Failed to rename temp progress file: $temp_file to $progress_file");
+                    if (file_exists($temp_file)) {
+                        unlink($temp_file);
+                    }
+                    return;
+                }
+                
+                $this->log("Image queue progress updated: $processed/$total ($percentage%) for $queue_file");
+                
+            } catch (Exception $e) {
+                $this->log("ERROR: Exception updating image queue progress: " . $e->getMessage());
+                
+                // Cleanup temp file if exists
+                $temp_file = $progress_file . '.tmp';
+                if (file_exists($temp_file)) {
+                    unlink($temp_file);
+                }
             }
-            
-            $percentage = $total > 0 ? round(($processed / $total) * 100, 2) : 0;
-            
-            // Load existing progress data
-            $progress_data = [];
-            if (file_exists($progress_file)) {
-                $progress_data = json_decode(file_get_contents($progress_file), true) ?: [];
-            }
-            
-            // Update progress for this queue
-            $progress_data[$queue_file] = [
-                'processed' => $processed,
-                'total' => $total,
-                'percentage' => $percentage,
-                'status' => $progress_data[$queue_file]['status'] ?? 'ongoing',
-                'status_timestamp' => $progress_data[$queue_file]['status_timestamp'] ?? time(),
-                'last_update' => date('Y-m-d H:i:s')
-            ];
-            
-            file_put_contents($progress_file, json_encode($progress_data));
-            $this->log("Image queue progress updated: $processed/$total ($percentage%) for $queue_file");
         }
 
         /**
@@ -1433,11 +1917,25 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             }
             
             $elapsed = time() - $progress_data[$queue_file]['status_timestamp'];
-            $timeout_threshold = 90; // 90 seconds
             
-            $this->log("Image queue activity check for $queue_file: elapsed {$elapsed}s, threshold {$timeout_threshold}s");
+            // More generous timeout: 10 minutes for image processing (downloads can be slow)
+            // Also check if we have recent progress updates (last_update field)
+            $timeout_threshold = 600; // 10 minutes
             
-            return $elapsed <= $timeout_threshold;
+            // Check if there was recent progress activity (last_update vs status_timestamp)
+            $has_recent_progress = false;
+            if (isset($progress_data[$queue_file]['last_update'])) {
+                $last_update_time = strtotime($progress_data[$queue_file]['last_update']);
+                $progress_elapsed = time() - $last_update_time;
+                $has_recent_progress = $progress_elapsed <= 300; // 5 minutes for recent progress
+                
+                $this->log("Image queue activity check for $queue_file: elapsed {$elapsed}s, progress_elapsed {$progress_elapsed}s, has_recent_progress: " . ($has_recent_progress ? 'yes' : 'no'));
+            } else {
+                $this->log("Image queue activity check for $queue_file: elapsed {$elapsed}s, threshold {$timeout_threshold}s");
+            }
+            
+            // Consider active if either the status is recent OR there was recent progress
+            return ($elapsed <= $timeout_threshold) || $has_recent_progress;
         }
 
         /**
@@ -1797,129 +2295,6 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             return $stats;
         }
 
-        /**
-         * DEBUG AND TESTING TOOLS
-         * Methods for testing and debugging image queue issues
-         */
-
-        /**
-         * Simple test method to write directly to CSV without complex logic
-         * This helps isolate whether the issue is with file operations or logic
-         */
-        public function testSimpleImageQueueWrite(string $queue_file): array
-        {
-            $queue_path = $this->upload_dir . $queue_file;
-            $stats = [
-                'success' => false,
-                'file_created' => false,
-                'bytes_written' => 0,
-                'error' => null
-            ];
-            
-            try {
-                $this->log("DEBUG TEST: Testing simple write to: $queue_path");
-                
-                // Ensure directory exists
-                if (!is_dir($this->upload_dir)) {
-                    mkdir($this->upload_dir, 0755, true);
-                }
-                
-                // Test data
-                $test_data = [
-                    ['test_type', 'https://example.com/test.jpg', 12345, 1, 0, 0],
-                    ['test_type2', 'https://example.com/test2.jpg', 12346, 1, 0, 0]
-                ];
-                
-                // Simple file write without locking
-                $handle = fopen($queue_path, 'w');
-                if (!$handle) {
-                    throw new Exception("Cannot open file: $queue_path");
-                }
-                
-                $stats['file_created'] = true;
-                
-                foreach ($test_data as $row) {
-                    $bytes = fputcsv($handle, $row);
-                    if ($bytes === false) {
-                        throw new Exception("Failed to write CSV row");
-                    }
-                    $stats['bytes_written'] += $bytes;
-                }
-                
-                fclose($handle);
-                
-                // Verify file was created and has content
-                if (file_exists($queue_path) && filesize($queue_path) > 0) {
-                    $stats['success'] = true;
-                    $content = file_get_contents($queue_path);
-                    $this->log("DEBUG TEST: File created successfully. Content: " . $content);
-                } else {
-                    $stats['error'] = 'File was not created or is empty';
-                }
-                
-            } catch (Exception $e) {
-                $stats['error'] = $e->getMessage();
-                $this->log("DEBUG TEST: Error - " . $e->getMessage());
-            }
-            
-            return $stats;
-        }
-
-        /**
-         * Test method to verify image queue array creation
-         */
-        public function testImageQueueArrayCreation(): array
-        {
-            $test_images = [
-                ['profile_photo', 'https://test.com/img1.jpg', 123, 1],
-                ['manifesto_image', 'https://test.com/img2.jpg', 124, 2]
-            ];
-            
-            $this->log("DEBUG TEST: Testing image queue array with " . count($test_images) . " items");
-            
-            $result = $this->addToImageQueue($test_images, 'test_queue.csv');
-            
-            $this->log("DEBUG TEST: addToImageQueue returned: " . ($result ? 'SUCCESS' : 'FAILED'));
-            
-            return [
-                'input_count' => count($test_images),
-                'result' => $result,
-                'test_file' => $this->upload_dir . 'test_queue.csv'
-            ];
-        }
-
-        /**
-         * Simple test method to verify addToImageQueueSimple works
-         */
-        public function testAddToImageQueueSimple(string $queue_file = 'test_image_queue.csv'): array
-        {
-            $test_images = [
-                ['profile_photo', 'https://test.com/photo1.jpg', 12345, 1],
-                ['manifesto_image', 'https://test.com/manifesto1.jpg', 12345, 1],
-                ['profile_photo', 'https://test.com/photo2.jpg', 12346, 2]
-            ];
-            
-            $this->log("Testing addToImageQueueSimple with " . count($test_images) . " test images");
-            
-            $result = $this->addToImageQueueSimple($test_images, $queue_file);
-            
-            $queue_path = $this->upload_dir . $queue_file;
-            $file_exists = file_exists($queue_path);
-            $file_size = $file_exists ? filesize($queue_path) : 0;
-            $file_content = $file_exists ? file_get_contents($queue_path) : '';
-            
-            $stats = [
-                'success' => $result,
-                'file_exists' => $file_exists,
-                'file_size' => $file_size,
-                'test_images_count' => count($test_images),
-                'file_content_preview' => substr($file_content, 0, 200)
-            ];
-            
-            $this->log("Test results: " . json_encode($stats));
-            
-            return $stats;
-        }
 
         /**
          * Clean up empty image queue files and reset system

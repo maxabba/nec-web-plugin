@@ -116,7 +116,7 @@ if (!class_exists(__NAMESPACE__ . '\RingraziamentiMigration')) {
 
             // Process image queue with centralized method
             if (!empty($image_queue)) {
-                $this->addToImageQueue($image_queue, $this->image_queue_file);
+                $this->addToImageQueueSimple($image_queue, $this->image_queue_file);
             }
 
             $end_time = microtime(true);

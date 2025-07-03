@@ -150,7 +150,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $file = null;
 
                 if (!empty($image_queue)) {
-                    $this->addToImageQueue($image_queue, $this->image_queue_file);
+                    $this->addToImageQueueSimple($image_queue, $this->image_queue_file);
                 }
                 unset($image_queue);
 
