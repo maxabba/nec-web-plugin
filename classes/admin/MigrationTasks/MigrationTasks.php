@@ -965,6 +965,8 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                     $this->log("Initialized image queue progress: 0/$total_rows_count");
                 }
                 
+                // CSV sync no longer needed - progress tracked in JSON only
+                
                 // Read unprocessed rows sequentially from current position
                 $unprocessed_rows = [];
                 $unprocessed_positions = []; // Track absolute CSV row positions
@@ -1028,40 +1030,37 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                     
                     try {
                         if ($this->downloadAndAttachImage($image_type, $image_url, (int)$post_id, (int)$author_id)) {
-                            // Immediately mark this single row as processed
-                            if ($this->markSingleRowAsProcessed($queue_path, $absolute_row_index)) {
-                                $batch_count++;
-                                $current_processed++;
-                                
-                                // Update progress immediately after each successful image
-                                $this->updateImageQueueProgress($queue_file, $current_processed, $total_rows);
-                                $percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
-                                
-                                $this->log("Image processed successfully: $image_url (CSV row: $absolute_row_index) - Progress: $current_processed/$total_rows ({$percentage}%)");
-                            } else {
-                                $this->log("ERROR: Failed to mark CSV row $absolute_row_index as processed for $image_url");
-                            }
+                            // Increment JSON progress only
+                            $current_progress = $this->getImageQueueProgress($queue_file);
+                            $new_processed = $current_progress['processed'] + 1;
+                            $this->updateImageQueueProgress($queue_file, $new_processed, $current_progress['total']);
+                            $batch_count++;
+                            
+                            // Get updated progress for logging
+                            $updated_progress = $this->getImageQueueProgress($queue_file);
+                            $current_processed = $updated_progress['processed'];
+                            $percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
+                            
+                            $this->log("Image processed successfully: $image_url - Progress: $current_processed/$total_rows ({$percentage}%)");
                         } else {
                             $retry_count++;
                             $this->log("Error downloading image $image_url (attempt $retry_count/5)");
                             
-                            // Update retry count in CSV immediately
-                            $this->updateRetryCountInCsv($queue_path, $absolute_row_index, $retry_count);
+                            // Retry count tracking no longer needed - progress tracked in JSON only
                             
                             if ($retry_count >= 5) {
-                                // Mark failed image as processed to skip it
-                                if ($this->markSingleRowAsProcessed($queue_path, $absolute_row_index)) {
-                                    $batch_count++;
-                                    $current_processed++;
-                                    
-                                    // Update progress immediately after marking as skipped
-                                    $this->updateImageQueueProgress($queue_file, $current_processed, $total_rows);
-                                    $percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
-                                    
-                                    $this->log("Skipping image $image_url after 5 failed attempts (CSV row: $absolute_row_index) - Progress: $current_processed/$total_rows ({$percentage}%)");
-                                } else {
-                                    $this->log("ERROR: Failed to mark failed CSV row $absolute_row_index as processed for $image_url");
-                                }
+                                // Mark failed image as processed in JSON progress only
+                                $current_progress = $this->getImageQueueProgress($queue_file);
+                                $new_processed = $current_progress['processed'] + 1;
+                                $this->updateImageQueueProgress($queue_file, $new_processed, $current_progress['total']);
+                                $batch_count++;
+                                
+                                // Get updated progress for logging
+                                $updated_progress = $this->getImageQueueProgress($queue_file);
+                                $current_processed = $updated_progress['processed'];
+                                $percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
+                                
+                                $this->log("Max retries reached for $image_url - Progress: $current_processed/$total_rows ({$percentage}%)");
                             } else {
                                 // Update retry count in the row - but don't mark as processed yet
                                 $unprocessed_rows[$index][4] = $retry_count;
@@ -1071,22 +1070,26 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                         // Permanent failures (404, 403, malformed URL) - mark as processed immediately
                         $this->log("Permanent failure for $image_url: " . $e->getMessage());
                         
-                        if ($this->markSingleRowAsProcessed($queue_path, $absolute_row_index)) {
-                            $batch_count++;
-                            $current_processed++;
-                            
-                            // Update progress immediately
-                            $this->updateImageQueueProgress($queue_file, $current_processed, $total_rows);
-                            $percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
-                            
-                            $this->log("Skipped permanently failed image (CSV row: $absolute_row_index) - Progress: $current_processed/$total_rows ({$percentage}%)");
-                        } else {
-                            $this->log("ERROR: Failed to mark permanent failure CSV row $absolute_row_index as processed");
-                        }
+                        // Update JSON progress only
+                        $current_progress = $this->getImageQueueProgress($queue_file);
+                        $new_processed = $current_progress['processed'] + 1;
+                        $this->updateImageQueueProgress($queue_file, $new_processed, $current_progress['total']);
+                        $batch_count++;
+                        
+                        // Get updated progress for logging
+                        $updated_progress = $this->getImageQueueProgress($queue_file);
+                        $current_processed = $updated_progress['processed'];
+                        $percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
+                        
+                        $this->log("Skipped permanently failed image - Progress: $current_processed/$total_rows ({$percentage}%)");
                     }
                 }
 
+                // CSV sync no longer needed - progress tracked in JSON only
+                
                 // Final progress check and logging
+                $updated_progress = $this->getImageQueueProgress($queue_file);
+                $current_processed = $updated_progress['processed'];
                 $final_percentage = $total_rows > 0 ? round(($current_processed / $total_rows) * 100, 2) : 0;
                 $this->log("Batch completed: processed $batch_count images - Total progress: $current_processed/$total_rows ({$final_percentage}%)");
 
@@ -1342,61 +1345,6 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             }
         }
 
-        /**
-         * Update retry count for a specific row in CSV
-         */
-        protected function updateRetryCountInCsv(string $queue_path, int $absolute_row_index, int $new_retry_count): bool
-        {
-            $temp_file = $queue_path . '.retry_tmp';
-            
-            try {
-                $read_file = new SplFileObject($queue_path, 'r');
-                $read_file->setFlags(SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY);
-                $read_file->setCsvControl(',', '"', '\\');
-                
-                $write_file = new SplFileObject($temp_file, 'w');
-                
-                $current_row_index = 0;
-                $updated = false;
-                
-                foreach ($read_file as $data) {
-                    if (empty($data) || count($data) < 6) {
-                        $current_row_index++;
-                        continue;
-                    }
-                    
-                    // Update retry count for this specific row
-                    if ($current_row_index === $absolute_row_index && $data[5] == 0) {
-                        $data[4] = $new_retry_count; // Update retry count
-                        $updated = true;
-                        $this->log("Updated retry count to $new_retry_count for CSV row $absolute_row_index");
-                    }
-                    
-                    $write_file->fputcsv($data);
-                    $current_row_index++;
-                }
-                
-                $read_file = null;
-                $write_file = null;
-                
-                // Atomic replacement only if we actually updated something
-                if ($updated && rename($temp_file, $queue_path)) {
-                    return true;
-                } else {
-                    if (file_exists($temp_file)) {
-                        unlink($temp_file);
-                    }
-                    return false;
-                }
-                
-            } catch (Exception $e) {
-                $this->log("Error updating retry count: " . $e->getMessage());
-                if (file_exists($temp_file)) {
-                    unlink($temp_file);
-                }
-                return false;
-            }
-        }
 
         /**
          * Validate image URL format
@@ -1937,6 +1885,121 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             // Consider active if either the status is recent OR there was recent progress
             return ($elapsed <= $timeout_threshold) || $has_recent_progress;
         }
+
+        /**
+         * OPTIMIZED BATCH PROCESSING METHODS
+         * Methods for efficient image queue processing with batch CSV updates
+         */
+
+        /**
+         * Update processed index for a row without touching CSV
+         * Uses batch processing to minimize I/O operations
+         */
+        protected function updateProcessedIndex(string $queue_file, int $row_index): void
+        {
+            $progress_file = $this->getImageQueueProgressFile($queue_file);
+            
+            // Load existing progress data
+            $progress_data = [];
+            if (file_exists($progress_file)) {
+                $file_contents = file_get_contents($progress_file);
+                if ($file_contents !== false) {
+                    $progress_data = json_decode($file_contents, true) ?: [];
+                }
+            }
+            
+            // Initialize queue data if needed
+            if (!isset($progress_data[$queue_file])) {
+                $progress_data[$queue_file] = [
+                    'processed' => 0,
+                    'total' => 0,
+                    'percentage' => 0,
+                    'status' => 'ongoing',
+                    'status_timestamp' => time(),
+                    'last_update' => date('Y-m-d H:i:s')
+                ];
+            }
+            
+            // Update counters
+            $progress_data[$queue_file]['processed']++;
+            $progress_data[$queue_file]['percentage'] = $progress_data[$queue_file]['total'] > 0 
+                ? round(($progress_data[$queue_file]['processed'] / $progress_data[$queue_file]['total']) * 100, 2) 
+                : 0;
+            $progress_data[$queue_file]['last_update'] = date('Y-m-d H:i:s');
+            
+            // Save progress (fast JSON write)
+            $this->saveProgressData($progress_file, $progress_data);
+        }
+
+        /**
+         * Check if a row index is already processed (fast check from JSON)
+         */
+        protected function isRowAlreadyProcessed(string $queue_file, int $row_index): bool
+        {
+            $progress = $this->getImageQueueProgress($queue_file);
+            
+            // If we have a checkpoint of processed indices, check there
+            if (isset($progress['processed_indices']) && in_array($row_index, $progress['processed_indices'])) {
+                return true;
+            }
+            
+            return false;
+        }
+
+
+        /**
+         * Save progress data to JSON file with atomic operation
+         */
+        protected function saveProgressData(string $progress_file, array $progress_data): bool
+        {
+            try {
+                // Ensure directory exists
+                $progress_dir = dirname($progress_file);
+                if (!is_dir($progress_dir)) {
+                    if (!wp_mkdir_p($progress_dir)) {
+                        $this->log("ERROR: Failed to create progress directory: $progress_dir");
+                        return false;
+                    }
+                }
+                
+                // Write with atomic operation using temp file
+                $temp_file = $progress_file . '.tmp';
+                $json_data = json_encode($progress_data, JSON_PRETTY_PRINT);
+                
+                if ($json_data === false) {
+                    $this->log("ERROR: Failed to encode JSON for progress file: $progress_file");
+                    return false;
+                }
+                
+                $bytes_written = file_put_contents($temp_file, $json_data);
+                if ($bytes_written === false) {
+                    $this->log("ERROR: Failed to write temp progress file: $temp_file");
+                    return false;
+                }
+                
+                if (!rename($temp_file, $progress_file)) {
+                    $this->log("ERROR: Failed to rename temp progress file: $temp_file to $progress_file");
+                    if (file_exists($temp_file)) {
+                        unlink($temp_file);
+                    }
+                    return false;
+                }
+                
+                return true;
+                
+            } catch (Exception $e) {
+                $this->log("ERROR: Exception saving progress data: " . $e->getMessage());
+                
+                // Cleanup temp file if exists
+                $temp_file = $progress_file . '.tmp';
+                if (file_exists($temp_file)) {
+                    unlink($temp_file);
+                }
+                
+                return false;
+            }
+        }
+
 
         /**
          * USER MANAGEMENT UTILITIES

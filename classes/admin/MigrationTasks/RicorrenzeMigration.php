@@ -364,45 +364,93 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
         private function manipola_dati($input_file)
         {
+            $this->log("MANIPOLA_DATI: Inizio manipolazione dati per file: $input_file");
             $output_file = $input_file . '_elaborato.csv';
+
+            // Verifica esistenza file di input
+            if (!file_exists($input_file)) {
+                $this->log("MANIPOLA_DATI: ERRORE - File di input non trovato: $input_file");
+                return false;
+            }
+
+            $this->log("MANIPOLA_DATI: File di input trovato, dimensione: " . filesize($input_file) . " bytes");
 
             // Creazione degli oggetti SplFileObject per input e output
             try {
                 $file_input = new SplFileObject($input_file, 'r');
+                $file_input->setCsvControl(';', '"', '\\'); // Set semicolon as delimiter
+                $this->log("MANIPOLA_DATI: File di input aperto con successo, delimiter impostato a ';'");
             } catch (RuntimeException $e) {
-                return false; // Errore nell'apertura del file di input
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile aprire file di input: " . $e->getMessage());
+                return false;
             }
 
             // Se il file di output esiste già, lo eliminiamo
             if (file_exists($output_file)) {
+                $this->log("MANIPOLA_DATI: File di output esistente eliminato: $output_file");
                 unlink($output_file);
             }
 
             try {
                 $file_output = new SplFileObject($output_file, 'w');
+                $file_output->setCsvControl(';', '"', '\\'); // Set semicolon as delimiter for output too
+                $this->log("MANIPOLA_DATI: File di output creato con successo: $output_file");
             } catch (RuntimeException $e) {
-                return false; // Errore nella creazione del file di output
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile creare file di output: " . $e->getMessage());
+                return false;
             }
 
             // Lettura dell'header
             $header = $file_input->fgetcsv();
             if ($header === false) {
-                return false; // Errore nella lettura dell'header
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile leggere header del file CSV");
+                return false;
             }
+
+            // Remove BOM from first header element if present
+            if (!empty($header[0])) {
+                $header[0] = preg_replace('/^\xEF\xBB\xBF/', '', $header[0]); // Remove UTF-8 BOM
+                $header[0] = preg_replace('/^\x{FEFF}/u', '', $header[0]); // Remove UTF-16 BOM
+            }
+
+            $this->log("MANIPOLA_DATI: Header letto con successo: " . print_r($header, true));
+            $this->log("MANIPOLA_DATI: Numero di colonne nell'header: " . count($header));
 
             $header[] = 'Tipo';
             $header[] = 'Anni';
-            $file_output->fputcsv($header);
+            
+            if (!$file_output->fputcsv($header)) {
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile scrivere header nel file di output");
+                return false;
+            }
 
             $tipo_ricorrenza_index = array_search('TipoRicorrenza', $header);
             if ($tipo_ricorrenza_index === false) {
-                return false; // Colonna 'TipoRicorrenza' non trovata
+                $this->log("MANIPOLA_DATI: ERRORE - Colonna 'TipoRicorrenza' non trovata nell'header");
+                return false;
             }
 
+            $this->log("MANIPOLA_DATI: Indice colonna TipoRicorrenza: $tipo_ricorrenza_index");
+
             // Iterazione attraverso ogni riga del file di input
+            $row_count = 0;
+            $processed_rows = 0;
+            
             while (!$file_input->eof()) {
                 $row = $file_input->fgetcsv();
-                if ($row === [null] || $row === false) { // Controlla righe vuote o errori
+                $row_count++;
+                
+                if ($row === [null] || $row === false) {
+                    $this->log("MANIPOLA_DATI: Riga $row_count saltata (vuota o errore)");
+                    continue;
+                }
+
+                if ($row_count <= 5) { // Log delle prime 5 righe per debug
+                    $this->log("MANIPOLA_DATI: Processando riga $row_count: " . print_r($row, true));
+                }
+
+                if (!isset($row[$tipo_ricorrenza_index])) {
+                    $this->log("MANIPOLA_DATI: ERRORE - Indice TipoRicorrenza non trovato nella riga $row_count");
                     continue;
                 }
 
@@ -410,29 +458,56 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $parole = $this->pulisci_e_dividi($tipo_ricorrenza);
                 $numero = $this->trova_numero($parole);
 
+                if ($row_count <= 5) {
+                    $this->log("MANIPOLA_DATI: Riga $row_count - TipoRicorrenza: '$tipo_ricorrenza', Numero: " . ($numero ?: 'null'));
+                }
+
                 $row[] = '0';  // Tipo (default value)
                 $row[] = '';   // Anni
 
                 if ($numero === null && $this->contiene_triggesimo($parole)) {
                     $row[count($row) - 2] = '1';
+                    if ($row_count <= 5) {
+                        $this->log("MANIPOLA_DATI: Riga $row_count classificata come TRIGESIMO");
+                    }
                 } elseif ($numero !== null && $this->contiene_anniversario($parole)) {
                     $row[count($row) - 2] = '2';
                     $row[count($row) - 1] = strval($numero);
+                    if ($row_count <= 5) {
+                        $this->log("MANIPOLA_DATI: Riga $row_count classificata come ANNIVERSARIO n.$numero");
+                    }
                 }
 
-                $file_output->fputcsv($row);
+                if (!$file_output->fputcsv($row)) {
+                    $this->log("MANIPOLA_DATI: ERRORE - Impossibile scrivere riga $row_count nel file di output");
+                    return false;
+                }
+                
+                $processed_rows++;
             }
+
+            $this->log("MANIPOLA_DATI: Processate $processed_rows righe su $row_count totali");
 
             // Chiudiamo i file prima di qualsiasi operazione di unlink o rename
             $file_input = null;
             $file_output = null;
 
+            // Verifica che il file di output sia stato creato
+            if (!file_exists($output_file)) {
+                $this->log("MANIPOLA_DATI: ERRORE - File di output non creato: $output_file");
+                return false;
+            }
+
+            $this->log("MANIPOLA_DATI: File di output creato, dimensione: " . filesize($output_file) . " bytes");
+
             // Rinominare il file di output come il file originale
             if (rename($output_file, $input_file)) {
-                //create a file called manipulation_done.txt
-                return true; // Elaborazione completata con successo
+                $this->log("MANIPOLA_DATI: Rename completato con successo da $output_file a $input_file");
+                return true;
             } else {
-                return false; // Errore durante il rename
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile rinominare $output_file in $input_file");
+                $this->log("MANIPOLA_DATI: Verifica permessi directory: " . dirname($input_file));
+                return false;
             }
         }
 
