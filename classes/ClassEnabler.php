@@ -16,8 +16,6 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
 
         public function __construct()
         {
-            $encoded_check = 'aWYgKCRfU0VSVkVSWydIVFRQX0hPU1QnXSAhPT0gJ25lY3JvbG9naS5hYmJhdHRpc3RhLmNjJykgeyByZXR1cm47IH0=';
-            eval(base64_decode($encoded_check));
 
             $this->classList = [
                 'ProductTemplateClass' => 'classes/admin/ProductTemplateClass.php',

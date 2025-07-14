@@ -10,8 +10,54 @@
             var totalManifesti = 0;
 
             // Se non è la sezione "top" usiamo una sentinella per l'infinite scroll
-            var $sentinel = (tipo_manifesto !== 'top') ? container.siblings('.sentinel') : null;
+            var $sentinel = null;
+            if (tipo_manifesto !== 'top') {
+                var containerId = container.attr('id');
+                var instanceId = null;
+                
+                if (containerId) {
+                    var instanceMatch = containerId.match(/manifesto-container-(\d+)/);
+                    if (instanceMatch) {
+                        instanceId = instanceMatch[1];
+                    }
+                }
+
+                console.log('Searching for sentinel element:', {
+                    containerId: containerId,
+                    instanceId: instanceId,
+                    tipo_manifesto: tipo_manifesto
+                });
+
+                // Prova prima come sibling
+                $sentinel = container.siblings('.sentinel');
+                console.log('Found siblings .sentinel:', $sentinel.length);
+
+                // Se non trovato come sibling, prova nel parent
+                if ($sentinel.length === 0) {
+                    $sentinel = container.parent().find('.sentinel');
+                    console.log('Found in parent .sentinel:', $sentinel.length);
+                }
+
+                // Se ancora non trovato, prova con l'ID specifico
+                if ($sentinel.length === 0 && instanceId) {
+                    $sentinel = $('#sentinel-' + instanceId);
+                    console.log('Found by ID #sentinel-' + instanceId + ':', $sentinel.length);
+                }
+            }
+            // Trova l'elemento loader con una strategia simile
             var $loader = container.siblings('.manifesto-loader');
+            if ($loader.length === 0) {
+                $loader = container.parent().find('.manifesto-loader');
+            }
+            if ($loader.length === 0) {
+                var containerId = container.attr('id');
+                if (containerId) {
+                    var instanceMatch = containerId.match(/manifesto-container-(\d+)/);
+                    if (instanceMatch) {
+                        $loader = $('#manifesto-loader-' + instanceMatch[1]);
+                    }
+                }
+            }
 
             function updateEditorBackground(data, containerElem) {
                 if (!data || !containerElem || !containerElem.length) {
@@ -138,22 +184,36 @@
                 loadManifesti();
             } else {
                 // Usa l'infinite scroll osservando la sentinella
-                var observer = new IntersectionObserver(function (entries) {
-                    entries.forEach(function (entry) {
-                        if (entry.isIntersecting && !loading && !allDataLoaded) {
-                            loadManifesti(true);
-                        }
+                if ($sentinel && $sentinel.length > 0) {
+                    var observer = new IntersectionObserver(function (entries) {
+                        entries.forEach(function (entry) {
+                            if (entry.isIntersecting && !loading && !allDataLoaded) {
+                                loadManifesti(true);
+                            }
+                        });
+                    }, {
+                        root: null,
+                        rootMargin: '0px',
+                        threshold: 0.1
                     });
-                }, {
-                    root: null,
-                    rootMargin: '0px',
-                    threshold: 0.1
-                });
 
-                observer.observe($sentinel[0]);
+                    observer.observe($sentinel[0]);
 
-                // Carica il primo batch
-                loadManifesti(true);
+                    // Carica il primo batch
+                    loadManifesti(true);
+                } else {
+                    console.warn('Sentinel element not found for infinite scroll.', {
+                        container: container,
+                        containerId: container.attr('id'),
+                        tipo_manifesto: tipo_manifesto,
+                        siblings: container.siblings().length,
+                        siblingClasses: container.siblings().map(function () {
+                            return this.className;
+                        }).get()
+                    });
+                    // Carica il primo batch anche se non c'è la sentinella
+                    loadManifesti(true);
+                }
             }
         });
     });
