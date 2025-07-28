@@ -25,7 +25,12 @@
     flex-wrap: nowrap;
 }
 
-
+.custom-widget-disabled-text{
+    color: #6c757d;
+    font-size: 12px;
+    margin-bottom: 5px;
+    font-family: --e-global-typography-primary-font-family;
+}
 
 
 .custom-widget-button {

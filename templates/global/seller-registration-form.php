@@ -96,7 +96,7 @@
     <br/>
     <label class="radio">
         <input type="radio" name="role" value="seller"<?php checked( $role, 'seller' ); ?>  class="dokan-role-seller">
-        <?php esc_html_e( 'I am a vendor', 'dokan-lite' ); ?>
+        <?php esc_html_e( 'Sono una Agenzia', 'dokan-lite' ); ?>
     </label>
     <?php do_action( 'dokan_registration_form_role', $role ); ?>
 </p>

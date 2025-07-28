@@ -26,7 +26,7 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
                     wp_redirect(home_url());
                     exit;
                 }
-            }else if(!current_user_can('sell_manifesto')){
+            }else if(!current_user_can('sell_manifesto') && !current_user_can('sell_fiori')){
                 //get the dokan dashboard url
                 $dashboard_url = dokan_get_navigation_url('dashboard');
                 wp_redirect($dashboard_url);

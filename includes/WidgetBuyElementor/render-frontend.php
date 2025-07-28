@@ -20,6 +20,37 @@ if ($button_disable_time != 'null') {
         $url = '';
     }}
 
+$funerale_ora = get_field('funerale_data', $post_id);
+// First, remove the day name from the string
+$date_without_day = preg_replace('/^[a-zàèéìòù]+ /iu', '', $funerale_ora);
+// Convert the cleaned string to a timestamp
+$timestamp_funerale = strtotime($date_without_day);
+
+if ($timestamp_funerale === false) {
+    // Fallback method if the above doesn't work
+    // Parse the date manually
+    if (preg_match('/(\d{1,2})\/(\d{1,2})\/(\d{4}) (\d{1,2}):(\d{1,2})/', $date_without_day, $matches)) {
+        $day = $matches[1];
+        $month = $matches[2];
+        $year = $matches[3];
+        $hour = $matches[4];
+        $minute = $matches[5];
+
+        $timestamp_funerale = mktime($hour, $minute, 0, $month, $day, $year);
+    }
+}
+
+//if the $timestamp_funerale +30 minutes is equal or greater than the current time and $settings['button_link'] is one of manifesto-top or manifesto-silver the button is disabled
+if ($timestamp_funerale + 1800 >= time() && ($settings['button_link'] == 'manifesto-top' || $settings['button_link'] == 'manifesto-silver')) {
+    $disabled = 'disabled';
+    $url = '';
+}
+//else if the button_link is one of bouquet composizione-floreale or cuscino and the $timestamp_funerale + 3h is greater than the current time the button is disabled
+elseif (($settings['button_link'] == 'bouquet' || $settings['button_link'] == 'composizione-floreale' || $settings['button_link'] == 'cuscino') && $timestamp_funerale + 10800 >= time()) {
+    $disabled = 'disabled';
+    $url = '';
+}
+
 //if $settings['product_id'] is a number
 if (is_numeric($settings['product_id'])) {
     $text_before = "Costo: ";
@@ -44,18 +75,18 @@ if (is_numeric($settings['product_id'])) {
             </p>
         </div>
         <?php if ($disabled == 'disabled') : ?>
-            <a class="custom-widget-button"  <?php echo esc_html($disabled) ?>>
-                <?php echo esc_html($settings['button_text']); ?>
-            </a>
         <?php else : ?>
         <a class="custom-widget-button" href="<?php echo esc_html($url) ?>" <?php echo esc_html($disabled) ?>>
             <?php echo esc_html($settings['button_text']); ?>
         </a>
         <?php endif; ?>
     </div>
-    <span class="custom-widget-price">
-    <?php echo esc_html($text_before); ?><span class="price-text"><?php echo $product_price; ?></span>
-    </span>
+    <?php if ($disabled == 'disabled') : ?>
+        <span class="custom-widget-disabled-text">Spiacenti, non è più possibile ordinare questo prodotto per questo defunto</span>
+    <?php endif; ?>
+        <span class="custom-widget-price">
+            <?php echo esc_html($text_before); ?><span class="price-text"><?php echo $product_price; ?></span>
+        </span>
     <span class="custom-widget-tooltip">
         <?php echo esc_html($settings['tooltip']); ?>
     </span>

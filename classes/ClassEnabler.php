@@ -16,8 +16,6 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
 
         public function __construct()
         {
-            $encoded_check = 'aWYgKCRfU0VSVkVSWydIVFRQX0hPU1QnXSAhPT0gJ25lY3JvbG9naS5hYmJhdHRpc3RhLmNjJykgeyByZXR1cm47IH0=';
-            eval(base64_decode($encoded_check));
 
             $this->classList = [
                 'ProductTemplateClass' => 'classes/admin/ProductTemplateClass.php',
@@ -40,6 +38,7 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
                 'TrigesimiFrontendClass' => 'classes/TrigesimiFrontendClass.php',
                 'AnniversarioFrontendClass' => 'classes/AnniversarioFrontendClass.php',
                 'RingraziamentoFrontendClass' => 'classes/RingraziamentoFrontendClass.php',
+                'RicorrenzeFrontendClass' => 'classes/RicorrenzeFrontendClass.php',
                 'VendorFrontendClass' => 'classes/VendorFrontendClass.php',
                 'SearchFrontendClass' => 'classes/SearchFrontendClass.php',
                 'PrintManifestoClass' => 'classes/PrintManifestoClass.php',
@@ -47,6 +46,10 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
                 'EmailManagerClass' => 'classes/EmailManagerClass.php',
                 'SetupWizardModifierClass'=> 'classes/SetupWizardModifierClass.php',
                 'AutoPrelievoClass' => 'classes/AutoPrelievoClass.php',
+                'LoopFrontendVendor' => 'classes/LoopFrontendVendor.php',
+                'DMClass' => 'classes/DMClass.php',
+                //'TrigesimoBulkUpdate' => 'classes/TrigesimoBulkUpdate.php',
+                //'AnniversarioBulkUpdate' => 'classes/AnniversarioBulkUpdate.php',
             ];
 
             $this->deactivableclasses = [
@@ -210,12 +213,17 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
         private function dokan_mods_load_and_instantiate_class($class_name, $file_path)
         {
             if (!class_exists(__NAMESPACE__ . '\\' . $class_name)) {
-                require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . $file_path;
-                if (class_exists(__NAMESPACE__ . '\\' . $class_name)) {
-                    $class_with_namespace = __NAMESPACE__ . '\\' . $class_name;
-                    new $class_with_namespace();
+                $full_path = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . $file_path;
+                if (file_exists($full_path)) {
+                    require_once $full_path;
+                    if (class_exists(__NAMESPACE__ . '\\' . $class_name)) {
+                        $class_with_namespace = __NAMESPACE__ . '\\' . $class_name;
+                        new $class_with_namespace();
+                    } else {
+                        error_log("Class $class_name not found in file $file_path.");
+                    }
                 } else {
-                    error_log("Class $class_name not found in file $file_path.");
+                    error_log("File not found: $full_path for class $class_name");
                 }
             } else {
                 error_log("Class $class_name already exists.");

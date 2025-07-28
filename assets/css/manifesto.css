@@ -1,4 +1,6 @@
 /* Utility per il loader */
+
+
 .loader {
     --loader-size: clamp(40px, 5vw, 60px);
     --border-width: clamp(4px, 0.5vw, 8px);
@@ -102,12 +104,30 @@
 .flex-container {
     display: flex;
     flex-wrap: wrap;
-    gap: 1rem;
-    width: 100%;
+    gap: 2rem;
+    width: 90%;
+    margin: auto;
 }
 
 .flex-item {
-    flex: 1 1 clamp(
-            calc((100% - 4rem) / 5), /* min: dimensione per 5 colonne */ calc((600px - 4rem) / 3), /* valore preferito: dimensione per 3 colonne */ 100% /* max: dimensione per 1 colonna */
-    );
+    /* 20% per 5 colonne, sottraendo lo spazio per i gap */
+    flex: 0 0 18%;
+    /* impedisce la sovrapposizione */
+    min-width: 250px;
+    /* assicura che gli elementi vadano a capo quando necessario */
+    max-width: 100%;
 }
+
+
+.manifesto-container{
+    justify-content: left;
+    /* justify-content sarà modificato dinamicamente con JavaScript in base al numero di manifesti */
+}
+
+/* responsive per mobile manifesto-container justify-content: center; */
+@media screen and (max-width: 768px) {
+    .manifesto-container {
+        justify-content: center !important; /* usa !important per sovrascirvere lo stile inline che imposta JS */
+    }
+}
+

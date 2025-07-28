@@ -42,34 +42,73 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
             $processed = $progress['processed'];
             $total_rows = $progress['total'];
 
+            // Ensure CSV control is set correctly before reading header
+            $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
+            $this->log("DEBUG: CSV control set to delimiter: '{$this->csv_delimiter}', enclosure: '{$this->csv_enclosure}'");
+            
             $header = $file->fgetcsv();             // Leggi l'header
+            $this->log("DEBUG: Header read: " . print_r($header, true));
 
             $file->seek($processed);                // Salta le righe già processate
+            
+            // Ensure CSV control is maintained after seek
+            $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
 
             $batch_data = [];
             $batch_user_old_ids = [];
             $batch_post_old_ids = [];
             $batch_necrologi_ids = [];
 
-            $id_account_index = array_search('IdAccount', $header);
+            $id_account_index = array_search('idAccount', $header);
             $id_necrologio_index = array_search('IdNecrologio', $header);
             $id_index = array_search('ID', $header);
+            
+            $this->log("DEBUG: Field indexes - idAccount: $id_account_index, IdNecrologio: $id_necrologio_index, ID: $id_index");
+            
+            // If indexes are false, try case-insensitive search
+            if ($id_account_index === false) {
+                foreach ($header as $i => $field) {
+                    if (strtolower($field) === 'idaccount') {
+                        $id_account_index = $i;
+                        $this->log("DEBUG: Found idAccount at index $i using case-insensitive search");
+                        break;
+                    }
+                }
+            }
 
             // Raccolta dati batch
+            $row_count = 0;
             while (!$file->eof() && count($batch_data) < $this->batch_size) {
                 $data = $file->fgetcsv();
                 if (empty($data)) continue;
 
+                // Debug: log first few rows to see the actual data structure
+                if ($row_count < 3) {
+                    $this->log("DEBUG: Row $row_count data: " . print_r($data, true));
+                    $this->log("DEBUG: Row $row_count data count: " . count($data));
+                    if (!empty($data)) {
+                        $this->log("DEBUG: Row $row_count IdAccount index $id_account_index value: " . ($data[$id_account_index] ?? 'INDEX_NOT_FOUND'));
+                        $this->log("DEBUG: Row $row_count ID index $id_index value: " . ($data[$id_index] ?? 'INDEX_NOT_FOUND'));
+                    }
+                }
+
                 $batch_data[] = $data;
-                $batch_user_old_ids[] = $data[$id_account_index];
-                $batch_post_old_ids[] = $data[$id_index];
-                $batch_necrologi_ids[] = $data[$id_necrologio_index];
+                $batch_user_old_ids[] = $data[$id_account_index] ?? '';
+                $batch_post_old_ids[] = $data[$id_index] ?? '';
+                $batch_necrologi_ids[] = $data[$id_necrologio_index] ?? '';
+                $row_count++;
             }
 
             // Pre-fetch dei dati esistenti
+            $this->log("DEBUG: batch_user_old_ids prima del unique: " . print_r($batch_user_old_ids, true));
+            $unique_user_ids = array_unique($batch_user_old_ids);
+            $this->log("DEBUG: unique_user_ids: " . print_r($unique_user_ids, true));
+            
             $existing_posts = $this->get_existing_posts_by_old_ids(array_unique($batch_post_old_ids), ['manifesto']);
-            $existing_users = $this->get_existing_users_by_old_ids(array_unique($batch_user_old_ids));
+            $existing_users = $this->get_existing_users_by_old_ids($unique_user_ids);
             $existing_necrologi = $this->get_existing_posts_by_old_ids(array_unique($batch_necrologi_ids), ['annuncio-di-morte']);
+            
+            $this->log("DEBUG: existing_users result: " . print_r($existing_users, true));
 
             // Liberare memoria
             unset($batch_user_old_ids);
@@ -120,14 +159,34 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
                     'Testo' => array_search('Testo', $header),
                     'DataInserimento' => array_search('DataInserimento', $header),
                     'Pubblicato' => array_search('Pubblicato', $header),
-                    'IdAccount' => array_search('IdAccount', $header)
+                    'IdAccount' => array_search('idAccount', $header)
                 ];
             }
 
-            // Verifica se il post esiste già
+            // Se il post esiste già
             if (isset($existing_posts[$data[$field_indexes['ID']]])) {
-                $this->log("Manifesto già esistente: ID {$data[$field_indexes['ID']]}");
-                return false;
+                $existing_post_id = $existing_posts[$data[$field_indexes['ID']]];
+                
+                $this->log("DEBUG: Update - Cercando autore per IdAccount: " . $data[$field_indexes['IdAccount']]);
+                $this->log("DEBUG: Update - existing_users keys: " . implode(', ', array_keys($existing_users)));
+                
+                // Trova l'ID dell'utente basato su id_old con fallback migliorato
+                $author_id = $this->getAuthorIdWithFallback($data[$field_indexes['IdAccount']], $existing_users);
+                $this->log("DEBUG: Update - author_id assegnato: " . $author_id);
+
+                // Aggiorna post_author
+                $updated = wp_update_post([
+                    'ID' => $existing_post_id,
+                    'post_author' => $author_id
+                ]);
+
+                if ($updated) {
+                    $this->log("Post author aggiornato per manifesto ID {$existing_post_id} con nuovo author ID {$author_id}");
+                } else {
+                    $this->log("Errore nell'aggiornamento dell'autore per manifesto ID {$existing_post_id}");
+                }
+
+                return $updated;
             }
 
             if ($data[$field_indexes['Testo']] == '' || $data[$field_indexes['Testo']] == null) {
@@ -135,32 +194,42 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
                 return false;
             }
 
-            // Trova l'ID dell'utente
-            $author_id = $existing_users[$data[$field_indexes['IdAccount']]] ?? 1;
+            // Trova l'ID dell'utente con fallback migliorato
+            $this->log("DEBUG: Cercando autore per IdAccount: " . $data[$field_indexes['IdAccount']]);
+            $this->log("DEBUG: existing_users keys: " . implode(', ', array_keys($existing_users)));
+            $this->log("DEBUG: existing_users isset check: " . (isset($existing_users[$data[$field_indexes['IdAccount']]]) ? 'TRUE' : 'FALSE'));
+            
+            $author_id = $this->getAuthorIdWithFallback($data[$field_indexes['IdAccount']], $existing_users);
+            $this->log("DEBUG: author_id assegnato: " . $author_id);
 
             // Trova l'ID del necrologio associato
             $necrologio_id = $existing_necrologi[$data[$field_indexes['IdNecrologio']]] ?? null;
 
             $necrologio_title = $necrologio_id ? get_the_title($necrologio_id) : 'N/A';
+
             // Crea il post
+            $this->log("DEBUG: Pubblicato field value: '" . $data[$field_indexes['Pubblicato']] . "' (type: " . gettype($data[$field_indexes['Pubblicato']]) . ")");
+            $status = $data[$field_indexes['Pubblicato']] == 1 ? 'publish' : 'draft';
+            $this->log("DEBUG: Post status assegnato: " . $status);
+            
             $post_id = wp_insert_post([
                 'post_type' => 'manifesto',
                 'post_title' => $necrologio_title . ' - ' . $data[$field_indexes['ID']],
-                'post_status' => $data[$field_indexes['Pubblicato']] == 1 ? 'publish' : 'draft',
+                'post_status' => $status,
                 'post_date' => date('Y-m-d H:i:s', strtotime($data[$field_indexes['DataInserimento']])),
                 'post_author' => $author_id,
             ]);
 
             if (!is_wp_error($post_id)) {
                 // Aggiorna i campi ACF
-                update_field('id_old', $data[$field_indexes['ID']], $post_id); // id_old
+                update_field('id_old', $data[$field_indexes['ID']], $post_id);
                 if ($necrologio_id) {
-                    update_field('annuncio_di_morte_relativo', $necrologio_id, $post_id); // IdNecrologio
+                    update_field('annuncio_di_morte_relativo', $necrologio_id, $post_id);
                 }
 
-                update_field('testo_manifesto', $this->cleanText($data[$field_indexes['Testo']]), $post_id); // Testo
-                update_field('vendor_id', $author_id, $post_id); // IdAccount
-                update_field('tipo_manifesto', 'silver', $post_id); // Imposta il tipo come "silver"
+                update_field('testo_manifesto', $this->cleanText($data[$field_indexes['Testo']]), $post_id);
+                update_field('vendor_id', $author_id, $post_id);
+                update_field('tipo_manifesto', 'silver', $post_id);
 
                 $this->log("Manifesto creato: ID $post_id");
             } else {
@@ -169,7 +238,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
 
             return $post_id;
         }
-
 
         function cleanText(string $text): string
         {
@@ -226,22 +294,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
             return $text;
         }
 
-/*        private function get_existing_users_by_old_ids($old_ids)
-        {
-            global $wpdb;
-            $placeholders = implode(',', array_fill(0, count($old_ids), '%s'));
-            $sql = "
-                SELECT um.user_id, um.meta_value
-                FROM {$wpdb->usermeta} um
-                WHERE um.meta_key = 'id_old' AND um.meta_value IN ($placeholders)
-            ";
-            $prepared_sql = $wpdb->prepare($sql, $old_ids);
-            $results = $wpdb->get_results($prepared_sql, ARRAY_A);
-            $existing_users = [];
-            foreach ($results as $row) {
-                $existing_users[$row['meta_value']] = $row['user_id'];
-            }
-            return $existing_users;
-        }*/
+                // get_existing_users_by_old_ids method moved to parent class MigrationTasks
     }
 }
