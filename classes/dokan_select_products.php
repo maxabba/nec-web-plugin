@@ -362,7 +362,7 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                 $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
 
                 // Sanitize the manifesto_background
-                $manifesto_background = isset($_POST['manifesto_background']) ? sanitize_text_field($_POST['manifesto_background']) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/img/default.jpg';
+                $manifesto_background = isset($_POST['manifesto_background']) ? sanitize_text_field($_POST['manifesto_background']) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/images/default.jpg';
 
                 // Sanitize the manifesto_orientation
                 $manifesto_orientation = isset($_POST['manifesto_orientation']) ? sanitize_text_field($_POST['manifesto_orientation']) : 'vertical';
