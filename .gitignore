@@ -1,3 +1,9 @@
 .idea/*
 /vendor/
 tempfile.php
+/admin_test_page.php
+/browser_test.php
+/test_csv_count.php
+/test_image_processing_fix.php
+/test_manifesti_logic.php
+/wp_cli_test.php
