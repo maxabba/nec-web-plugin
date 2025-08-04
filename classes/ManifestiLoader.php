@@ -35,6 +35,97 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
             return $this->load_grouped_manifesti();
         }
 
+        /**
+         * Load manifesti for monitor display (all types, no pagination)
+         */
+        public function load_manifesti_for_monitor()
+        {
+            $query = new WP_Query([
+                'post_type' => 'manifesto',
+                'posts_per_page' => -1, // Load all manifesti
+                'orderby' => 'date',
+                'order' => 'DESC',
+                'post_status' => 'publish',
+                'meta_query' => [
+                    'relation' => 'AND',
+                    [
+                        'key' => 'annuncio_di_morte_relativo',
+                        'value' => $this->post_id,
+                        'compare' => '='
+                    ],
+                    [
+                        'key' => 'tipo_manifesto',
+                        'value' => ['top', 'silver', 'online'],
+                        'compare' => 'IN'
+                    ]
+                ]
+            ]);
+
+            return $this->process_monitor_results($query);
+        }
+
+        /**
+         * Process query results for monitor display
+         */
+        private function process_monitor_results($query)
+        {
+            $response = [];
+
+            if ($query->have_posts()) {
+                while ($query->have_posts()) {
+                    $query->the_post();
+                    $response[] = $this->render_manifesto_for_monitor();
+                }
+            }
+
+            wp_reset_postdata();
+            return $response;
+        }
+
+        /**
+         * Render single manifesto for monitor display
+         */
+        private function render_manifesto_for_monitor()
+        {
+            $current_post_id = get_the_ID();
+            $vendor_id = get_the_author_meta('ID');
+            $vendor_data = (new UtilsAMClass())->get_vendor_data_by_id($vendor_id);
+            $testo_manifesto = get_field('testo_manifesto');
+            $tipo_manifesto = get_field('tipo_manifesto');
+
+            // Clean up the manifesto text for display
+            $clean_text = $this->clean_manifesto_text($testo_manifesto);
+
+            return [
+                'id' => $current_post_id,
+                'html' => $clean_text,
+                'tipo' => $tipo_manifesto,
+                'vendor_data' => $vendor_data,
+                'date' => get_the_date('c') // ISO format for JS
+            ];
+        }
+
+        /**
+         * Clean manifesto text for monitor display
+         */
+        private function clean_manifesto_text($text)
+        {
+            if (empty($text)) {
+                return '<p>Testo manifesto non disponibile</p>';
+            }
+
+            // Remove any script tags for security
+            $text = preg_replace('/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/mi', '', $text);
+            
+            // Ensure text is properly formatted
+            $text = wpautop($text);
+            
+            // Add basic styling classes
+            $text = str_replace('<p>', '<p class="manifesto-paragraph">', $text);
+            
+            return $text;
+        }
+
         private function get_meta_query()
         {
             $compare = '=';

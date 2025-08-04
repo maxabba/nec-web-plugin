@@ -1,0 +1,542 @@
+/**
+ * Monitor Display CSS
+ * Responsive styles for digital monitor/totem display
+ */
+
+/* Global animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.05); opacity: 1; }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(-20px) rotate(180deg); }
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
+}
+
+/* Enhanced manifesto content styles */
+.manifesto-content {
+    position: relative;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,0,0,0.2) transparent;
+}
+
+.manifesto-content::-webkit-scrollbar {
+    width: 12px;
+}
+
+.manifesto-content::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.05);
+    border-radius: 6px;
+}
+
+.manifesto-content::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+.manifesto-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.3);
+    background-clip: content-box;
+}
+
+/* Manifesto text styling */
+.manifesto-paragraph {
+    margin-bottom: 1.5em;
+    line-height: 1.8;
+    text-align: center;
+}
+
+.manifesto-content p:last-child {
+    margin-bottom: 0;
+}
+
+.manifesto-content strong {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.manifesto-content em {
+    font-style: italic;
+    color: #34495e;
+}
+
+/* Enhanced slide transitions */
+.manifesto-slide {
+    transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.manifesto-slide.active {
+    animation: fadeIn 1s ease-out;
+}
+
+/* Button hover effects */
+.slideshow-controls {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(15px);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.slideshow-controls:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.slideshow-controls:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+/* Enhanced indicators */
+.slide-indicator {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    background: transparent;
+}
+
+.slide-indicator:hover {
+    background: rgba(255, 255, 255, 0.6);
+    transform: scale(1.1);
+}
+
+.slide-indicator.active {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+}
+
+/* Header enhancements */
+.monitor-header {
+    position: relative;
+    overflow: hidden;
+}
+
+.monitor-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, 
+        rgba(30, 60, 114, 0.9) 0%, 
+        rgba(42, 82, 152, 0.9) 50%, 
+        rgba(30, 60, 114, 0.9) 100%);
+    z-index: 1;
+}
+
+.defunto-info {
+    position: relative;
+    z-index: 2;
+    animation: fadeIn 1.5s ease-out;
+}
+
+.defunto-foto, .defunto-foto-placeholder {
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.defunto-foto:hover, .defunto-foto-placeholder:hover {
+    transform: scale(1.02);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.defunto-details h1 {
+    background: linear-gradient(45deg, #fff, #e8f4fd);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: fadeIn 2s ease-out;
+}
+
+/* Footer enhancements */
+.monitor-footer {
+    background: linear-gradient(90deg, #222 0%, #2a2a2a 50%, #222 100%);
+    border-top: 3px solid #333;
+    position: relative;
+}
+
+.monitor-footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+}
+
+.shop-logo {
+    transition: all 0.3s ease;
+    border-radius: 8px;
+}
+
+.shop-logo:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
+}
+
+/* Loading enhancements */
+.loading-overlay {
+    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.85);
+}
+
+.spinner {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+}
+
+/* No manifesti state enhancements */
+.no-manifesti {
+    background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+}
+
+.no-manifesti-icon {
+    animation: float 3s ease-in-out infinite;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+}
+
+/* Responsive Design Enhancements */
+@media (max-width: 1920px) and (min-width: 1367px) {
+    .defunto-details h1 {
+        font-size: 2.2rem;
+    }
+    
+    .manifesto-content {
+        font-size: 1.6rem;
+        padding: 50px;
+    }
+    
+    .slideshow-controls {
+        width: 55px;
+        height: 55px;
+        font-size: 22px;
+    }
+}
+
+@media (max-width: 1366px) {
+    .defunto-details h1 {
+        font-size: 1.9rem;
+    }
+    
+    .defunto-foto, .defunto-foto-placeholder {
+        width: 90px;
+        height: 90px;
+    }
+    
+    .manifesto-content {
+        font-size: 1.4rem;
+        padding: 35px;
+    }
+    
+    .slideshow-controls {
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+    
+    .slide-indicator {
+        width: 10px;
+        height: 10px;
+    }
+}
+
+@media (max-height: 900px) {
+    .monitor-header {
+        height: 18vh;
+    }
+    
+    .monitor-body {
+        height: 72vh;
+    }
+    
+    .manifesto-content {
+        font-size: 1.3rem;
+        padding: 25px;
+    }
+    
+    .defunto-details h1 {
+        font-size: 1.7rem;
+    }
+}
+
+@media (max-height: 768px) {
+    .monitor-header {
+        height: 16vh;
+    }
+    
+    .monitor-body {
+        height: 74vh;
+    }
+    
+    .defunto-foto, .defunto-foto-placeholder {
+        width: 70px;
+        height: 70px;
+    }
+    
+    .defunto-details h1 {
+        font-size: 1.5rem;
+    }
+    
+    .manifesto-content {
+        font-size: 1.2rem;
+        padding: 20px;
+    }
+}
+
+/* Portrait orientation (Totem mode) */
+@media (orientation: portrait) {
+    .monitor-header {
+        height: 15vh;
+        padding: 15px;
+    }
+    
+    .monitor-body {
+        height: 75vh;
+    }
+    
+    .defunto-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .defunto-foto, .defunto-foto-placeholder {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .defunto-details h1 {
+        font-size: 1.6rem;
+        margin-bottom: 5px;
+    }
+    
+    .defunto-details p {
+        font-size: 1rem;
+    }
+    
+    .manifesto-content {
+        font-size: 1.4rem;
+        padding: 30px 20px;
+    }
+    
+    .slideshow-controls {
+        top: 60%;
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
+    }
+    
+    .prev-btn {
+        left: 15px;
+    }
+    
+    .next-btn {
+        right: 15px;
+    }
+    
+    .slide-indicators {
+        bottom: 15px;
+    }
+    
+    .monitor-footer {
+        height: 10vh;
+        padding: 0 20px;
+    }
+    
+    .shop-logo {
+        height: 40px;
+    }
+    
+    .shop-name {
+        font-size: 1.2rem;
+    }
+}
+
+/* Ultra-wide screens */
+@media (min-width: 2560px) {
+    .defunto-details h1 {
+        font-size: 3.5rem;
+    }
+    
+    .defunto-details p {
+        font-size: 1.6rem;
+    }
+    
+    .defunto-foto, .defunto-foto-placeholder {
+        width: 150px;
+        height: 150px;
+    }
+    
+    .manifesto-content {
+        font-size: 2.2rem;
+        padding: 80px;
+    }
+    
+    .slideshow-controls {
+        width: 80px;
+        height: 80px;
+        font-size: 32px;
+    }
+    
+    .slide-indicator {
+        width: 16px;
+        height: 16px;
+    }
+    
+    .shop-name {
+        font-size: 1.8rem;
+    }
+}
+
+/* 4K displays */
+@media (min-width: 3840px) {
+    .defunto-details h1 {
+        font-size: 4rem;
+    }
+    
+    .defunto-details p {
+        font-size: 1.8rem;
+    }
+    
+    .defunto-foto, .defunto-foto-placeholder {
+        width: 180px;
+        height: 180px;
+    }
+    
+    .manifesto-content {
+        font-size: 2.5rem;
+        padding: 100px;
+        line-height: 1.8;
+    }
+    
+    .slideshow-controls {
+        width: 100px;
+        height: 100px;
+        font-size: 40px;
+    }
+    
+    .slide-indicator {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .manifesto-content {
+        background: #1a1a1a;
+        color: #e0e0e0;
+    }
+    
+    .manifesto-content strong {
+        color: #ffffff;
+    }
+    
+    .manifesto-content em {
+        color: #cccccc;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .manifesto-content {
+        border: 3px solid #000;
+    }
+    
+    .slideshow-controls {
+        border: 3px solid #fff;
+        background: #000;
+    }
+    
+    .slide-indicator {
+        border: 2px solid #fff;
+    }
+    
+    .slide-indicator.active {
+        background: #fff;
+    }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .manifesto-slide {
+        transition: opacity 0.3s ease;
+    }
+    
+    .slideshow-controls {
+        transition: background 0.2s ease;
+    }
+    
+    .slide-indicator {
+        transition: background 0.2s ease;
+    }
+    
+    .defunto-foto:hover, 
+    .defunto-foto-placeholder:hover,
+    .shop-logo:hover {
+        transform: none;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-5px); }
+    }
+    
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+    }
+}
+
+/* Print styles (if needed) */
+@media print {
+    .slideshow-controls,
+    .slide-indicators,
+    .monitor-footer {
+        display: none !important;
+    }
+    
+    .manifesto-slide {
+        position: static !important;
+        opacity: 1 !important;
+        page-break-after: always;
+    }
+    
+    .manifesto-content {
+        box-shadow: none;
+        border: 2px solid #000;
+    }
+}
