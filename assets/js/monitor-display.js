@@ -18,6 +18,12 @@ class MonitorDisplay {
         this.slideTimeout = this.config.slideInterval || 5000;
         this.pollingTimeout = this.config.pollingInterval || 15000;
         
+        // Infinite scroll configuration
+        this.slideWidth = 102; // 100% + 2% gap between slides
+        this.clonesCount = 2; // Number of clones on each side for infinite effect
+        this.totalSlides = 0; // Will be set after cloning
+        this.realSlidesCount = 0; // Original number of slides
+        
         this.init();
     }
 
@@ -65,6 +71,16 @@ class MonitorDisplay {
                     e.preventDefault();
                     this.toggleSlideshow();
                     break;
+                case 'Home':
+                    e.preventDefault();
+                    this.goToSlide(this.realSlidesCount > 1 ? this.clonesCount : 0);
+                    this.pauseOnInteraction();
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    this.goToSlide(this.realSlidesCount > 1 ? this.realSlidesCount + this.clonesCount - 1 : 0);
+                    this.pauseOnInteraction();
+                    break;
             }
         });
         
@@ -75,10 +91,12 @@ class MonitorDisplay {
     addTouchAndMouseSupport() {
         let startX = 0;
         let startY = 0;
-        let endX = 0;
-        let endY = 0;
+        let currentX = 0;
+        let currentY = 0;
         let isDragging = false;
         let startTime = 0;
+        let containerWidth = 0;
+        const snapThreshold = 0.3; // 30% of container width
         
         if (!this.container) return;
         
@@ -86,6 +104,7 @@ class MonitorDisplay {
         const handleStart = (e) => {
             isDragging = true;
             startTime = Date.now();
+            containerWidth = this.container.offsetWidth;
             
             if (e.type === 'touchstart') {
                 startX = e.touches[0].clientX;
@@ -95,53 +114,72 @@ class MonitorDisplay {
                 startY = e.clientY;
                 e.preventDefault(); // Prevent text selection on mouse
             }
+            
+            currentX = startX;
+            currentY = startY;
+            
+            // Add dragging class to disable transitions
+            const slides = this.container.querySelectorAll('.manifesto-slide');
+            slides.forEach(slide => slide.classList.add('dragging'));
         };
         
-        // Unified move handler
+        // Unified move handler - continuous drag
         const handleMove = (e) => {
             if (!isDragging) return;
             
             if (e.type === 'touchmove') {
-                endX = e.touches[0].clientX;
-                endY = e.touches[0].clientY;
+                currentX = e.touches[0].clientX;
+                currentY = e.touches[0].clientY;
             } else {
-                endX = e.clientX;
-                endY = e.clientY;
+                currentX = e.clientX;
+                currentY = e.clientY;
             }
             
-            // Prevent default only for significant horizontal movement
-            const deltaX = Math.abs(startX - endX);
-            const deltaY = Math.abs(startY - endY);
+            const deltaX = currentX - startX;
+            const deltaY = Math.abs(currentY - startY);
             
-            if (deltaX > deltaY && deltaX > 10) {
+            // Prevent default only for significant horizontal movement
+            if (Math.abs(deltaX) > deltaY && Math.abs(deltaX) > 10) {
                 e.preventDefault();
+                
+                // Update slide positions in real time
+                this.updateSlidePositions(deltaX, containerWidth);
             }
         };
         
-        // Unified end handler
+        // Unified end handler - snap logic
         const handleEnd = (e) => {
             if (!isDragging) return;
             
             isDragging = false;
-            const deltaX = startX - endX;
-            const deltaY = startY - endY;
+            const deltaX = currentX - startX;
+            const deltaY = Math.abs(currentY - startY);
             const timeDiff = Date.now() - startTime;
+            
+            // Remove dragging class to enable transitions
+            const slides = this.container.querySelectorAll('.manifesto-slide');
+            slides.forEach(slide => slide.classList.remove('dragging'));
             
             // Check for tap/click (minimal movement and quick timing)
             if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && timeDiff < 300) {
+                this.snapToCurrentSlide();
                 this.pauseOnInteraction();
                 return;
             }
             
-            // Check for swipe/drag
-            const minSwipeDistance = 50;
-            if (Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaX) > Math.abs(deltaY)) {
-                if (deltaX > 0) {
-                    this.nextSlide(); // Swipe left = next slide
-                } else {
-                    this.previousSlide(); // Swipe right = previous slide
-                }
+            // Always snap to the nearest complete slide
+            if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
+                // Calculate which slide should be centered after this drag
+                const targetSlide = this.calculateNearestSlideFromDrag(deltaX, containerWidth);
+                
+                // Snap to the calculated target slide
+                this.currentSlide = targetSlide;
+                this.updateAllSlidePositions();
+                this.checkInfiniteLoop();
                 this.pauseOnInteraction();
+            } else {
+                // For small movements, snap to nearest slide
+                this.snapToNearestSlide();
             }
         };
         
@@ -157,7 +195,12 @@ class MonitorDisplay {
         
         // Prevent mouse leave issues
         this.container.addEventListener('mouseleave', () => {
-            isDragging = false;
+            if (isDragging) {
+                isDragging = false;
+                const slides = this.container.querySelectorAll('.manifesto-slide');
+                slides.forEach(slide => slide.classList.remove('dragging'));
+                this.snapToCurrentSlide();
+            }
         });
     }
 
@@ -216,14 +259,37 @@ class MonitorDisplay {
         // Clear existing slides
         this.container.innerHTML = '';
         
-        // Create slides
+        this.realSlidesCount = this.manifesti.length;
+        
+        // For infinite scroll, we need at least 2 clones on each side
+        // But only if we have more than 1 slide
+        if (this.realSlidesCount > 1) {
+            // Create clone slides at the beginning (last slides)
+            for (let i = 0; i < this.clonesCount; i++) {
+                const cloneIndex = this.realSlidesCount - this.clonesCount + i;
+                const manifesto = this.manifesti[cloneIndex];
+                const slide = this.createSlide(manifesto, -(this.clonesCount - i), true);
+                this.container.appendChild(slide);
+                
+                // Apply background after the slide is in the DOM
+                if (manifesto.vendor_data) {
+                    setTimeout(() => {
+                        const wrapper = slide.querySelector('.manifesto-wrapper');
+                        if (wrapper) {
+                            this.updateEditorBackground(manifesto.vendor_data, wrapper);
+                        }
+                    }, 100);
+                }
+            }
+        }
+        
+        // Create original slides
         this.manifesti.forEach((manifesto, index) => {
             const slide = this.createSlide(manifesto, index);
             this.container.appendChild(slide);
             
             // Apply background after the slide is in the DOM
             if (manifesto.vendor_data) {
-                // Use setTimeout to ensure the DOM has rendered
                 setTimeout(() => {
                     const wrapper = slide.querySelector('.manifesto-wrapper');
                     if (wrapper) {
@@ -233,17 +299,40 @@ class MonitorDisplay {
             }
         });
         
-        // No UI controls needed - using touch/mouse gestures only
+        // Create clone slides at the end (first slides)
+        if (this.realSlidesCount > 1) {
+            for (let i = 0; i < this.clonesCount; i++) {
+                const manifesto = this.manifesti[i];
+                const slide = this.createSlide(manifesto, this.realSlidesCount + i, true);
+                this.container.appendChild(slide);
+                
+                // Apply background after the slide is in the DOM
+                if (manifesto.vendor_data) {
+                    setTimeout(() => {
+                        const wrapper = slide.querySelector('.manifesto-wrapper');
+                        if (wrapper) {
+                            this.updateEditorBackground(manifesto.vendor_data, wrapper);
+                        }
+                    }, 100);
+                }
+            }
+        }
         
-        // Show first slide without animation
-        this.currentSlide = 0;
-        this.showSlide(this.currentSlide, null);
+        // Calculate total slides including clones
+        this.totalSlides = this.realSlidesCount > 1 
+            ? this.realSlidesCount + (this.clonesCount * 2)
+            : this.realSlidesCount;
+        
+        // Position all slides and show first real slide
+        this.currentSlide = this.realSlidesCount > 1 ? this.clonesCount : 0;
+        this.updateAllSlidePositions();
     }
 
-    createSlide(manifesto, index) {
+    createSlide(manifesto, index, isClone = false) {
         const slide = document.createElement('div');
-        slide.className = 'manifesto-slide';
+        slide.className = 'manifesto-slide' + (isClone ? ' clone' : '');
         slide.dataset.slideIndex = index;
+        slide.dataset.isClone = isClone;
         
         const content = document.createElement('div');
         content.className = 'manifesto-content';
@@ -433,50 +522,162 @@ class MonitorDisplay {
     showSlide(index, direction = null) {
         if (!this.container || this.manifesti.length === 0) return;
         
+        this.currentSlide = index;
+        this.updateAllSlidePositions();
+    }
+    
+    updateAllSlidePositions(withTransition = true) {
         const slides = this.container.querySelectorAll('.manifesto-slide');
         
-        // Hide all slides and remove animation classes
-        slides.forEach(slide => {
-            slide.classList.remove('active', 'slide-in-left', 'slide-in-right');
-        });
-        
-        // Show current slide with animation based on direction
-        if (slides[index]) {
-            slides[index].classList.add('active');
+        slides.forEach((slide, globalIndex) => {
+            const slideIndex = parseInt(slide.dataset.slideIndex);
+            const position = this.getSlidePosition(globalIndex);
             
-            if (direction === 'next') {
-                slides[index].classList.add('slide-in-left');
-            } else if (direction === 'prev') {
-                slides[index].classList.add('slide-in-right');
+            // Temporarily disable transition if needed
+            if (!withTransition) {
+                slide.classList.add('no-transition');
             }
             
-            // Remove animation class after animation completes
-            setTimeout(() => {
-                slides[index].classList.remove('slide-in-left', 'slide-in-right');
-            }, 800); // Match animation duration
-        }
+            slide.style.transform = `translateX(${position}%)`;
+            
+            // Re-enable transition after a short delay
+            if (!withTransition) {
+                setTimeout(() => {
+                    slide.classList.remove('no-transition');
+                }, 50);
+            }
+            
+            // Update z-index for active slide area
+            const isInActiveArea = globalIndex >= this.currentSlide - 1 && globalIndex <= this.currentSlide + 1;
+            if (isInActiveArea) {
+                slide.classList.add('active');
+            } else {
+                slide.classList.remove('active');
+            }
+        });
+    }
+    
+    getSlidePosition(slideIndex) {
+        const diff = slideIndex - this.currentSlide;
+        return diff * this.slideWidth;
+    }
+    
+    updateSlidePositions(deltaX, containerWidth) {
+        const slides = this.container.querySelectorAll('.manifesto-slide');
+        const dragPercentage = (deltaX / containerWidth) * this.slideWidth;
         
-        this.currentSlide = index;
+        slides.forEach((slide, index) => {
+            const basePosition = this.getSlidePosition(index);
+            const newPosition = basePosition + dragPercentage;
+            slide.style.transform = `translateX(${newPosition}%)`;
+        });
+    }
+    
+    snapToCurrentSlide() {
+        this.updateAllSlidePositions();
+    }
+
+    snapToNearestSlide() {
+        if (this.realSlidesCount <= 1) {
+            this.snapToCurrentSlide();
+            return;
+        }
+
+        // Find the slide closest to center (position 0)
+        const slides = this.container.querySelectorAll('.manifesto-slide');
+        let closestDistance = Infinity;
+        let closestSlideIndex = this.currentSlide;
+
+        slides.forEach((slide, index) => {
+            const slideIndex = parseInt(slide.dataset.slideIndex);
+            const position = this.getSlidePosition(index);
+            const distanceFromCenter = Math.abs(position);
+            
+            if (distanceFromCenter < closestDistance) {
+                closestDistance = distanceFromCenter;
+                closestSlideIndex = index;
+            }
+        });
+
+        // Snap to the closest slide
+        this.currentSlide = closestSlideIndex;
+        this.updateAllSlidePositions();
+        this.checkInfiniteLoop();
+    }
+
+    calculateNearestSlideFromDrag(deltaX, containerWidth) {
+        // Calculate how much the current position would change
+        const dragPercentage = (deltaX / containerWidth) * this.slideWidth;
+        
+        // Find which slide would be closest to center after this drag
+        const effectiveCurrentSlide = this.currentSlide - (dragPercentage / this.slideWidth);
+        
+        // Round to nearest integer (nearest slide)
+        return Math.round(effectiveCurrentSlide);
+    }
+
+    ensureValidSlidePosition() {
+        // Make sure currentSlide is always an integer and within bounds
+        this.currentSlide = Math.round(this.currentSlide);
+        
+        // If we somehow got into an invalid state, snap to nearest valid slide
+        if (this.realSlidesCount > 1) {
+            // Ensure we're within the valid range including clones
+            if (this.currentSlide < -this.clonesCount) {
+                this.currentSlide = -this.clonesCount;
+            } else if (this.currentSlide >= this.totalSlides + this.clonesCount) {
+                this.currentSlide = this.totalSlides + this.clonesCount - 1;
+            }
+        } else {
+            this.currentSlide = 0;
+        }
     }
 
     nextSlide() {
         if (this.manifesti.length === 0) return;
         
-        const nextIndex = (this.currentSlide + 1) % this.manifesti.length;
-        this.goToSlide(nextIndex, 'next');
+        this.currentSlide++;
+        this.ensureValidSlidePosition();
+        this.goToSlide(this.currentSlide);
+        this.checkInfiniteLoop();
     }
 
     previousSlide() {
         if (this.manifesti.length === 0) return;
         
-        const prevIndex = (this.currentSlide - 1 + this.manifesti.length) % this.manifesti.length;
-        this.goToSlide(prevIndex, 'prev');
+        this.currentSlide--;
+        this.ensureValidSlidePosition();
+        this.goToSlide(this.currentSlide);
+        this.checkInfiniteLoop();
     }
 
-    goToSlide(index, direction = null) {
-        if (index >= 0 && index < this.manifesti.length) {
-            this.showSlide(index, direction);
-            this.restartSlideshow(); // Reset auto-advance timer
+    goToSlide(index) {
+        this.currentSlide = index;
+        this.ensureValidSlidePosition();
+        this.showSlide(this.currentSlide);
+        this.restartSlideshow(); // Reset auto-advance timer
+    }
+
+    checkInfiniteLoop() {
+        if (this.realSlidesCount <= 1) return;
+        
+        // If we're at or beyond the end clones, jump to beginning
+        if (this.currentSlide >= this.realSlidesCount + this.clonesCount) {
+            setTimeout(() => {
+                // Jump to the equivalent position at the beginning
+                const overShoot = this.currentSlide - (this.realSlidesCount + this.clonesCount);
+                this.currentSlide = this.clonesCount + overShoot;
+                this.updateAllSlidePositions(false); // No transition
+            }, 300); // Wait for transition to complete
+        }
+        // If we're at or before the beginning clones, jump to end
+        else if (this.currentSlide < 0) {
+            setTimeout(() => {
+                // Jump to the equivalent position at the end
+                const underShoot = Math.abs(this.currentSlide);
+                this.currentSlide = this.realSlidesCount + this.clonesCount - 1 - underShoot;
+                this.updateAllSlidePositions(false); // No transition
+            }, 300); // Wait for transition to complete
         }
     }
 
@@ -485,7 +686,8 @@ class MonitorDisplay {
         
         this.slideInterval = setInterval(() => {
             if (this.isPlaying) {
-                this.nextSlide();
+                // Automatic slideshow goes from right to left (previous slide)
+                this.previousSlide();
             }
         }, this.slideTimeout);
     }

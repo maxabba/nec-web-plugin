@@ -175,6 +175,7 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
         .manifesti-slideshow {
             height: 100%;
             position: relative;
+            overflow: hidden;
         }
         
         .manifesto-slide {

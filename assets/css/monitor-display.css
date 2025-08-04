@@ -24,15 +24,7 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
 
 /* Global animations */
 
-@keyframes slideInLeft {
-    from { transform: translateX(-100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes slideInRight {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
+/* Slide animations removed - using continuous drag system */
 
 @keyframes pulse {
     0%, 100% { transform: scale(1); opacity: 0.8; }
@@ -62,6 +54,17 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     overflow: hidden;
 }
 
+/* Container for infinite scroll */
+#manifesti-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    /* Optimize for transform animations */
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+}
+
 /* Scrollbar styles removed - no longer needed with overflow: hidden */
 
 /* Manifesto text styling */
@@ -85,25 +88,36 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     color: #34495e;
 }
 
-/* Enhanced slide transitions */
+/* Enhanced slide transitions - infinite scroll with margins */
 .manifesto-slide {
-    transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 98%; /* Leave 2% gap */
+    height: 100%;
+    transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
     cursor: pointer;
     touch-action: pan-x;
     transform: translateX(0);
+    opacity: 1;
+    will-change: transform;
+}
+
+.manifesto-slide.dragging {
+    transition: none !important;
+}
+
+.manifesto-slide.no-transition {
+    transition: none !important;
 }
 
 .manifesto-slide.active {
+    z-index: 2;
+}
+
+.manifesto-slide.clone {
+    /* Clones have same styling as originals */
     opacity: 1;
-    z-index: 1;
-}
-
-.manifesto-slide.slide-in-left {
-    animation: slideInLeft 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.manifesto-slide.slide-in-right {
-    animation: slideInRight 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Hide all slideshow UI controls for touch-first experience */
@@ -570,15 +584,7 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
         transform: none;
     }
     
-    @keyframes slideInLeft {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-    
-    @keyframes slideInRight {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
+    /* Slide animations simplified for reduced motion */
     
     @keyframes float {
         0%, 100% { transform: translateY(0px); }
