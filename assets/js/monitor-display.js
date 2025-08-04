@@ -235,9 +235,9 @@ class MonitorDisplay {
         
         // No UI controls needed - using touch/mouse gestures only
         
-        // Show first slide
+        // Show first slide without animation
         this.currentSlide = 0;
-        this.showSlide(this.currentSlide);
+        this.showSlide(this.currentSlide, null);
     }
 
     createSlide(manifesto, index) {
@@ -430,17 +430,30 @@ class MonitorDisplay {
 
     // renderIndicators removed - no longer needed
 
-    showSlide(index) {
+    showSlide(index, direction = null) {
         if (!this.container || this.manifesti.length === 0) return;
         
         const slides = this.container.querySelectorAll('.manifesto-slide');
         
-        // Hide all slides
-        slides.forEach(slide => slide.classList.remove('active'));
+        // Hide all slides and remove animation classes
+        slides.forEach(slide => {
+            slide.classList.remove('active', 'slide-in-left', 'slide-in-right');
+        });
         
-        // Show current slide
+        // Show current slide with animation based on direction
         if (slides[index]) {
             slides[index].classList.add('active');
+            
+            if (direction === 'next') {
+                slides[index].classList.add('slide-in-left');
+            } else if (direction === 'prev') {
+                slides[index].classList.add('slide-in-right');
+            }
+            
+            // Remove animation class after animation completes
+            setTimeout(() => {
+                slides[index].classList.remove('slide-in-left', 'slide-in-right');
+            }, 800); // Match animation duration
         }
         
         this.currentSlide = index;
@@ -450,19 +463,19 @@ class MonitorDisplay {
         if (this.manifesti.length === 0) return;
         
         const nextIndex = (this.currentSlide + 1) % this.manifesti.length;
-        this.goToSlide(nextIndex);
+        this.goToSlide(nextIndex, 'next');
     }
 
     previousSlide() {
         if (this.manifesti.length === 0) return;
         
         const prevIndex = (this.currentSlide - 1 + this.manifesti.length) % this.manifesti.length;
-        this.goToSlide(prevIndex);
+        this.goToSlide(prevIndex, 'prev');
     }
 
-    goToSlide(index) {
+    goToSlide(index, direction = null) {
         if (index >= 0 && index < this.manifesti.length) {
-            this.showSlide(index);
+            this.showSlide(index, direction);
             this.restartSlideshow(); // Reset auto-advance timer
         }
     }

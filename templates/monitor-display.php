@@ -133,17 +133,16 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
         }
         
         .defunto-foto {
-            max-width: 150px;
-            max-height: 150px;
+            height: 350px;
             width: auto;
-            height: auto;
+            max-width: 350px;
             object-fit: contain;
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
         }
         
         .defunto-foto-placeholder {
-            width: 120px;
-            height: 120px;
+            width: 350px;
+            height: 350px;
             background: rgba(0, 0, 0, 0.3);
             display: flex;
             align-items: center;
@@ -319,8 +318,9 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
             }
             
             .defunto-foto, .defunto-foto-placeholder {
-                width: 100px;
-                height: 100px;
+                width: auto;
+                height: 280px;
+                max-width: 280px;
             }
             
             .manifesto-content {
@@ -346,6 +346,12 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
                 flex-direction: column;
                 text-align: center;
                 gap: 15px;
+            }
+            
+            .defunto-foto, .defunto-foto-placeholder {
+                width: auto;
+                height: 250px;
+                max-width: 250px;
             }
             
             .defunto-details h1 {

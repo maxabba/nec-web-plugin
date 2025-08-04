@@ -23,19 +23,15 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
 }
 
 /* Global animations */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
 
 @keyframes slideInLeft {
-    from { transform: translateX(-100%); }
-    to { transform: translateX(0); }
+    from { transform: translateX(-100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
 }
 
 @keyframes slideInRight {
-    from { transform: translateX(100%); }
-    to { transform: translateX(0); }
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
 }
 
 @keyframes pulse {
@@ -91,13 +87,23 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
 
 /* Enhanced slide transitions */
 .manifesto-slide {
-    transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
     touch-action: pan-x;
+    transform: translateX(0);
 }
 
 .manifesto-slide.active {
-    animation: fadeIn 1s ease-out;
+    opacity: 1;
+    z-index: 1;
+}
+
+.manifesto-slide.slide-in-left {
+    animation: slideInLeft 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.manifesto-slide.slide-in-right {
+    animation: slideInRight 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Hide all slideshow UI controls for touch-first experience */
@@ -299,8 +305,9 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     }
     
     .defunto-foto, .defunto-foto-placeholder {
-        width: 90px;
-        height: 90px;
+        width: auto;
+        height: 280px;
+        max-width: 280px;
     }
     
     .manifesto-content {
@@ -349,8 +356,9 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     }
     
     .defunto-foto, .defunto-foto-placeholder {
-        width: 70px;
-        height: 70px;
+        width: auto;
+        height: 200px;
+        max-width: 200px;
     }
     
     .defunto-details h1 {
@@ -380,8 +388,9 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     }
     
     .defunto-foto, .defunto-foto-placeholder {
-        width: 80px;
-        height: 80px;
+        width: auto;
+        height: 250px;
+        max-width: 250px;
     }
     
     .defunto-details h1 {
@@ -442,8 +451,9 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     }
     
     .defunto-foto, .defunto-foto-placeholder {
-        width: 150px;
-        height: 150px;
+        width: auto;
+        height: 400px;
+        max-width: 400px;
     }
     
     .manifesto-content {
@@ -478,8 +488,9 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     }
     
     .defunto-foto, .defunto-foto-placeholder {
-        width: 180px;
-        height: 180px;
+        width: auto;
+        height: 450px;
+        max-width: 450px;
     }
     
     .manifesto-content {
@@ -559,7 +570,12 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
         transform: none;
     }
     
-    @keyframes fadeIn {
+    @keyframes slideInLeft {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    @keyframes slideInRight {
         from { opacity: 0; }
         to { opacity: 1; }
     }
