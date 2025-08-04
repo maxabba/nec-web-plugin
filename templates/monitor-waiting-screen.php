@@ -24,7 +24,7 @@ $shop_banner = $vendor_obj ? $vendor_obj->get_banner() : '';
     <!-- Auto refresh every 30 seconds to check for new associations -->
     <meta http-equiv="refresh" content="30">
     
-    <?php wp_head(); ?>
+    <!-- No theme interference -->
     
     <style>
         * {
@@ -285,6 +285,6 @@ $shop_banner = $vendor_obj ? $vendor_obj->get_banner() : '';
         </div>
     </div>
     
-    <?php wp_footer(); ?>
+    <!-- No theme interference -->
 </body>
 </html>

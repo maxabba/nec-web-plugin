@@ -114,6 +114,12 @@ class MonitorDisplay {
 
     async loadManifesti() {
         try {
+            console.log('Loading manifesti...', {
+                vendorId: this.config.vendorId,
+                postId: this.config.postId,
+                ajaxUrl: this.config.ajaxUrl
+            });
+            
             this.showLoading(true);
             
             const formData = new FormData();
@@ -127,10 +133,13 @@ class MonitorDisplay {
             });
             
             const data = await response.json();
+            console.log('AJAX Response:', data);
             
             if (data.success) {
                 this.manifesti = data.data.manifesti || [];
                 this.lastUpdateTime = data.data.last_update;
+                
+                console.log('Loaded manifesti:', this.manifesti.length);
                 
                 if (this.manifesti.length > 0) {
                     this.renderSlideshow();

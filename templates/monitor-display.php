@@ -26,11 +26,13 @@ $vendors = get_users(array(
 ));
 
 if (empty($vendors)) {
+    error_log("Monitor Display Debug - No vendor found for slug: $monitor_slug");
     wp_die('Monitor non trovato o non configurato.', 'Monitor Error', array('response' => 404));
 }
 
 $vendor = $vendors[0];
 $vendor_id = $vendor->ID;
+error_log("Monitor Display Debug - Found vendor: ID=$vendor_id, Slug=$monitor_slug");
 
 // Check if vendor is enabled for monitor
 $monitor_class = new Dokan_Mods\MonitorTotemClass();
@@ -40,7 +42,9 @@ if (!$monitor_class->is_vendor_enabled($vendor_id)) {
 
 // Get associated post
 $associated_post_id = $monitor_class->get_associated_post($vendor_id);
+error_log("Monitor Display Debug - Vendor ID: $vendor_id, Associated Post: " . ($associated_post_id ? $associated_post_id : 'none'));
 if (!$associated_post_id) {
+    error_log("No associated post found, showing waiting screen");
     // Show waiting screen
     include_once 'monitor-waiting-screen.php';
     return;
@@ -80,7 +84,9 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <?php wp_head(); ?>
+    <!-- Load essential scripts without theme interference -->
+    <script src="<?php echo includes_url('js/jquery/jquery.min.js'); ?>"></script>
+    <script src="<?php echo plugins_url('assets/js/monitor-display.js', dirname(__FILE__)); ?>"></script>
     
     <style>
         /* Reset and base styles */
@@ -494,7 +500,7 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
         </footer>
     </div>
 
-    <?php wp_footer(); ?>
+    <!-- No theme footer to prevent interference -->
 
     <script>
         // Pass data to JavaScript
