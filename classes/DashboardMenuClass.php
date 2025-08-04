@@ -9,7 +9,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
     {
         const PLUGIN_PATH = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/';
 
-        private array $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'lista-annunci', 'customize', 'trigesimo-add', 'lista-anniversari', 'crea-anniversario', 'lista-manifesti', 'crea-manifesto'];
+        private array $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'lista-annunci', 'customize', 'trigesimo-add', 'lista-anniversari', 'crea-anniversario', 'lista-manifesti', 'crea-manifesto', 'monitor-digitale'];
 
 
         public function __construct()
@@ -112,6 +112,23 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
                     'permission' => 'dokan_view_product_menu'
                 );
             }
+
+            // Add Monitor Digitale menu if vendor is enabled
+            if (class_exists('Dokan_Mods\MonitorTotemClass')) {
+                $monitor_class = new \Dokan_Mods\MonitorTotemClass();
+                $user_id = get_current_user_id();
+                
+                if ($monitor_class->is_vendor_enabled($user_id)) {
+                    $urls['monitor-digitale'] = array(
+                        'title' => __('Monitor Digitale', 'dokan-mod'),
+                        'icon' => '<i class="dashicons dashicons-desktop"></i>',
+                        'url' => site_url('/dashboard/monitor-digitale'),
+                        'pos' => 60,
+                        'permission' => 'dokan_view_product_menu'
+                    );
+                }
+            }
+
             return $urls;
         }
 

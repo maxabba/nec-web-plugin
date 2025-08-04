@@ -9,6 +9,7 @@ if (!defined('ABSPATH')) {
 if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
     class MonitorTotemClass
     {
+
         public function __construct()
         {
             add_action('init', array($this, 'init'));
@@ -28,13 +29,11 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             add_action('wp_ajax_monitor_check_association', array($this, 'ajax_check_association'));
             add_action('wp_ajax_nopriv_monitor_check_association', array($this, 'ajax_check_association'));
             
-            // Query vars for monitor display
+            // Query vars and template loading (following DashboardMenuClass pattern)
             add_filter('query_vars', array($this, 'add_query_vars'));
-            add_filter('template_include', array($this, 'monitor_template_include'));
+            add_filter('template_include', array($this, 'load_template'));
             
-            // Dokan vendor menu integration
-            add_filter('dokan_get_dashboard_nav', array($this, 'add_vendor_menu'));
-            add_action('dokan_load_custom_template', array($this, 'load_vendor_template'));
+            // Menu integration is now handled by DashboardMenuClass
         }
 
         public function init()
@@ -42,9 +41,10 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             // Setup user meta fields for monitor functionality
             $this->setup_user_meta_fields();
             
-            // Register rewrite rules for monitor URLs
+            // Register rewrite rules for monitor display URLs
             $this->register_rewrite_rules();
         }
+
 
         /**
          * Setup user meta fields for monitor functionality
@@ -70,17 +70,18 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             );
             
             // Flush rewrite rules on activation (handle this in plugin activation hook)
-            if (get_option('monitor_rewrite_rules_flushed') !== '1') {
+            if (get_option('monitor_rewrite_rules_flushed') !== '2') {
                 flush_rewrite_rules();
-                update_option('monitor_rewrite_rules_flushed', '1');
+                update_option('monitor_rewrite_rules_flushed', '2');
             }
         }
 
         /**
-         * Add query vars for monitor functionality
+         * Add query vars for monitor display functionality
          */
         public function add_query_vars($vars)
         {
+            // Add monitor display query vars
             $vars[] = 'monitor_display';
             $vars[] = 'monitor_type';
             $vars[] = 'monitor_id';
@@ -89,16 +90,18 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
         }
 
         /**
-         * Include monitor template when accessed
+         * Load monitor display template
          */
-        public function monitor_template_include($template)
+        public function load_template($template)
         {
+            // Check for monitor display template
             if (get_query_var('monitor_display')) {
                 $monitor_template = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/monitor-display.php';
                 if (file_exists($monitor_template)) {
                     return $monitor_template;
                 }
             }
+            
             return $template;
         }
 
@@ -117,39 +120,6 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             );
         }
 
-        /**
-         * Add vendor menu item for monitor
-         */
-        public function add_vendor_menu($nav)
-        {
-            // Only show menu if vendor is enabled for monitor
-            $user_id = get_current_user_id();
-            if (!$this->is_vendor_enabled($user_id)) {
-                return $nav;
-            }
-
-            $nav['monitor-digitale'] = array(
-                'title' => __('Monitor Digitale', 'dokan-mod'),
-                'icon'  => '<i class="dashicons dashicons-desktop"></i>',
-                'url'   => dokan_get_navigation_url('monitor-digitale'),
-                'pos'   => 60
-            );
-
-            return $nav;
-        }
-
-        /**
-         * Load vendor template for monitor page
-         */
-        public function load_vendor_template($query_vars)
-        {
-            if (isset($query_vars['monitor-digitale'])) {
-                $template_path = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/monitor-selector.php';
-                if (file_exists($template_path)) {
-                    include $template_path;
-                }
-            }
-        }
 
         /**
          * Enqueue scripts for frontend monitor display
@@ -180,30 +150,9 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
                     'polling_interval' => 15000 // 15 seconds
                 ));
             }
-        }
 
-        /**
-         * Enqueue admin scripts
-         */
-        public function enqueue_admin_scripts($hook)
-        {
-            if ($hook === 'dokan_page_dokan-monitor-digitale') {
-                wp_enqueue_script(
-                    'monitor-admin',
-                    DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/monitor-admin.js',
-                    array('jquery'),
-                    '1.0.0',
-                    true
-                );
-
-                wp_localize_script('monitor-admin', 'monitor_admin_ajax', array(
-                    'ajax_url' => admin_url('admin-ajax.php'),
-                    'nonce' => wp_create_nonce('monitor_admin_nonce')
-                ));
-            }
-
-            // Vendor dashboard scripts
-            if (strpos($hook, 'dokan') !== false) {
+            // Vendor dashboard scripts - only enqueue on monitor-digitale page
+            if (get_query_var('monitor-digitale')) {
                 wp_enqueue_script(
                     'monitor-vendor',
                     DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/monitor-vendor.js',
@@ -215,6 +164,27 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
                 wp_localize_script('monitor-vendor', 'monitor_vendor_ajax', array(
                     'ajax_url' => admin_url('admin-ajax.php'),
                     'nonce' => wp_create_nonce('monitor_vendor_nonce')
+                ));
+            }
+        }
+
+        /**
+         * Enqueue admin scripts
+         */
+        public function enqueue_admin_scripts($hook)
+        {
+            if ($hook === 'dokan-mods_page_dokan-monitor-digitale') {
+                wp_enqueue_script(
+                    'monitor-admin',
+                    DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/monitor-admin.js',
+                    array('jquery'),
+                    '1.0.0',
+                    true
+                );
+
+                wp_localize_script('monitor-admin', 'monitor_admin_ajax', array(
+                    'ajax_url' => admin_url('admin-ajax.php'),
+                    'nonce' => wp_create_nonce('monitor_admin_nonce')
                 ));
             }
         }
