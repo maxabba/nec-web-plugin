@@ -14,17 +14,21 @@ if (!defined('ABSPATH')) {
 if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
     class RicorrenzeMigration extends MigrationTasks
     {
+        private array $necrologio_cache = [];
 
         private string $image_cron_hook = 'dokan_mods_download_images';
 
 
         private string $image_queue_file = 'image_download_queue_ricorrenze.csv';
-        private int $max_retries = 5;
+        private string $cron_hook = 'dokan_mods_process_image_ricorrenze_queue';
         private int $images_per_cron = 500;
 
         public function __construct(string $upload_dir, string $progress_file, string $log_file, int $batch_size)
         {
             parent::__construct($upload_dir, $progress_file, $log_file, $batch_size);
+            
+            $this->memory_limit_mb = 256;
+            $this->max_execution_time = 30;
 
             add_action('dokan_mods_process_image_ricorrenze_queue', [$this, 'process_image_queue']);
 
@@ -45,19 +49,13 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
         private function schedule_image_processing()
         {
-
-            // Programma l'evento se non è già programmato
-            if (!wp_next_scheduled('dokan_mods_process_image_ricorrenze_queue')) {
-                $this->log('Scheduling image processing event.');
-                wp_schedule_event(time(), 'every_one_minute', 'dokan_mods_process_image_ricorrenze_queue');
-            } else {
-                $this->log('Image processing event already scheduled.');
-            }
+            $this->scheduleImageProcessing($this->cron_hook);
         }
 
 
         public function migrate_ricorrenze_batch($file_name)
         {
+            $start_time = microtime(true);
             $progress_status = $this->get_progress_status($file_name);
 
             // Se il processo è già completato completamente (tutti i batch)
@@ -65,6 +63,15 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $this->schedule_image_processing();
                 $this->log("Il file $file_name è già stato processato completamente.");
                 return true;
+            }
+
+            // Controllo se il processo è attivo o se è bloccato
+            if ($progress_status == 'ongoing') {
+                if (!$this->is_process_active($file_name)) {
+                    $this->log("Processo 'ongoing' rilevato come inattivo per $file_name - continuazione automatica");
+                    $this->set_progress_status($file_name, 'completed');
+                    $progress_status = 'completed';
+                }
             }
 
             // Se lo stato è 'not_started', eseguire la manipolazione e avviare il batch processing
@@ -75,7 +82,6 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                     $this->log("Resetting manipulation due to new migration run.");
                 }
 
-                $start_time = microtime(true);
                 $this->set_progress_status($file_name, 'ongoing');
 
                 // Esegui la manipolazione dei dati
@@ -90,12 +96,13 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             // Se lo stato è 'completed', significa che abbiamo finito un batch ma non l'intero processo,
             // quindi possiamo continuare con il prossimo batch
             if ($progress_status == 'completed' || $progress_status == 'not_started') {
+                
                 // Iniziare il batch processing
                 if (!$file = $this->load_file($file_name)) {
                     return false;
                 }
 
-                if (!$progress = $this->first_call_check($file, $file_name)) {
+                if (!$progress = $this->first_call_check($file)) {
                     return false;
                 }
 
@@ -105,13 +112,13 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 // Ensure CSV control is set correctly before reading header
                 $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
                 $this->log("DEBUG: CSV control set to delimiter: '{$this->csv_delimiter}', enclosure: '{$this->csv_enclosure}'");
-
+                
                 $header = $file->fgetcsv(); // Leggi l'header
                 $this->log("DEBUG: Header read: " . print_r($header, true));
 
                 // Riposizionamento lettura CSV per continuare dal progresso attuale
                 $file->seek($processed); // Salta le righe già processate
-
+                
                 // Ensure CSV control is maintained after seek
                 $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
 
@@ -131,6 +138,8 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $existing_posts = $this->get_existing_posts_by_old_ids($batch_post_old_ids);
                 unset($batch_post_old_ids);
 
+                $image_queue = [];
+
                 foreach ($batch_data as $data) {
                     $this->process_single_record($data, $header, $existing_posts, $image_queue);
                     $processed++;
@@ -141,7 +150,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $file = null;
 
                 if (!empty($image_queue)) {
-                    $this->image_queue($image_queue);
+                    $this->addToImageQueueSimple($image_queue, $this->image_queue_file);
                 }
                 unset($image_queue);
 
@@ -152,7 +161,20 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 // Se abbiamo finito tutte le righe
                 if ($processed >= $total_rows) {
                     $this->set_progress_status($file_name, 'finished');
-                    $this->schedule_image_processing();
+                    
+                    // Controlla se ci sono ancora immagini da processare
+                    $queue_path = $this->upload_dir . $this->image_queue_file;
+                    if (file_exists($queue_path)) {
+                        $queue_progress = $this->getImageQueueProgress($this->image_queue_file);
+                        if ($queue_progress['processed'] < $queue_progress['total']) {
+                            $this->log("Migrazione ricorrenze completata, ma ci sono ancora immagini da processare: {$queue_progress['processed']}/{$queue_progress['total']}");
+                            $this->schedule_image_processing();
+                        } else {
+                            $this->log("Migrazione ricorrenze e download immagini completati");
+                        }
+                    } else {
+                        $this->schedule_image_processing();
+                    }
                 } else {
                     $this->set_progress_status($file_name, 'completed');
                 }
@@ -162,6 +184,11 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
             return false; // Se lo stato non rientra in nessuno dei casi previsti
         }
+
+        // OLD is_process_active method removed - now using inherited method from parent class
+
+
+        // OLD get_memory_usage and get_memory_usage_mb methods removed - now using inherited methods from parent class
 
 
         private function process_single_record($data, $header, $existing_posts, &$image_queue)
@@ -173,13 +200,14 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             if ($field_indexes === null) {
                 $field_indexes = [
                     'ID' => array_search('ID', $header),
-                    'Tipo' => array_search('Tipo', $header),
+                    'TipoRicorrenza' => array_search('TipoRicorrenza', $header),
                     'IdNecrologio' => array_search('IdNecrologio', $header),
                     'Data' => array_search('Data', $header),
                     'Foto' => array_search('Foto', $header),
                     'Testo' => array_search('Testo', $header),
                     'Pubblicato' => array_search('Pubblicato', $header),
-                    'Anni' => array_search('Anni', $header),
+                    'AltreInfo' => array_search('AltreInfo', $header),
+                    'Layout' => array_search('Layout', $header)
                 ];
             }
 
@@ -191,30 +219,71 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 return;
             }
 
-            $tipo = $data[array_search('Tipo', $header)];
-            if ($tipo == 0) {
-                $this->log("Tipo non valido per ID: $id");
+            // Analizza il tipo di ricorrenza dal CSV
+            $tipo_ricorrenza_string = $data[$field_indexes['TipoRicorrenza']];
+            $is_trigesimo = $this->classify_ricorrenza_type($tipo_ricorrenza_string);
+            
+            if (empty($tipo_ricorrenza_string)) {
+                $this->log("TipoRicorrenza vuoto per ID: $id");
                 return; // Salta questo record
             }
+            
+            $this->log("DEBUG ID $id: TipoRicorrenza='$tipo_ricorrenza_string' -> " . ($is_trigesimo ? 'trigesimo' : 'anniversario'));
 
 
-            $necrologio = $this->get_post_by_old_id($data[$field_indexes['IdNecrologio']]);
+            $necrologio_old_id = $data[$field_indexes['IdNecrologio']];
+            
+            // Usa cache per evitare query ripetute
+            if (!isset($this->necrologio_cache[$necrologio_old_id])) {
+                $this->necrologio_cache[$necrologio_old_id] = $this->get_post_by_old_id($necrologio_old_id);
+            }
+            
+            $necrologio = $this->necrologio_cache[$necrologio_old_id];
 
             if (!$necrologio) {
-                $this->log("Annuncio di morte non trovato per ID: ". $data[$field_indexes['IdNecrologio']]);
+                $this->log("Annuncio di morte non trovato per ID: $necrologio_old_id");
                 return;
             }
 
             // Recupero città
             $citta = get_field('citta', $necrologio->ID);
+            
+            // Recupero data di morte o usa data pubblicazione come fallback
+            $data_di_morte = get_field('data_di_morte', $necrologio->ID);
+            $base_date = $data_di_morte ? $data_di_morte : $necrologio->post_date;
+            $this->log("ID $id: Base date per calcolo: $base_date (morte: " . ($data_di_morte ? 'si' : 'no') . ")");
 
             // Determina tipo di post e autore
-            $post_type = $tipo == 1 ? 'trigesimo' : 'anniversario';
+            $post_type = $is_trigesimo ? 'trigesimo' : 'anniversario';
             $author_id = $necrologio->post_author;
+            
+            // Estrai numero anniversario (anche per trigesimi, per consistenza)
+            $anniversary_number = null;
+            if (!$is_trigesimo) {
+                $anniversary_number = $this->extract_anniversary_number($tipo_ricorrenza_string);
+                if ($anniversary_number === null) {
+                    $anniversary_number = 1; // Default se non trovato
+                    $this->log("ID $id: Numero anniversario non trovato, uso default: 1");
+                }
+            }
 
             // Calcolo della data di pubblicazione
-            $pub_date = ($tipo == 1) ? date('Y-m-d H:i:s', strtotime($necrologio->post_date . ' +30 days')) :
-                date('Y-m-d H:i:s', strtotime($necrologio->post_date . ' +' . $data[$field_indexes['Anni']] . ' year'));
+            if ($is_trigesimo) {
+                // Trigesimo: base_date + 30 giorni
+                $pub_date = date('Y-m-d H:i:s', strtotime($base_date . ' +30 days'));
+                $this->log("ID $id: Calcolata data trigesimo: $pub_date");
+            } else {
+                // Calcola data: base_date + N anni
+                $pub_date = date('Y-m-d H:i:s', strtotime($base_date . ' +' . $anniversary_number . ' year'));
+                $this->log("ID $id: Calcolata data anniversario n.$anniversary_number: $pub_date");
+                
+                // Validazione data
+                $year = date('Y', strtotime($pub_date));
+                if ($year > 2100) {
+                    $this->log("ERRORE ID $id: Anno calcolato non valido: $year. Uso data originale dal CSV.");
+                    $pub_date = $data[$field_indexes['Data']]; // Usa la data dal CSV come fallback
+                }
+            }
 
             // Creazione del nuovo post
             $post_id = wp_insert_post(array(
@@ -228,24 +297,27 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             if (!is_wp_error($post_id)) {
                 // Aggiornamento campi
                 update_field('annuncio_di_morte', $necrologio->ID, $post_id);
+                update_field('id_old', $id, $post_id);
 
-                if ($tipo == 1) { // Trigesimo
-                    update_field('trigesimo_data', $data[$field_indexes['Data']], $post_id);
+                if ($is_trigesimo) { // Trigesimo
+                    update_field('_data', $data[$field_indexes['Data']], $post_id);
                     update_field('testo_annuncio_trigesimo', $data[$field_indexes['Testo']], $post_id);
                 } else { // Anniversario
                     update_field('anniversario_data', $data[$field_indexes['Data']], $post_id);
                     update_field('testo_annuncio_anniversario', $data[$field_indexes['Testo']], $post_id);
-                    update_field('anniversario_n_anniversario', $data[$field_indexes['Anni']], $post_id);
+                    // Usa il numero estratto invece del campo 'Anni' inesistente
+                    update_field('anniversario_n_anniversario', $anniversary_number, $post_id);
+                    $this->log("ID $id: Salvato numero anniversario: $anniversary_number");
                 }
 
                 if ($citta) {
                     update_field('citta', $citta, $post_id);
                 }
 
-                // Gestione immagine
+                // Gestione immagine con formato standardizzato
                 if ($data[$field_indexes['Foto']]) {
-                        $image_type = $tipo == 1 ? 'trigesimo' : 'anniversario';
-                        $image_queue[] = [$image_type, $data[$field_indexes['Foto']], $post_id, $author_id];
+                        $image_type = $is_trigesimo ? 'trigesimo' : 'anniversario';
+                        $image_queue[] = [$image_type, 'https://necrologi.sciame.it/necrologi/' . $data[$field_indexes['Foto']], $post_id, $author_id];
                 }
 
                 $this->log("Ricorrenza creata: ID $post_id, Tipo: $post_type");
@@ -256,128 +328,18 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
 
 
-        private function image_queue($image_queue)
-        {
-            // Prepariamo un array di tutti gli URL per fare una singola query SQL
-            $image_urls = array_map(function ($image) {
-                return 'https://necrologi.sciame.it/necrologi/' . $image[1];
-            }, $image_queue);
-
-            // Otteniamo tutti gli ID delle immagini esistenti con una singola query
-            $existing_images = $this->get_images_ids_by_urls($image_urls);
-
-            // Prepariamo il file per la coda una sola volta
-            $queue_file = $this->upload_dir . $this->image_queue_file;
-
-            try {
-                // Leggiamo il contenuto esistente della coda
-                $existing_queue = [];
-                if (file_exists($queue_file)) {
-                    $read_file = new SplFileObject($queue_file, 'r');
-                    $read_file->setFlags(SplFileObject::READ_CSV);
-                    foreach ($read_file as $data) {
-                        if (!$data || count($data) < 4) continue;
-                        $key = implode('|', array_slice($data, 0, 4));
-                        $existing_queue[$key] = true;
-                    }
-                    $read_file = null;
-                }
-
-                // Apriamo il file per la scrittura
-                $write_file = new SplFileObject($queue_file, 'a');
-
-                foreach ($image_queue as $image) {
-                    $image_type = $image[0];
-                    $image_path = $image[1];
-                    $post_id = $image[2];
-                    $author_id = $image[3];
-
-                    if ($image_path == '') {
-                        continue;
-                    }
-                    $image_url = 'https://necrologi.sciame.it/necrologi/' . $image_path;
-
-                    // Controlliamo se l'immagine esiste già nella libreria
-                    $existing_image_id = $existing_images[$image_url] ?? null;
-
-                    if ($existing_image_id) {
-                        $this->log("Image already exists in media library: $image_url");
-                        // Aggiorniamo i campi necessari
-                        if ($image_type === 'trigesimo') {
-                            update_field('immagine_annuncio_trigesimo', $existing_image_id, $post_id);
-                        } elseif ($image_type === 'anniversario') {
-                            update_field('immagine_annuncio_anniversario', $existing_image_id, $post_id);
-                        }
-                        continue;
-                    }
-
-                    // Controlliamo se l'immagine è già in coda
-                    $queue_key = implode('|', [$image_type, $image_url, $post_id, $author_id]);
-                    if (isset($existing_queue[$queue_key])) {
-                        $this->log("Image already in queue: $image_url");
-                        continue;
-                    }
-
-                    // Aggiungiamo alla coda
-                    $write_file->fputcsv([$image_type, $image_url, $post_id, $author_id, 0]);
-                    $this->log("Image added to queue: $image_url");
-                }
-
-                // Chiudiamo il file
-                $write_file = null;
-
-                return true;
-            } catch (RuntimeException $e) {
-                $this->log("Errore nella gestione del file di coda delle immagini: " . $e->getMessage());
-                return false;
-            }
-        }
+        // OLD image_queue method removed - now using centralized addToImageQueue in parent class
 
 
 
 
 
-        private function get_images_ids_by_urls($image_urls)
-        {
-            global $wpdb;
+        // OLD get_images_ids_by_urls method removed - existing image detection now handled by centralized system
 
-            if (empty($image_urls)) {
-                return [];
-            }
 
-            // Prepariamo i filename per la ricerca
-            $filenames = array_map('basename', $image_urls);
 
-            // Costruiamo la query dinamicamente con un'operazione di corrispondenza esatta
-            $placeholders = implode(',', array_fill(0, count($filenames), '%s'));
 
-            // Eseguiamo la query
-            $query = "
-                SELECT ID, guid 
-                FROM $wpdb->posts 
-                WHERE guid IN ($placeholders)";
 
-            // Prepariamo i parametri per la query
-            $prepared_query = $wpdb->prepare($query, ...$filenames);
-            $results = $wpdb->get_results($prepared_query);
-
-            // Creiamo un array associativo url => ID
-            $url_to_id = [];
-            foreach ($results as $result) {
-                $url_to_id[basename($result->guid)] = $result->ID;
-            }
-
-            // Mappiamo gli URL originali agli ID
-            $final_mapping = [];
-            foreach ($image_urls as $url) {
-                $filename = basename($url);
-                if (isset($url_to_id[$filename])) {
-                    $final_mapping[$url] = $url_to_id[$filename];
-                }
-            }
-
-            return $final_mapping;
-        }
 
         protected function get_existing_posts_by_old_ids($old_ids, $post_types = ['trigesimo', 'anniversario'])
         {
@@ -405,205 +367,175 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
         public function process_image_queue()
         {
-
-            $queue_file = $this->upload_dir . $this->image_queue_file;
-
-
-            //if progress status is finished remove the schedule
-            if ($this->get_progress_status($this->image_queue_file) === 'finished') {
-                $this->log("Image processing finished. Removing schedule.");
-                wp_clear_scheduled_hook('dokan_mods_process_image_ricorrenze_queue');
-                return;
-            }
-
-            if (!file_exists($queue_file)) {
-                $this->log("Queue file does not exist");
-                return;
-            }
-
-            if ($this->get_progress_status($this->image_queue_file) === 'ongoing') {
-                $this->log("Image processing already in progress");
-                return;
-            }
-
-            try {
-                $file = new SplFileObject($queue_file, 'r');
-                $file->setFlags(SplFileObject::READ_CSV);
-
-                // Conta il numero totale di righe
-                $file->seek(PHP_INT_MAX);
-                $total_rows = $file->key();
-                $file->rewind();
-
-                if ($total_rows === 0) {
-                    unlink($queue_file);
-                    $this->log("Empty queue file removed");
-                    return;
+            // Check if there are unprocessed images that might have been stuck
+            $queue_path = $this->upload_dir . $this->image_queue_file;
+            if (file_exists($queue_path)) {
+                $queue_progress = $this->getImageQueueProgress($this->image_queue_file);
+                $status = $this->getImageQueueProgressStatus($this->image_queue_file);
+                
+                // If status is completed but there are still images to process, reset to continue
+                if ($status === 'completed' && $queue_progress['processed'] < $queue_progress['total']) {
+                    $this->log("Detected incomplete image processing (status: $status, progress: {$queue_progress['processed']}/{$queue_progress['total']}) - restarting");
+                    $this->setImageQueueProgressStatus($this->image_queue_file, 'completed');
                 }
-
-                $this->set_progress_status($this->image_queue_file, 'ongoing');
-
-                // Inizializza il tracking del progresso
-                $progress = $this->get_progress($this->image_queue_file);
-                $processed = $progress['processed'];
-
-                $batch_count = 0;  // Contatore per il numero di immagini processate in questo batch
-
-                foreach ($file as $index => $data) {
-
-                    // Se la riga è vuota o mancano campi, saltala
-                    if (empty($data) || count($data) < 5) continue;
-
-                    // Salta le righe già processate
-                    if ($index < $processed) continue;
-
-                    // Verifica se abbiamo raggiunto il limite del batch
-                    if ($batch_count >= $this->images_per_cron) {
-                        break; // Esci dal ciclo, il batch è completo
-                    }
-
-                    list($image_type, $image_url, $post_id, $author_id, $retry_count) = $data;
-
-                    // Scarica e carica l'immagine
-                    if($this->download_and_upload_image($image_type,$image_url, $post_id, $author_id)){
-                        $processed = $index + 1;  // Aggiorna il numero di righe processate
-                        $batch_count++;  // Incrementa il contatore del batch
-                        $this->update_progress($this->image_queue_file, $processed, $total_rows);  // Aggiorna lo stato del progresso
-                    }else{
-                        $retry_count++;
-                    }
-                }
-
-                $file = null;
-
-                // Se abbiamo completato tutte le righe, possiamo segnare il progresso come "finished"
-                if ($processed >= $total_rows) {
-                    $this->set_progress_status($this->image_queue_file, 'finished');
-                } else {
-                    $this->set_progress_status($this->image_queue_file, 'completed');
-                }
-
             }
-        catch
-            (Exception $e) {
-                $this->log("Error: " . $e->getMessage());
-                $this->set_progress_status($this->image_queue_file, 'error');
-            }
+            
+            // Use centralized image queue processing
+            $this->processImageQueue($this->image_queue_file, $this->cron_hook, $this->images_per_cron);
         }
 
 
-        private function download_and_upload_image($image_type, $image_url, $post_id, $author_id)
+        /**
+         * Mark image processing as finished if already complete
+         */
+        public function mark_as_finished()
         {
-            try {
-                $ch = curl_init($image_url);
-                curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_FOLLOWLOCATION => true,
-                    CURLOPT_TIMEOUT => 30
-                ]);
-
-                $image_data = curl_exec($ch);
-                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-
-                if ($http_code !== 200 || !$image_data) {
-                    throw new RuntimeException("Download fallito con codice HTTP: $http_code");
-                }
-
-                // Preparazione per l'upload
-                $upload_dir = wp_upload_dir();
-                $filename = basename($image_url);
-                $unique_filename = wp_unique_filename($upload_dir['path'], $filename);
-                $upload_file = $upload_dir['path'] . '/' . $unique_filename;
-
-                if (!file_put_contents($upload_file, $image_data)) {
-                    throw new RuntimeException("Impossibile salvare l'immagine: $upload_file");
-                }
-
-                // Creazione dell'attachment
-                $wp_filetype = wp_check_filetype($filename, null);
-                $attachment = [
-                    'post_mime_type' => $wp_filetype['type'],
-                    'post_title' => sanitize_file_name($filename),
-                    'post_content' => '',
-                    'post_status' => 'inherit',
-                    'post_author' => $author_id ?: 1,
-                ];
-
-                // Inserimento dell'attachment
-                $attach_id = wp_insert_attachment($attachment, $upload_file, $post_id);
-                if (is_wp_error($attach_id)) {
-                    throw new RuntimeException($attach_id->get_error_message());
-                }
-
-                // Generazione dei metadata dell'immagine
-                require_once(ABSPATH . 'wp-admin/includes/image.php');
-                $attach_data = wp_generate_attachment_metadata($attach_id, $upload_file);
-                wp_update_attachment_metadata($attach_id, $attach_data);
-
-                // Aggiornamento dei campi ACF in base al tipo di immagine
-                switch ($image_type) {
-                    case 'trigesimo':
-                        update_field('immagine_annuncio_trigesimo', $attach_id, $post_id);
-                        break;
-                    case 'anniversario':
-                        update_field('immagine_annuncio_anniversario', $attach_id, $post_id);
-                        break;
-                    default:
-                        $this->log("Tipo di immagine non riconosciuto: $image_type");
-                        break;
-                }
-
+            $queue_path = $this->upload_dir . $this->image_queue_file;
+            if (file_exists($queue_path)) {
+                $queue_progress = $this->getImageQueueProgress($this->image_queue_file);
+                $status = $this->getImageQueueProgressStatus($this->image_queue_file);
+                
+                $this->log("Marking as finished - Current status: $status, Progress: {$queue_progress['processed']}/{$queue_progress['total']}");
+                
+                // Set status to finished and clean up
+                $this->setImageQueueProgressStatus($this->image_queue_file, 'finished');
+                wp_clear_scheduled_hook($this->cron_hook);
+                
+                $this->log("Image processing marked as finished and cron job cleared for ricorrenze");
                 return true;
-
-            } catch (Exception $e) {
-                $this->log("Errore nel processare l'immagine $image_url: " . $e->getMessage());
+            } else {
+                $this->log("No image queue file found for ricorrenze");
                 return false;
             }
         }
 
+        /**
+         * Force restart image processing for stuck queues
+         */
+        public function force_restart_image_processing()
+        {
+            $queue_path = $this->upload_dir . $this->image_queue_file;
+            if (file_exists($queue_path)) {
+                $queue_progress = $this->getImageQueueProgress($this->image_queue_file);
+                $status = $this->getImageQueueProgressStatus($this->image_queue_file);
+                
+                $this->log("FORCE RESTART: Current status: $status, Progress: {$queue_progress['processed']}/{$queue_progress['total']}");
+                
+                // FORCE restart: reset progress to 0 and start over
+                $this->log("Forcing complete restart - resetting JSON progress to 0");
+                
+                // Reset progress to 0 - CSV is not modified
+                $this->updateImageQueueProgress($this->image_queue_file, 0, $queue_progress['total']);
+                
+                // Reset status to allow processing to continue
+                $this->setImageQueueProgressStatus($this->image_queue_file, 'completed');
+                
+                // Clear any existing cron job
+                wp_clear_scheduled_hook($this->cron_hook);
+                
+                // Schedule new processing
+                $this->schedule_image_processing();
+                
+                $this->log("Image processing FORCE RESTARTED for ricorrenze - JSON progress reset to 0/{$queue_progress['total']}");
+                return true;
+            } else {
+                $this->log("No image queue file found for ricorrenze");
+                return false;
+            }
+        }
+
+        // OLD download_and_upload_image method removed - now using centralized downloadAndAttachImage in parent class
+
 
         private function manipola_dati($input_file)
         {
+            $this->log("MANIPOLA_DATI: Inizio manipolazione dati per file: $input_file");
             $output_file = $input_file . '_elaborato.csv';
+
+            // Verifica esistenza file di input
+            if (!file_exists($input_file)) {
+                $this->log("MANIPOLA_DATI: ERRORE - File di input non trovato: $input_file");
+                return false;
+            }
+
+            $this->log("MANIPOLA_DATI: File di input trovato, dimensione: " . filesize($input_file) . " bytes");
 
             // Creazione degli oggetti SplFileObject per input e output
             try {
                 $file_input = new SplFileObject($input_file, 'r');
+                $file_input->setCsvControl(';', '"', '\\'); // Set semicolon as delimiter
+                $this->log("MANIPOLA_DATI: File di input aperto con successo, delimiter impostato a ';'");
             } catch (RuntimeException $e) {
-                return false; // Errore nell'apertura del file di input
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile aprire file di input: " . $e->getMessage());
+                return false;
             }
 
             // Se il file di output esiste già, lo eliminiamo
             if (file_exists($output_file)) {
+                $this->log("MANIPOLA_DATI: File di output esistente eliminato: $output_file");
                 unlink($output_file);
             }
 
             try {
                 $file_output = new SplFileObject($output_file, 'w');
+                $file_output->setCsvControl(';', '"', '\\'); // Set semicolon as delimiter for output too
+                $this->log("MANIPOLA_DATI: File di output creato con successo: $output_file");
             } catch (RuntimeException $e) {
-                return false; // Errore nella creazione del file di output
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile creare file di output: " . $e->getMessage());
+                return false;
             }
 
             // Lettura dell'header
             $header = $file_input->fgetcsv();
             if ($header === false) {
-                return false; // Errore nella lettura dell'header
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile leggere header del file CSV");
+                return false;
             }
+
+            // Remove BOM from first header element if present
+            if (!empty($header[0])) {
+                $header[0] = preg_replace('/^\xEF\xBB\xBF/', '', $header[0]); // Remove UTF-8 BOM
+                $header[0] = preg_replace('/^\x{FEFF}/u', '', $header[0]); // Remove UTF-16 BOM
+            }
+
+            $this->log("MANIPOLA_DATI: Header letto con successo: " . print_r($header, true));
+            $this->log("MANIPOLA_DATI: Numero di colonne nell'header: " . count($header));
 
             $header[] = 'Tipo';
             $header[] = 'Anni';
-            $file_output->fputcsv($header);
+            
+            if (!$file_output->fputcsv($header)) {
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile scrivere header nel file di output");
+                return false;
+            }
 
             $tipo_ricorrenza_index = array_search('TipoRicorrenza', $header);
             if ($tipo_ricorrenza_index === false) {
-                return false; // Colonna 'TipoRicorrenza' non trovata
+                $this->log("MANIPOLA_DATI: ERRORE - Colonna 'TipoRicorrenza' non trovata nell'header");
+                return false;
             }
 
+            $this->log("MANIPOLA_DATI: Indice colonna TipoRicorrenza: $tipo_ricorrenza_index");
+
             // Iterazione attraverso ogni riga del file di input
+            $row_count = 0;
+            $processed_rows = 0;
+            
             while (!$file_input->eof()) {
                 $row = $file_input->fgetcsv();
-                if ($row === [null] || $row === false) { // Controlla righe vuote o errori
+                $row_count++;
+                
+                if ($row === [null] || $row === false) {
+                    $this->log("MANIPOLA_DATI: Riga $row_count saltata (vuota o errore)");
+                    continue;
+                }
+
+                if ($row_count <= 5) { // Log delle prime 5 righe per debug
+                    $this->log("MANIPOLA_DATI: Processando riga $row_count: " . print_r($row, true));
+                }
+
+                if (!isset($row[$tipo_ricorrenza_index])) {
+                    $this->log("MANIPOLA_DATI: ERRORE - Indice TipoRicorrenza non trovato nella riga $row_count");
                     continue;
                 }
 
@@ -611,29 +543,56 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $parole = $this->pulisci_e_dividi($tipo_ricorrenza);
                 $numero = $this->trova_numero($parole);
 
+                if ($row_count <= 5) {
+                    $this->log("MANIPOLA_DATI: Riga $row_count - TipoRicorrenza: '$tipo_ricorrenza', Numero: " . ($numero ?: 'null'));
+                }
+
                 $row[] = '0';  // Tipo (default value)
                 $row[] = '';   // Anni
 
                 if ($numero === null && $this->contiene_triggesimo($parole)) {
                     $row[count($row) - 2] = '1';
+                    if ($row_count <= 5) {
+                        $this->log("MANIPOLA_DATI: Riga $row_count classificata come TRIGESIMO");
+                    }
                 } elseif ($numero !== null && $this->contiene_anniversario($parole)) {
                     $row[count($row) - 2] = '2';
                     $row[count($row) - 1] = strval($numero);
+                    if ($row_count <= 5) {
+                        $this->log("MANIPOLA_DATI: Riga $row_count classificata come ANNIVERSARIO n.$numero");
+                    }
                 }
 
-                $file_output->fputcsv($row);
+                if (!$file_output->fputcsv($row)) {
+                    $this->log("MANIPOLA_DATI: ERRORE - Impossibile scrivere riga $row_count nel file di output");
+                    return false;
+                }
+                
+                $processed_rows++;
             }
+
+            $this->log("MANIPOLA_DATI: Processate $processed_rows righe su $row_count totali");
 
             // Chiudiamo i file prima di qualsiasi operazione di unlink o rename
             $file_input = null;
             $file_output = null;
 
+            // Verifica che il file di output sia stato creato
+            if (!file_exists($output_file)) {
+                $this->log("MANIPOLA_DATI: ERRORE - File di output non creato: $output_file");
+                return false;
+            }
+
+            $this->log("MANIPOLA_DATI: File di output creato, dimensione: " . filesize($output_file) . " bytes");
+
             // Rinominare il file di output come il file originale
             if (rename($output_file, $input_file)) {
-                //create a file called manipulation_done.txt
-                return true; // Elaborazione completata con successo
+                $this->log("MANIPOLA_DATI: Rename completato con successo da $output_file a $input_file");
+                return true;
             } else {
-                return false; // Errore durante il rename
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile rinominare $output_file in $input_file");
+                $this->log("MANIPOLA_DATI: Verifica permessi directory: " . dirname($input_file));
+                return false;
             }
         }
 
@@ -664,6 +623,127 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
         {
             $varianti_anniversario = ['anniversario', 'annuale', 'ricorrenza'];
             return count(array_intersect($parole, $varianti_anniversario)) > 0;
+        }
+
+        /**
+         * Classifica il tipo di ricorrenza basandosi sulla stringa TipoRicorrenza del CSV
+         * @param string $tipo_ricorrenza_string Il valore della colonna TipoRicorrenza
+         * @return bool true se è un trigesimo, false se è un anniversario
+         */
+        private function classify_ricorrenza_type($tipo_ricorrenza_string)
+        {
+            if (empty($tipo_ricorrenza_string)) {
+                return false; // Default ad anniversario se vuoto
+            }
+            
+            // Converte in minuscolo per il confronto case-insensitive
+            $tipo_lower = strtolower(trim($tipo_ricorrenza_string));
+            
+            // Pattern per identificare trigesimi (incluse variazioni e errori di battitura)
+            $trigesimo_patterns = [
+                'trigesimo',
+                'triggesimo', 
+                'trigesima',
+                'triggesima',
+                'tigesimo',    // Errore di battitura comune nel CSV
+                'trigsimo',
+                'tricesimo',
+                'trigeseimo',
+                'triigesimo',
+                '30',
+                'trent'
+            ];
+            
+            // Controlla se contiene pattern di trigesimo
+            foreach ($trigesimo_patterns as $pattern) {
+                if (strpos($tipo_lower, $pattern) !== false) {
+                    return true;
+                }
+            }
+            
+            // Se non è trigesimo, è anniversario (default)
+            return false;
+        }
+
+        /**
+         * Estrae il numero dell'anniversario dalla stringa TipoRicorrenza
+         * Gestisce tutti i pattern trovati nell'analisi del CSV
+         * @param string $tipo_ricorrenza_string Il valore della colonna TipoRicorrenza
+         * @return int|null Il numero dell'anniversario o null se non trovato/non applicabile
+         */
+        private function extract_anniversary_number($tipo_ricorrenza_string)
+        {
+            if (empty($tipo_ricorrenza_string)) {
+                return null;
+            }
+
+            // Array per memorizzare tutti i numeri trovati
+            $found_numbers = [];
+
+            // Pattern 1: N° ANNIVERSARIO o N°ANNIVERSARIO (con simbolo grado)
+            if (preg_match_all('/(\d+)°\s*ANNIVERSARIO/i', $tipo_ricorrenza_string, $matches)) {
+                foreach ($matches[1] as $num) {
+                    $found_numbers[] = intval($num);
+                }
+            }
+
+            // Pattern 2: Nº ANNIVERSARIO (con simbolo ordinale)
+            if (preg_match_all('/(\d+)º\s*ANNIVERSARIO/i', $tipo_ricorrenza_string, $matches)) {
+                foreach ($matches[1] as $num) {
+                    $found_numbers[] = intval($num);
+                }
+            }
+
+            // Pattern 3: N ANNIVERSARIO (solo numero e spazio)
+            if (preg_match_all('/(\d+)\s+ANNIVERSARIO/i', $tipo_ricorrenza_string, $matches)) {
+                foreach ($matches[1] as $num) {
+                    $found_numbers[] = intval($num);
+                }
+            }
+
+            // Pattern 4: anniversarioN (numero alla fine)
+            if (preg_match('/anniversario\s*(\d+)/i', $tipo_ricorrenza_string, $matches)) {
+                $found_numbers[] = intval($matches[1]);
+            }
+
+            // Pattern 5: Abbreviazioni (ann, ANN) con numero
+            if (preg_match('/(\d+)\s*ann/i', $tipo_ricorrenza_string, $matches)) {
+                $found_numbers[] = intval($matches[1]);
+            }
+
+            // Pattern 6: Gestione errori di battitura comuni
+            $typo_patterns = [
+                '/(\d+)°\s*ANNIV[A-Z]*SARIO/i',  // ANNIVESARIO, ANNIIVERSARIO, etc.
+                '/(\d+)°\s*AMMIVERSARIO/i',        // AMMIVERSARIO
+                '/(\d+)°\s*ANIVERSARIO/i',         // ANIVERSARIO
+                '/(\d+)°\s*ANNIVERSAIO/i',         // ANNIVERSAIO
+                '/(\d+)°\s*ANNIVERSAQRIO/i'        // ANNIVERSAQRIO
+            ];
+
+            foreach ($typo_patterns as $pattern) {
+                if (preg_match($pattern, $tipo_ricorrenza_string, $matches)) {
+                    $found_numbers[] = intval($matches[1]);
+                }
+            }
+
+            // Se abbiamo trovato dei numeri, restituisci il primo valido
+            if (!empty($found_numbers)) {
+                // Filtra numeri validi (range ragionevole 1-100)
+                foreach ($found_numbers as $num) {
+                    if ($num >= 1 && $num <= 100) {
+                        $this->log("Estratto numero anniversario: $num da '$tipo_ricorrenza_string'");
+                        return $num;
+                    }
+                }
+            }
+
+            // Se non troviamo numeri ma è chiaramente un anniversario, default a 1
+            if (stripos($tipo_ricorrenza_string, 'ann') !== false && !$this->classify_ricorrenza_type($tipo_ricorrenza_string)) {
+                $this->log("Anniversario senza numero specifico, default a 1: '$tipo_ricorrenza_string'");
+                return 1;
+            }
+
+            return null;
         }
 
 

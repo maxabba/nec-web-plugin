@@ -125,7 +125,20 @@ if (!class_exists(__NAMESPACE__ . '\RingraziamentiMigration')) {
 
             if ($processed >= $total_rows) {
                 $this->set_progress_status($file_name, 'finished');
-                $this->schedule_image_processing();
+                
+                // Controlla se ci sono ancora immagini da processare
+                $queue_path = $this->upload_dir . $this->image_queue_file;
+                if (file_exists($queue_path)) {
+                    $queue_progress = $this->getImageQueueProgress($this->image_queue_file);
+                    if ($queue_progress['processed'] < $queue_progress['total']) {
+                        $this->log("Migrazione ringraziamenti completata, ma ci sono ancora immagini da processare: {$queue_progress['processed']}/{$queue_progress['total']}");
+                        $this->schedule_image_processing();
+                    } else {
+                        $this->log("Migrazione ringraziamenti e download immagini completati");
+                    }
+                } else {
+                    $this->schedule_image_processing();
+                }
             } else {
                 $this->set_progress_status($file_name, 'completed');
             }
@@ -206,8 +219,50 @@ if (!class_exists(__NAMESPACE__ . '\RingraziamentiMigration')) {
 
         public function process_image_queue()
         {
+            // Check if there are unprocessed images that might have been stuck
+            $queue_path = $this->upload_dir . $this->image_queue_file;
+            if (file_exists($queue_path)) {
+                $queue_progress = $this->getImageQueueProgress($this->image_queue_file);
+                $status = $this->getImageQueueProgressStatus($this->image_queue_file);
+                
+                // If status is completed but there are still images to process, reset to continue
+                if ($status === 'completed' && $queue_progress['processed'] < $queue_progress['total']) {
+                    $this->log("Detected incomplete image processing (status: $status, progress: {$queue_progress['processed']}/{$queue_progress['total']}) - restarting");
+                    $this->setImageQueueProgressStatus($this->image_queue_file, 'completed');
+                }
+            }
+            
             // Use centralized image queue processing
             $this->processImageQueue($this->image_queue_file, $this->cron_hook, $this->images_per_cron);
+        }
+
+        /**
+         * Force restart image processing for stuck queues
+         */
+        public function force_restart_image_processing()
+        {
+            $queue_path = $this->upload_dir . $this->image_queue_file;
+            if (file_exists($queue_path)) {
+                $queue_progress = $this->getImageQueueProgress($this->image_queue_file);
+                $status = $this->getImageQueueProgressStatus($this->image_queue_file);
+                
+                $this->log("Forcing restart of image processing - Current status: $status, Progress: {$queue_progress['processed']}/{$queue_progress['total']}");
+                
+                // Reset status to allow processing to continue
+                $this->setImageQueueProgressStatus($this->image_queue_file, 'completed');
+                
+                // Clear any existing cron job
+                wp_clear_scheduled_hook($this->cron_hook);
+                
+                // Schedule new processing
+                $this->schedule_image_processing();
+                
+                $this->log("Image processing restarted for ringraziamenti");
+                return true;
+            } else {
+                $this->log("No image queue file found for ringraziamenti");
+                return false;
+            }
         }
 
         // OLD download_and_attach_image method removed - now using centralized downloadAndAttachImage in parent class
