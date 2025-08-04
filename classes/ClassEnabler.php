@@ -213,29 +213,18 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
 
         private function dokan_mods_load_and_instantiate_class($class_name, $file_path)
         {
-            if ($class_name === 'MonitorTotemClass') {
-                error_log("ClassEnabler: Loading MonitorTotemClass");
-            }
-            
             if (!class_exists(__NAMESPACE__ . '\\' . $class_name)) {
                 $full_path = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . $file_path;
                 if (file_exists($full_path)) {
                     require_once $full_path;
                     if (class_exists(__NAMESPACE__ . '\\' . $class_name)) {
                         $class_with_namespace = __NAMESPACE__ . '\\' . $class_name;
-                        $instance = new $class_with_namespace();
-                        if ($class_name === 'MonitorTotemClass') {
-                            error_log("ClassEnabler: MonitorTotemClass instantiated successfully");
-                        }
+                        new $class_with_namespace();
                     } else {
                         error_log("Class $class_name not found in file $file_path.");
                     }
                 } else {
                     error_log("File not found: $full_path for class $class_name");
-                }
-            } else {
-                if ($class_name === 'MonitorTotemClass') {
-                    error_log("ClassEnabler: MonitorTotemClass already exists.");
                 }
             }
         }

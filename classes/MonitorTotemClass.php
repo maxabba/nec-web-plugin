@@ -12,8 +12,6 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
 
         public function __construct()
         {
-            error_log("MonitorTotemClass: Constructor called");
-            
             add_action('init', array($this, 'init'));
             add_action('admin_menu', array($this, 'register_admin_menu'));
             add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
@@ -40,15 +38,11 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
 
         public function init()
         {
-            error_log("MonitorTotemClass: init() called");
-            
             // Setup user meta fields for monitor functionality
             $this->setup_user_meta_fields();
             
             // Register rewrite rules for monitor display URLs
             $this->register_rewrite_rules();
-            
-            error_log("MonitorTotemClass: init() completed");
         }
 
 
@@ -69,23 +63,16 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
          */
         private function register_rewrite_rules()
         {
-            error_log("MonitorTotemClass::register_rewrite_rules - Registering rewrite rules");
-            
             add_rewrite_rule(
                 '^monitor/([^/]+)/([0-9]+)/([^/]+)/?$',
                 'index.php?monitor_display=1&monitor_type=$matches[1]&monitor_id=$matches[2]&monitor_slug=$matches[3]',
                 'top'
             );
             
-            error_log("MonitorTotemClass::register_rewrite_rules - Rule added: ^monitor/([^/]+)/([0-9]+)/([^/]+)/?$");
-            
             // Flush rewrite rules on activation (handle this in plugin activation hook)
             if (get_option('monitor_rewrite_rules_flushed') !== '3') {
-                error_log("MonitorTotemClass::register_rewrite_rules - Flushing rewrite rules");
                 flush_rewrite_rules();
                 update_option('monitor_rewrite_rules_flushed', '3');
-            } else {
-                error_log("MonitorTotemClass::register_rewrite_rules - Rewrite rules already flushed");
             }
         }
 
@@ -107,32 +94,15 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
          */
         public function load_template($template)
         {
-            // Debug: log all query vars
-            $monitor_display = get_query_var('monitor_display');
-            $monitor_type = get_query_var('monitor_type');
-            $monitor_id = get_query_var('monitor_id');
-            $monitor_slug = get_query_var('monitor_slug');
-            
-            error_log("MonitorTotemClass::load_template - Debug query vars:");
-            error_log("- monitor_display: " . var_export($monitor_display, true));
-            error_log("- monitor_type: " . var_export($monitor_type, true));
-            error_log("- monitor_id: " . var_export($monitor_id, true));
-            error_log("- monitor_slug: " . var_export($monitor_slug, true));
-            error_log("- Current URL: " . $_SERVER['REQUEST_URI']);
-            
             // Check for monitor display template
             if (get_query_var('monitor_display')) {
-                error_log("MonitorTotemClass::load_template - Entering monitor display condition");
                 $monitor_template = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/monitor-display.php';
-                error_log("MonitorTotemClass::load_template - Template path: " . $monitor_template);
                 if (file_exists($monitor_template)) {
-                    error_log("MonitorTotemClass::load_template - Template exists, returning monitor template");
-                    return $monitor_template;
-                } else {
-                    error_log("MonitorTotemClass::load_template - Template file does not exist!");
+                    // Instead of just returning the template, force WordPress to load it
+                    // This ensures the template is executed even if other filters interfere
+                    include($monitor_template);
+                    exit; // Stop WordPress from loading any other template
                 }
-            } else {
-                error_log("MonitorTotemClass::load_template - monitor_display query var is false/empty");
             }
             
             return $template;

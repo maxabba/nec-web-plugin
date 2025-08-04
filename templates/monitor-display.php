@@ -8,8 +8,6 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
 
-error_log("Monitor Display Template: Starting execution");
-
 // Get monitor parameters
 $monitor_type = get_query_var('monitor_type', 'display');
 $monitor_id = intval(get_query_var('monitor_id'));
@@ -28,13 +26,11 @@ $vendors = get_users(array(
 ));
 
 if (empty($vendors)) {
-    error_log("Monitor Display Debug - No vendor found for slug: $monitor_slug");
     wp_die('Monitor non trovato o non configurato.', 'Monitor Error', array('response' => 404));
 }
 
 $vendor = $vendors[0];
 $vendor_id = $vendor->ID;
-error_log("Monitor Display Debug - Found vendor: ID=$vendor_id, Slug=$monitor_slug");
 
 // Check if vendor is enabled for monitor
 $monitor_class = new Dokan_Mods\MonitorTotemClass();
@@ -44,38 +40,24 @@ if (!$monitor_class->is_vendor_enabled($vendor_id)) {
 
 // Get associated post
 $associated_post_id = $monitor_class->get_associated_post($vendor_id);
-error_log("Monitor Display Debug - Vendor ID: $vendor_id, Associated Post: " . ($associated_post_id ? $associated_post_id : 'none'));
-
-// Temporary: Show monitor even without associated post for debugging
 if (!$associated_post_id) {
-    error_log("No associated post found, but continuing for debug purposes");
-    // For debugging, use a dummy post ID or show a test message
-    $associated_post_id = null; // We'll handle this case below
+    // Show waiting screen
+    include_once 'monitor-waiting-screen.php';
+    return;
 }
 
-// Verify post exists and is valid (temporarily disabled for debug)
-$post = null;
-if ($associated_post_id) {
-    $post = get_post($associated_post_id);
-    if (!$post || $post->post_type !== 'annuncio-di-morte') {
-        error_log("Invalid post found, ID: $associated_post_id");
-        $post = null;
-    }
+// Verify post exists and is valid
+$post = get_post($associated_post_id);
+if (!$post || $post->post_type !== 'annuncio-di-morte') {
+    include_once 'monitor-waiting-screen.php';
+    return;
 }
 
-// Get post data (handle null case for debugging)
-if ($post) {
-    $defunto_title = get_the_title($associated_post_id);
-    $foto_defunto = get_field('foto_defunto', $associated_post_id);
-    $data_di_morte = get_field('data_di_morte', $associated_post_id);
-    $data_pubblicazione = get_the_date('d/m/Y', $associated_post_id);
-} else {
-    // Debug values when no post is associated
-    $defunto_title = 'Test Monitor Display';
-    $foto_defunto = null;
-    $data_di_morte = null;
-    $data_pubblicazione = date('d/m/Y');
-}
+// Get post data
+$defunto_title = get_the_title($associated_post_id);
+$foto_defunto = get_field('foto_defunto', $associated_post_id);
+$data_di_morte = get_field('data_di_morte', $associated_post_id);
+$data_pubblicazione = get_the_date('d/m/Y', $associated_post_id);
 
 // Get vendor info
 $vendor_obj = dokan()->vendor->get($vendor_id);
@@ -84,8 +66,6 @@ $shop_banner = $vendor_obj->get_banner();
 
 // Display date - prefer death date, fallback to publication date
 $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $data_pubblicazione;
-
-error_log("Monitor Display Template: About to render HTML. Title: $defunto_title, Shop: $shop_name");
 
 ?>
 <!DOCTYPE html>
