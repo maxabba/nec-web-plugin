@@ -55,7 +55,7 @@ if (!$post || $post->post_type !== 'annuncio-di-morte') {
 
 // Get post data
 $defunto_title = get_the_title($associated_post_id);
-$foto_defunto = get_field('foto_defunto', $associated_post_id);
+$foto_defunto = get_field('fotografia', $associated_post_id);
 $data_di_morte = get_field('data_di_morte', $associated_post_id);
 $data_pubblicazione = get_the_date('d/m/Y', $associated_post_id);
 
@@ -84,6 +84,12 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
     <script src="<?php echo includes_url('js/jquery/jquery.min.js'); ?>"></script>
     <script src="<?php echo plugins_url('assets/js/monitor-display.js', dirname(__FILE__)); ?>"></script>
     
+    <!-- Load manifesto CSS for proper rendering -->
+    <link rel="stylesheet" href="<?php echo plugins_url('assets/css/manifesto.css', dirname(__FILE__)); ?>">
+    
+    <!-- Load monitor display specific CSS -->
+    <link rel="stylesheet" href="<?php echo plugins_url('assets/css/monitor-display.css', dirname(__FILE__)); ?>">
+    
     <style>
         /* Reset and base styles */
         * {
@@ -96,7 +102,7 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
             height: 100%;
             overflow: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #000;
+            background: rgb(55, 55, 55);
             color: #fff;
         }
         
@@ -105,6 +111,7 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
             display: flex;
             flex-direction: column;
             position: relative;
+            background: rgb(55, 55, 55);
         }
         
         /* Header Section - 20% */
@@ -113,7 +120,7 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: rgb(55, 55, 55);
             padding: 20px;
             position: relative;
         }
@@ -126,25 +133,23 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
         }
         
         .defunto-foto {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            max-width: 150px;
+            max-height: 150px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
         }
         
         .defunto-foto-placeholder {
             width: 120px;
             height: 120px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 48px;
             color: rgba(255, 255, 255, 0.5);
-            border: 4px solid rgba(255, 255, 255, 0.3);
         }
         
         .defunto-details h1 {
@@ -160,12 +165,12 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
             font-weight: 300;
         }
         
-        /* Body Section - 70% */
+        /* Body Section - 75% */
         .monitor-body {
-            height: 70vh;
+            height: 75vh;
             position: relative;
             overflow: hidden;
-            background: #111;
+            background: rgb(55, 55, 55);
         }
         
         .manifesti-slideshow {
@@ -184,7 +189,7 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 40px;
+            padding: 20px;
         }
         
         .manifesto-slide.active {
@@ -193,106 +198,63 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
         }
         
         .manifesto-content {
-            background: #fff;
-            color: #333;
             width: 100%;
             height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
-            text-align: center;
-            font-size: 1.8rem;
-            line-height: 1.6;
-            padding: 60px;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             position: relative;
-            overflow-y: auto;
         }
         
-        .manifesto-content::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        .manifesto-content::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-        
-        .manifesto-content::-webkit-scrollbar-thumb {
-            background: #ccc;
-            border-radius: 4px;
-        }
-        
-        /* Slideshow Controls */
-        .slideshow-controls {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 10;
-            background: rgba(0, 0, 0, 0.5);
-            color: white;
-            border: none;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            cursor: pointer;
+        /* Manifesto rendering from manifesto.css */
+        .manifesto-wrapper {
+            width: 100%;
+            height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
-            transition: all 0.3s ease;
-            opacity: 0.7;
+            position: relative;
         }
         
-        .slideshow-controls:hover {
-            opacity: 1;
-            background: rgba(0, 0, 0, 0.8);
-            transform: translateY(-50%) scale(1.1);
+        .text-editor-background {
+            position: relative;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            overflow: hidden;
+            margin: auto;
         }
         
-        .prev-btn {
-            left: 20px;
-        }
-        
-        .next-btn {
-            right: 20px;
-        }
-        
-        /* Slide Indicators */
-        .slide-indicators {
+        .custom-text-editor {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            color: #000;
+            resize: none;
+            box-sizing: border-box;
+            outline: none;
+            overflow: hidden;
+            line-height: 1.6;
             position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 12px;
-            z-index: 10;
+            top: 0;
+            left: 0;
+            /* Font-family and font-weight are now defined in monitor-display.css */
+            /* Font-size will be calculated dynamically as proportion of manifesto size */
         }
         
-        .slide-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.4);
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
+        /* Scrollbar styles removed - using overflow: hidden */
         
-        .slide-indicator.active {
-            background: rgba(255, 255, 255, 0.9);
-            transform: scale(1.2);
-        }
+        /* Touch-friendly interaction styles are now in monitor-display.css */
         
-        /* Footer Section - 10% */
+        /* Footer Section - 5% */
         .monitor-footer {
-            height: 10vh;
-            background: #222;
+            height: 5vh;
+            background: rgb(55, 55, 55);
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 0 40px;
-            border-top: 2px solid #333;
         }
         
         .shop-info {
@@ -302,17 +264,17 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
         }
         
         .shop-logo {
-            height: 50px;
+            height: 30px;
             width: auto;
         }
         
         .shop-name {
-            font-size: 1.4rem;
+            font-size: 1rem;
             font-weight: 300;
         }
         
         .monitor-status {
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             opacity: 0.7;
         }
         
@@ -431,10 +393,18 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
         <!-- Header Section -->
         <header class="monitor-header">
             <div class="defunto-info">
-                <?php if ($foto_defunto && isset($foto_defunto['sizes']['medium'])): ?>
-                    <img src="<?php echo esc_url($foto_defunto['sizes']['medium']); ?>" 
-                         alt="<?php echo esc_attr($defunto_title); ?>" 
-                         class="defunto-foto">
+                <?php if ($foto_defunto): ?>
+                    <?php 
+                    // Handle both array and string format for ACF image field
+                    $foto_url = is_array($foto_defunto) && isset($foto_defunto['url']) 
+                        ? $foto_defunto['url'] 
+                        : (is_string($foto_defunto) ? $foto_defunto : '');
+                    ?>
+                    <?php if ($foto_url): ?>
+                        <img src="<?php echo esc_url($foto_url); ?>" 
+                             alt="<?php echo esc_attr($defunto_title); ?>" 
+                             class="defunto-foto">
+                    <?php endif; ?>
                 <?php else: ?>
                     <div class="defunto-foto-placeholder">
                         <i class="dashicons dashicons-admin-users"></i>
@@ -507,7 +477,7 @@ $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $dat
             ajaxUrl: '<?php echo admin_url('admin-ajax.php'); ?>',
             nonce: '<?php echo wp_create_nonce('monitor_display_nonce'); ?>',
             pollingInterval: 15000, // 15 seconds
-            slideInterval: 5000, // 5 seconds
+            slideInterval: 10000, // 10 seconds
             defuntoTitle: '<?php echo esc_js($defunto_title); ?>'
         };
     </script>

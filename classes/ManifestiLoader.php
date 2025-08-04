@@ -95,10 +95,19 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
 
             // Clean up the manifesto text for display
             $clean_text = $this->clean_manifesto_text($testo_manifesto);
+            
+            // Build HTML structure compatible with manifesto.js rendering
+            $html = '<div class="manifesto-wrapper" data-post-id="' . $current_post_id . '">';
+            $html .= '<div class="text-editor-background">';
+            $html .= '<div class="custom-text-editor">';
+            $html .= $clean_text;
+            $html .= '</div>';
+            $html .= '</div>';
+            $html .= '</div>';
 
             return [
                 'id' => $current_post_id,
-                'html' => $clean_text,
+                'html' => $html,
                 'tipo' => $tipo_manifesto,
                 'vendor_data' => $vendor_data,
                 'date' => get_the_date('c') // ISO format for JS
