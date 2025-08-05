@@ -48,7 +48,7 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
                 'AutoPrelievoClass' => 'classes/AutoPrelievoClass.php',
                 'LoopFrontendVendor' => 'classes/LoopFrontendVendor.php',
                 'DMClass' => 'classes/DMClass.php',
-                'MonitorTotemClass' => 'classes/MonitorTotemClass.php',
+                //'MonitorTotemClass' => 'classes/MonitorTotemClass.php',
                 //'TrigesimoBulkUpdate' => 'classes/TrigesimoBulkUpdate.php',
                 //'AnniversarioBulkUpdate' => 'classes/AnniversarioBulkUpdate.php',
             ];
@@ -218,6 +218,9 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
                 if (file_exists($full_path)) {
                     require_once $full_path;
                     if (class_exists(__NAMESPACE__ . '\\' . $class_name)) {
+                        if ($class_name == "LoopFrontendVendor") {
+                            $tempVar = "tempVar";
+                        }
                         $class_with_namespace = __NAMESPACE__ . '\\' . $class_name;
                         new $class_with_namespace();
                     } else {

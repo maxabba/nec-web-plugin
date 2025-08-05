@@ -28,12 +28,6 @@ $args = array(
     'post_status' => 'publish,pending,draft,future,private',
     //'author' => $user_id,
     'meta_query' => array(
-        'relation' => 'OR',
-        array(
-            'key' => 'vendor_id',
-            'value' => $user_id,
-            'compare' => '=',
-        ),
         array(
             'key' => 'citta',
             'value' => $user_city,
@@ -48,13 +42,9 @@ $args = array(
 $filter_my_posts = isset($_GET['my_posts']) ? $_GET['my_posts'] : false;
 
 if ($filter_my_posts) {
-    $args['meta_query'] = array(
-        array(
-            'key' => 'vendor_id',
-            'value' => $user_id,
-            'compare' => '=',
-        )
-    );
+    $args['author'] = $user_id;
+    // Rimuoviamo la meta_query per mostrare solo i post dell'utente corrente
+    unset($args['meta_query']);
 }
 
 // Execute the query
