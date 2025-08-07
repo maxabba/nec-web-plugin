@@ -48,7 +48,6 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
                 'AutoPrelievoClass' => 'classes/AutoPrelievoClass.php',
                 'LoopFrontendVendor' => 'classes/LoopFrontendVendor.php',
                 'DMClass' => 'classes/DMClass.php',
-                'AcfLocationUpdater' => 'classes/admin/AcfLocationUpdater.php',
                 //'MonitorTotemClass' => 'classes/MonitorTotemClass.php',
                 //'TrigesimoBulkUpdate' => 'classes/TrigesimoBulkUpdate.php',
                 //'AnniversarioBulkUpdate' => 'classes/AnniversarioBulkUpdate.php',
