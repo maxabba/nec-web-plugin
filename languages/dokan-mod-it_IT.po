@@ -485,8 +485,8 @@ msgid "Add Products"
 msgstr "Aggiungi prodotto"
 
 #: templates/trigesimo-add.php:61 templates/trigesimo-add.php:87
-msgid " Triggesiomo per: "
-msgstr " Triggesiomo per: "
+msgid " Trigesimo per: "
+msgstr " Trigesimo per: "
 
 #. Plugin Name of the plugin/theme
 msgid "Selezione Prodotti Predefiniti per Dokan"

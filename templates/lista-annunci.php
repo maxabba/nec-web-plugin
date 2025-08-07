@@ -158,17 +158,29 @@ $active_menu = 'annunci/lista-annunci';
                                             <td><?php the_title(); ?></td>
                                             <td><?php the_date(); ?></td>
                                             <td><?php echo get_post_meta(get_the_ID(), 'citta', true); ?></td>
-                                            <td >
-                                                <a <?php echo $modify_post_url_disabled ? '' : 'href='?>"<?php echo $modify_post_url_disabled ? '' : home_url('/dashboard/crea-annuncio?post_id=' . get_the_ID()); ?>"><?php _e('Modifica', 'dokan-mod'); ?></a>
+                                            <td>
+                                                <?php if ($modify_post_url_disabled): ?>
+                                                    <span style="color: #999; cursor: not-allowed;"><?php _e('Modifica', 'dokan-mod'); ?></span>
+                                                <?php else: ?>
+                                                    <a href="<?php echo home_url('/dashboard/crea-annuncio?post_id=' . get_the_ID()); ?>"><?php _e('Modifica', 'dokan-mod'); ?></a>
+                                                <?php endif; ?>
                                             </td>
                                             <td>
                                                 <a href="<?php echo home_url('/dashboard/lista-manifesti?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
                                             </td>
                                             <td>
-                                                <a <?php echo $modify_post_url_disabled ? '' : 'href=' ?>"<?php echo $modify_post_url_disabled ? '' : home_url('/dashboard/trigesimo-add?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Aggiungi/Modifica', 'dokan-mod'); ?></a>
+                                                <?php if ($modify_post_url_disabled): ?>
+                                                    <span style="color: #999; cursor: not-allowed;"><?php _e('Aggiungi/Modifica', 'dokan-mod'); ?></span>
+                                                <?php else: ?>
+                                                    <a href="<?php echo home_url('/dashboard/trigesimo-add?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Aggiungi/Modifica', 'dokan-mod'); ?></a>
+                                                <?php endif; ?>
                                             </td>
                                             <td>
-                                                <a <?php echo $modify_post_url_disabled ? '' : 'href=' ?>"<?php echo $modify_post_url_disabled ? '' : home_url('/dashboard/lista-anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
+                                                <?php if ($modify_post_url_disabled): ?>
+                                                    <span style="color: #999; cursor: not-allowed;"><?php _e('Visualizza lista', 'dokan-mod'); ?></span>
+                                                <?php else: ?>
+                                                    <a href="<?php echo home_url('/dashboard/lista-anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
+                                                <?php endif; ?>
                                             </td>
                                             <td>
                                                 <?php echo get_the_author() ?>

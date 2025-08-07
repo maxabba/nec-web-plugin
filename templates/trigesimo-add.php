@@ -58,7 +58,7 @@ $active_menu = 'add-annuncio';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __($add_edit_text. ' Triggesiomo per: ' . $post_title, 'dokan-mod') ?></h1></header>
+            <h1 class="entry-title"><?php __($add_edit_text. ' Trigesiomo per: ' . $post_title, 'dokan-mod') ?></h1></header>
 
         <div class="page-content">
 
@@ -84,7 +84,7 @@ $active_menu = 'add-annuncio';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e($add_edit_text . ' Triggesiomo per: ' . $post_title, 'dokan-mod'); ?> <span
+                            <?php _e($add_edit_text . ' Trigesimo per: ' . $post_title, 'dokan-mod'); ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
