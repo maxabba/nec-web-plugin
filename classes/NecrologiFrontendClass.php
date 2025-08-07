@@ -15,7 +15,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
             add_action('wp_enqueue_scripts', array($this, 'enqueue_select2'));
             add_action('init', array($this, 'shortcode_register'));
             //add_action('pre_get_posts', array($this, 'custom_filter_query'));
-                // Aggiungi il nuovo hook ottimizzato
+            // Aggiungi il nuovo hook ottimizzato
             add_action('elementor/query/tutti_necrologi_pagina_692', array($this, 'apply_custom_filter_query'), 10, 2);
 
             add_filter('query_vars', array($this, 'add_custom_query_vars_filter'));
@@ -40,10 +40,6 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
         {
             add_rewrite_rule('^tutti-i-necrologi/([^/]*)/([^/]*)/?', 'index.php?pagename=tutti-i-necrologi&date_filter=$matches[1]&province=$matches[2]', 'top');
         }
-
-
-
-
 
 
         public function add_custom_query_vars_filter($vars)
@@ -225,6 +221,38 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
 
         public function apply_custom_filter_query($query)
         {
+            // Implementa ordinamento condizionale basato sul tipo di post
+            $post_type = $query->get('post_type');
+
+            // Se il post type è 'annuncio-di-morte', ordina per data di morte
+            if ($post_type === 'annuncio-di-morte' || (is_array($post_type) && in_array('annuncio-di-morte', $post_type))) {
+                // Solo se non è già specificato un ordinamento personalizzato
+                $query->set('meta_key', 'data_di_morte');
+                $query->set('orderby', 'meta_value');
+                $query->set('order', 'DESC');
+
+                // Aggiungi meta_query per assicurare che i post abbiano il campo data_di_morte
+                $existing_meta_query = $query->get('meta_query') ?: array();
+                if (!empty($existing_meta_query)) {
+                    $existing_meta_query['relation'] = 'AND';
+                }
+
+                $existing_meta_query[] = array(
+                    'key' => 'data_di_morte',
+                    'compare' => 'EXISTS'
+                );
+
+                $query->set('meta_query', $existing_meta_query);
+
+            } else {
+                // Per altri tipi di post, usa l'ordinamento per data di pubblicazione
+                if (!$query->get('orderby')) {
+                    $query->set('orderby', 'date');
+                    $query->set('order', 'DESC');
+                }
+            }
+
+            // Applica i filtri della classe FiltersClass
             (new FiltersClass())->custom_filter_query($query);
         }
 

@@ -12,3 +12,7 @@ tempfile.php
 /PREVENTIVO_Monitor_Totem.md
 /SCOPE_DETTAGLIATO_Monitor_Totem.md
 /TODO_IMPLEMENTAZIONE_Monitor_Totem.md
+/scripts/README_acf_update.md
+/scripts/simple_acf_update.sql
+/scripts/sql_acf_update.php
+/scripts/update_acf_locations.sql

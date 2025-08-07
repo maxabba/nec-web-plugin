@@ -3,6 +3,13 @@
   <component name="PublishConfigData" serverName="Necrologi" confirmBeforeDeletion="false" autoUploadExternalChanges="true">
     <option name="confirmBeforeDeletion" value="false" />
     <serverData>
+      <paths name="Kinsta">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/wp-content/plugins/dokan-mod" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="Necrologi">
         <serverdata>
           <mappings>

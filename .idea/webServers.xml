@@ -3,7 +3,7 @@
   <component name="WebServers">
     <option name="servers">
       <webServer id="73c2ebb3-d339-4ae2-b26b-46a478556e6f" name="Necrologi">
-        <fileTransfer rootFolder="/public" accessType="SFTP" host="34.154.5.157" port="63736" sshConfigId="fea2b447-7a0d-496c-83ff-e3500c5f88ee" sshConfig="abbattista@34.154.5.157:63736 password">
+        <fileTransfer rootFolder="/home/necrologi/public_html" accessType="SFTP" host="necrologi.abbattista.cc" port="22" sshConfigId="c8131dc6-071c-44b4-a95b-5e2f71e6a651" sshConfig="necrologi@necrologi.abbattista.cc:22 password">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
@@ -17,7 +17,7 @@
         </fileTransfer>
       </webServer>
       <webServer id="07decaa2-ea61-4ad2-998d-60f1e6299f94" name="Kinsta" url="http://34.154.5.157">
-        <fileTransfer accessType="SFTP" host="34.154.5.157" port="63736" sshConfigId="fea2b447-7a0d-496c-83ff-e3500c5f88ee" sshConfig="abbattista@34.154.5.157:63736 password">
+        <fileTransfer rootFolder="/public" accessType="SFTP" host="34.154.5.157" port="63736" sshConfigId="fea2b447-7a0d-496c-83ff-e3500c5f88ee" sshConfig="abbattista@34.154.5.157:63736 password">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>

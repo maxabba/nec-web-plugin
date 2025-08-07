@@ -218,10 +218,25 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
         }
 
 
-        public function post_type_name_shortcode()
+        public function post_type_name_shortcode($atts = array())
         {
-            //get the post type
-            $post_type = get_post_type();
+            global $post;
+            
+            // Try to get post type from global post object first
+            if (isset($post) && !empty($post->post_type)) {
+                $post_type = $post->post_type;
+            } else {
+                // Fallback to get_post_type()
+                $post_type = get_post_type();
+            }
+            
+            // Debug log to help troubleshoot
+            error_log('post_type_name_shortcode - Post Type: ' . var_export($post_type, true));
+            
+            // If still no post type, try to get from query
+            if (!$post_type) {
+                $post_type = get_query_var('post_type');
+            }
 
             if ($post_type == 'trigesimo') {
                 return esc_html('Trigesimo');
@@ -231,7 +246,8 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
                 return esc_html('Ricorrenza');
             }
 
-            return esc_html($post_type);
+            // Return the post type or a fallback message if empty
+            return $post_type ? esc_html($post_type) : esc_html('Tipo non disponibile');
         }
 
 
