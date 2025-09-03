@@ -6,14 +6,17 @@
 const MonitorPreview = {
     currentMonitor: null,
     previewModal: null,
+    $: null, // jQuery reference
     
-    init: function() {
+    init: function($) {
+        this.$ = $;
         this.createPreviewModal();
         this.bindEvents();
     },
 
     bindEvents: function() {
         const self = this;
+        const $ = this.$;
 
         // Preview button click
         $(document).on('click', '.btn-preview-layout', function(e) {
@@ -70,6 +73,7 @@ const MonitorPreview = {
     },
 
     createPreviewModal: function() {
+        const $ = this.$;
         const modalHtml = `
             <div id="monitor-preview-modal" class="preview-modal" style="display: none;">
                 <div class="preview-modal-backdrop"></div>
@@ -151,6 +155,7 @@ const MonitorPreview = {
     },
 
     showPreview: function(monitorId, monitorName, layoutType) {
+        const $ = this.$;
         if (!monitorId) {
             this.showError('ID monitor non valido');
             return;
@@ -176,6 +181,7 @@ const MonitorPreview = {
     },
 
     loadPreview: function(monitor) {
+        const $ = this.$;
         this.showLoading();
 
         const previewSize = $('.preview-size-btn.active').data('size') || 'tablet';
@@ -204,6 +210,7 @@ const MonitorPreview = {
     },
 
     renderPreview: function(data) {
+        const $ = this.$;
         this.hideLoading();
         
         // Render HTML content
@@ -222,6 +229,7 @@ const MonitorPreview = {
     },
 
     applyPreviewStyles: function(css) {
+        const $ = this.$;
         // Remove existing preview styles
         $('#preview-dynamic-styles').remove();
         
@@ -233,6 +241,7 @@ const MonitorPreview = {
     },
 
     updateInfoPanel: function(data) {
+        const $ = this.$;
         const layoutInfo = this.getLayoutInfo(data.layout_type, data);
         $('#preview-layout-info').html(layoutInfo);
     },
@@ -294,6 +303,7 @@ const MonitorPreview = {
     },
 
     updatePreviewSize: function(size) {
+        const $ = this.$;
         const viewport = $('#preview-viewport');
         
         // Remove existing size classes
@@ -308,16 +318,19 @@ const MonitorPreview = {
     },
 
     showLoading: function() {
+        const $ = this.$;
         $('#preview-loading').show();
         $('#preview-error').hide();
         $('#preview-container').hide();
     },
 
     hideLoading: function() {
+        const $ = this.$;
         $('#preview-loading').hide();
     },
 
     showError: function(message) {
+        const $ = this.$;
         this.hideLoading();
         $('#preview-error-message').text(message);
         $('#preview-error').show();
@@ -325,6 +338,7 @@ const MonitorPreview = {
     },
 
     closePreview: function() {
+        const $ = this.$;
         this.previewModal.fadeOut(300);
         $('body').removeClass('preview-modal-open');
         this.currentMonitor = null;
@@ -351,7 +365,7 @@ const MonitorPreview = {
 // Initialize when document is ready
 jQuery(document).ready(function($) {
     if (typeof monitor_vendor_ajax !== 'undefined') {
-        MonitorPreview.init();
+        MonitorPreview.init($);
     }
 });
 

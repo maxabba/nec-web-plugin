@@ -7,14 +7,17 @@ const MonitorVendor = {
     currentPage: 1,
     isLoading: false,
     searchTimeout: null,
+    $: null, // jQuery reference
 
-    init: function() {
+    init: function($) {
+        this.$ = $;
         this.bindEvents();
         this.loadDefunti();
     },
 
     bindEvents: function() {
         const self = this;
+        const $ = this.$;
 
         // Search functionality
         $('#defunto-search').on('input', function() {
@@ -84,6 +87,7 @@ const MonitorVendor = {
     loadDefunti: function() {
         if (this.isLoading) return;
 
+        const $ = this.$;
         this.isLoading = true;
         const search = $('#defunto-search').val();
 
@@ -130,6 +134,7 @@ const MonitorVendor = {
     },
 
     renderDefunti: function(defunti) {
+        const $ = this.$;
         const tbody = $('#defunti-tbody');
         tbody.empty();
 
@@ -177,6 +182,7 @@ const MonitorVendor = {
     renderPagination: function(currentPage, totalPages) {
         if (totalPages <= 1) return;
 
+        const $ = this.$;
         const pagination = $('#defunti-pagination ul');
         pagination.empty();
 
@@ -229,6 +235,7 @@ const MonitorVendor = {
     },
 
     showAssociateConfirm: function(postId, postTitle) {
+        const $ = this.$;
         $('#confirmModalTitle').text('Conferma Associazione');
         $('#confirmModalBody').html(`
             <p>Sei sicuro di voler associare <strong>"${postTitle}"</strong> al monitor digitale?</p>
@@ -249,6 +256,7 @@ const MonitorVendor = {
     },
 
     showRemoveConfirm: function() {
+        const $ = this.$;
         $('#confirmModalTitle').text('Conferma Rimozione');
         $('#confirmModalBody').html(`
             <p>Sei sicuro di voler rimuovere l'associazione corrente?</p>
@@ -269,6 +277,7 @@ const MonitorVendor = {
     },
 
     associateDefunto: function(postId) {
+        const $ = this.$;
         $('#confirmModal').modal('hide');
         this.showMessage('Associazione in corso...', 'info');
 
@@ -301,6 +310,7 @@ const MonitorVendor = {
     },
 
     removeAssociation: function() {
+        const $ = this.$;
         $('#confirmModal').modal('hide');
         this.showMessage('Rimozione in corso...', 'info');
 
@@ -332,6 +342,7 @@ const MonitorVendor = {
     },
 
     showMessage: function(message, type = 'info') {
+        const $ = this.$;
         // Remove existing messages
         $('#monitor-messages .alert').remove();
         
@@ -353,7 +364,7 @@ const MonitorVendor = {
         // Auto dismiss after 5 seconds for success/info messages
         if (type === 'success' || type === 'info') {
             setTimeout(() => {
-                $('#monitor-messages .alert').fadeOut(() => {
+                $('#monitor-messages .alert').fadeOut(function() {
                     $(this).remove();
                 });
             }, 5000);
@@ -364,6 +375,6 @@ const MonitorVendor = {
 // Initialize when document is ready
 jQuery(document).ready(function($) {
     if (typeof monitor_vendor_ajax !== 'undefined') {
-        MonitorVendor.init();
+        MonitorVendor.init($);
     }
 });

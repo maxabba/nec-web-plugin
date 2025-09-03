@@ -11,6 +11,36 @@ $template_class = new Templates_MiscClass();
 $template_class->check_dokan_can_and_message_login();
 $template_class->enqueue_dashboard_common_styles();
 
+// Manually enqueue monitor scripts and localize nonce
+wp_enqueue_script(
+    'monitor-vendor',
+    DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/monitor-vendor.js',
+    array('jquery'),
+    '1.1.0',
+    true
+);
+
+wp_enqueue_script(
+    'monitor-preview',
+    DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/monitor-preview.js',
+    array('jquery'),
+    '1.0.0',
+    true
+);
+
+wp_enqueue_style(
+    'monitor-preview',
+    DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/monitor-preview.css',
+    array(),
+    '1.0.0'
+);
+
+// Localize the correct nonce for JavaScript
+wp_localize_script('monitor-vendor', 'monitor_vendor_ajax', array(
+    'ajax_url' => admin_url('admin-ajax.php'),
+    'nonce' => wp_create_nonce('monitor_vendor_nonce')
+));
+
 $user_id = get_current_user_id();
 $monitor_class = new Dokan_Mods\MonitorTotemClass();
 $db_manager = Dokan_Mods\MonitorDatabaseManager::get_instance();
