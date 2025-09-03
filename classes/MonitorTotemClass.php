@@ -43,6 +43,12 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             // Preview system AJAX actions
             add_action('wp_ajax_monitor_preview_layout', array($this, 'ajax_preview_layout'));
             
+            // Admin-only AJAX actions
+            add_action('wp_ajax_monitor_get_vendors', array($this, 'ajax_get_vendors'));
+            add_action('wp_ajax_monitor_search_vendors', array($this, 'ajax_search_vendors'));
+            add_action('wp_ajax_monitor_get_all_monitors', array($this, 'ajax_get_all_monitors'));
+            add_action('wp_ajax_monitor_get_monitor_details', array($this, 'ajax_get_monitor_details'));
+            
             // Query vars and template loading
             add_filter('query_vars', array($this, 'add_query_vars'));
             add_filter('template_include', array($this, 'load_template'));
@@ -105,7 +111,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
         public function load_template($template)
         {
             if (get_query_var('monitor_display')) {
-                $monitor_template = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/monitor-display.php';
+                $monitor_template = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/monitor-display-new.php';
                 if (file_exists($monitor_template)) {
                     include($monitor_template);
                     exit;
@@ -1497,6 +1503,252 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
                     font-size: 12px; color: #666; margin-top: 5px; 
                 }
             ";
+        }
+
+        // ===== ADMIN-ONLY AJAX FUNCTIONS =====
+
+        /**
+         * AJAX: Get all vendors for admin interface
+         */
+        public function ajax_get_vendors()
+        {
+            if (!wp_verify_nonce($_POST['nonce'], 'monitor_admin_nonce')) {
+                wp_send_json_error('Invalid nonce');
+            }
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Insufficient permissions');
+            }
+
+            $vendors = get_users([
+                'role' => 'seller',
+                'orderby' => 'display_name',
+                'order' => 'ASC'
+            ]);
+
+            $vendor_data = [];
+            foreach ($vendors as $vendor) {
+                $vendor_obj = dokan()->vendor->get($vendor->ID);
+                $shop_name = $vendor_obj->get_shop_name();
+                
+                $vendor_data[] = [
+                    'ID' => $vendor->ID,
+                    'display_name' => $vendor->display_name,
+                    'shop_name' => $shop_name
+                ];
+            }
+
+            wp_send_json_success([
+                'vendors' => $vendor_data,
+                'count' => count($vendor_data)
+            ]);
+        }
+
+        /**
+         * AJAX: Search vendors for admin interface (enhanced search)
+         */
+        public function ajax_search_vendors()
+        {
+            if (!wp_verify_nonce($_POST['nonce'], 'monitor_admin_nonce')) {
+                wp_send_json_error('Invalid nonce');
+            }
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Insufficient permissions');
+            }
+
+            $search_term = sanitize_text_field($_POST['search'] ?? '');
+            
+            // Require at least 2 characters
+            if (strlen($search_term) < 2) {
+                wp_send_json_success([
+                    'vendors' => [],
+                    'message' => 'Inserisci almeno 2 caratteri per la ricerca'
+                ]);
+                return;
+            }
+
+            // Search vendors by display_name, user_login, and user_email
+            $vendors = get_users([
+                'role' => 'seller',
+                'search' => '*' . $search_term . '*',
+                'search_columns' => ['display_name', 'user_login', 'user_email'],
+                'number' => 20, // Limit results for performance
+                'orderby' => 'display_name',
+                'order' => 'ASC'
+            ]);
+
+            $vendor_data = [];
+            foreach ($vendors as $vendor) {
+                $vendor_obj = dokan()->vendor->get($vendor->ID);
+                $shop_name = $vendor_obj->get_shop_name();
+                
+                // Additional matching on shop name if not found in user fields
+                $matches_shop = stripos($shop_name, $search_term) !== false;
+                $matches_user = stripos($vendor->display_name, $search_term) !== false ||
+                               stripos($vendor->user_login, $search_term) !== false ||
+                               stripos($vendor->user_email, $search_term) !== false;
+                
+                if ($matches_user || $matches_shop) {
+                    $vendor_data[] = [
+                        'ID' => $vendor->ID,
+                        'display_name' => $vendor->display_name,
+                        'user_login' => $vendor->user_login,
+                        'user_email' => $vendor->user_email,
+                        'shop_name' => $shop_name,
+                        // For display purposes
+                        'label' => sprintf('%s (%s) - %s', 
+                            $vendor->display_name, 
+                            $vendor->user_login, 
+                            $shop_name
+                        )
+                    ];
+                }
+            }
+
+            wp_send_json_success([
+                'vendors' => $vendor_data,
+                'count' => count($vendor_data)
+            ]);
+        }
+
+        /**
+         * AJAX: Get all monitors for admin table with filters and pagination
+         */
+        public function ajax_get_all_monitors()
+        {
+            if (!wp_verify_nonce($_POST['nonce'], 'monitor_admin_nonce')) {
+                wp_send_json_error('Invalid nonce');
+            }
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Insufficient permissions');
+            }
+
+            global $wpdb;
+            $table_name = $this->db_manager->get_table_name();
+
+            $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+            $per_page = isset($_POST['per_page']) ? intval($_POST['per_page']) : 20;
+            $offset = ($page - 1) * $per_page;
+
+            // Build WHERE clause based on filters
+            $where_conditions = ['1=1'];
+            $prepare_values = [];
+
+            if (!empty($_POST['vendor_filter'])) {
+                $where_conditions[] = 'mc.vendor_id = %d';
+                $prepare_values[] = intval($_POST['vendor_filter']);
+            }
+
+            if (!empty($_POST['layout_filter'])) {
+                $where_conditions[] = 'mc.layout_type = %s';
+                $prepare_values[] = sanitize_text_field($_POST['layout_filter']);
+            }
+
+            if (!empty($_POST['status_filter'])) {
+                switch ($_POST['status_filter']) {
+                    case 'enabled':
+                        $where_conditions[] = 'mc.is_enabled = 1';
+                        break;
+                    case 'disabled':
+                        $where_conditions[] = 'mc.is_enabled = 0';
+                        break;
+                    case 'active':
+                        $where_conditions[] = 'mc.is_enabled = 1 AND mc.associated_post_id IS NOT NULL';
+                        break;
+                }
+            }
+
+            $where_clause = implode(' AND ', $where_conditions);
+
+            // Get total count
+            $count_query = "SELECT COUNT(*) FROM {$table_name} mc WHERE {$where_clause}";
+            if (!empty($prepare_values)) {
+                $count_query = $wpdb->prepare($count_query, ...$prepare_values);
+            }
+            $total_monitors = $wpdb->get_var($count_query);
+
+            // Get monitors with vendor information
+            $query = "
+                SELECT 
+                    mc.*,
+                    u.display_name as vendor_name,
+                    u.user_email as vendor_email
+                FROM {$table_name} mc 
+                LEFT JOIN {$wpdb->users} u ON mc.vendor_id = u.ID
+                WHERE {$where_clause}
+                ORDER BY mc.created_at DESC
+                LIMIT %d OFFSET %d
+            ";
+
+            $prepare_values[] = $per_page;
+            $prepare_values[] = $offset;
+            $monitors = $wpdb->get_results($wpdb->prepare($query, ...$prepare_values), ARRAY_A);
+
+            // Process monitors data
+            foreach ($monitors as &$monitor) {
+                $monitor['layout_config'] = json_decode($monitor['layout_config'], true);
+            }
+
+            // Get filter data (vendors and counts)
+            $filter_data = [
+                'vendors' => $wpdb->get_results("
+                    SELECT DISTINCT mc.vendor_id, u.display_name as vendor_name
+                    FROM {$table_name} mc 
+                    LEFT JOIN {$wpdb->users} u ON mc.vendor_id = u.ID
+                    ORDER BY u.display_name ASC
+                ", ARRAY_A)
+            ];
+
+            $pagination = [
+                'current_page' => $page,
+                'total_pages' => ceil($total_monitors / $per_page),
+                'per_page' => $per_page,
+                'total_items' => $total_monitors
+            ];
+
+            wp_send_json_success([
+                'monitors' => $monitors,
+                'pagination' => $pagination,
+                'filters' => $filter_data
+            ]);
+        }
+
+        /**
+         * AJAX: Get monitor details for editing
+         */
+        public function ajax_get_monitor_details()
+        {
+            if (!wp_verify_nonce($_POST['nonce'], 'monitor_admin_nonce')) {
+                wp_send_json_error('Invalid nonce');
+            }
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Insufficient permissions');
+            }
+
+            $monitor_id = intval($_POST['monitor_id']);
+            if (!$monitor_id) {
+                wp_send_json_error('Monitor ID richiesto');
+            }
+
+            $monitor = $this->db_manager->get_monitor($monitor_id);
+            if (!$monitor) {
+                wp_send_json_error('Monitor non trovato');
+            }
+
+            // Get vendor information
+            $vendor = get_userdata($monitor['vendor_id']);
+            if ($vendor) {
+                $vendor_obj = dokan()->vendor->get($vendor->ID);
+                $monitor['vendor_name'] = $vendor->display_name;
+                $monitor['shop_name'] = $vendor_obj->get_shop_name();
+            }
+
+            wp_send_json_success([
+                'monitor' => $monitor
+            ]);
         }
     }
 }
