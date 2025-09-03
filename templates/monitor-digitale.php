@@ -224,100 +224,195 @@ $active_menu = 'monitor-digitale';
                         <p><strong><?php _e('Monitor Assegnati:', 'dokan-mod'); ?></strong> <?php echo count($vendor_monitors); ?></p>
                     </div>
 
-                    <!-- Monitors List -->
-                    <div class="monitors-container">
-                        <?php foreach ($vendor_monitors as $monitor): 
-                            $layout_config = dkmod_safe_decode_layout_config($monitor['layout_config']);
-                            $associated_post_title = $monitor['associated_post_id'] ? get_the_title($monitor['associated_post_id']) : null;
-                        ?>
-                            <div class="monitor-card" data-monitor-id="<?php echo $monitor['id']; ?>">
-                                <div class="monitor-card-header">
-                                    <div class="monitor-info">
-                                        <h4><?php echo esc_html($monitor['monitor_name']); ?></h4>
-                                        <div class="monitor-url">
-                                            <code><?php echo home_url('/monitor/display/' . $user_id . '/' . $monitor['id'] . '/' . $monitor['monitor_slug']); ?></code>
-                                            <button type="button" class="custom-widget-button" onclick="copyMonitorUrl('<?php echo $monitor['id']; ?>')" title="Copia URL" style="margin-left: 10px; padding: 2px 8px;">
-                                                <i class="dashicons dashicons-admin-page"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div class="monitor-status">
-                                        <?php if ($monitor['associated_post_id']): ?>
-                                            <div class="status-active">
-                                                <strong><i class="dashicons dashicons-yes"></i> ATTIVO</strong><br>
-                                                <small><?php echo esc_html($associated_post_title); ?></small>
-                                            </div>
-                                        <?php else: ?>
-                                            <div class="status-inactive">
-                                                <strong><i class="dashicons dashicons-warning"></i> INATTIVO</strong><br>
-                                                <small>Nessun defunto associato</small>
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                                
-                                <div class="monitor-card-body">
-                                    <!-- Layout Configuration -->
-                                    <div class="layout-config">
-                                        <form method="post" class="layout-form">
-                                            <?php wp_nonce_field('monitor_update_layout', 'monitor_nonce'); ?>
-                                            <input type="hidden" name="action" value="update_layout">
-                                            <input type="hidden" name="monitor_id" value="<?php echo $monitor['id']; ?>">
-                                            
-                                            <div class="form-row">
-                                                <label for="layout_type_<?php echo $monitor['id']; ?>"><?php _e('Layout:', 'dokan-mod'); ?></label>
-                                                <select name="layout_type" id="layout_type_<?php echo $monitor['id']; ?>" onchange="toggleLayoutConfig(<?php echo $monitor['id']; ?>)">
-                                                    <?php foreach ($available_layouts as $layout_key => $layout_name): ?>
-                                                        <option value="<?php echo $layout_key; ?>" <?php selected($monitor['layout_type'], $layout_key); ?>>
-                                                            <?php echo esc_html($layout_name); ?>
-                                                        </option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                                <button type="submit" class="custom-widget-button" style="margin-left: 10px;">
-                                                    <?php _e('Aggiorna', 'dokan-mod'); ?>
+                    <!-- Monitors Table -->
+                    <div class="monitors-table-container">
+                        <table class="wp-list-table widefat fixed striped monitors-table">
+                            <thead>
+                                <tr>
+                                    <th class="manage-column monitor-name-col"><?php _e('Nome Monitor', 'dokan-mod'); ?></th>
+                                    <th class="manage-column monitor-url-col"><?php _e('URL Display', 'dokan-mod'); ?></th>
+                                    <th class="manage-column monitor-status-col"><?php _e('Stato', 'dokan-mod'); ?></th>
+                                    <th class="manage-column monitor-association-col"><?php _e('Associazione', 'dokan-mod'); ?></th>
+                                    <th class="manage-column monitor-layout-col"><?php _e('Layout', 'dokan-mod'); ?></th>
+                                    <th class="manage-column monitor-actions-col"><?php _e('Azioni', 'dokan-mod'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($vendor_monitors as $monitor): 
+                                    $layout_config = dkmod_safe_decode_layout_config($monitor['layout_config']);
+                                    $associated_post_title = $monitor['associated_post_id'] ? get_the_title($monitor['associated_post_id']) : null;
+                                    $monitor_url = home_url('/monitor/display/' . $user_id . '/' . $monitor['id'] . '/' . $monitor['monitor_slug']);
+                                ?>
+                                    <tr data-monitor-id="<?php echo $monitor['id']; ?>" class="monitor-row">
+                                        <!-- Monitor Name -->
+                                        <td class="monitor-name-cell">
+                                            <strong><?php echo esc_html($monitor['monitor_name']); ?></strong>
+                                            <?php if ($monitor['monitor_description']): ?>
+                                                <div class="monitor-description"><?php echo esc_html($monitor['monitor_description']); ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        
+                                        <!-- URL Display -->
+                                        <td class="monitor-url-cell">
+                                            <div class="url-display">
+                                                <code class="monitor-url-code"><?php echo esc_html($monitor_url); ?></code>
+                                                <button type="button" class="copy-url-btn" onclick="copyMonitorUrl('<?php echo $monitor['id']; ?>')" title="<?php _e('Copia URL', 'dokan-mod'); ?>">
+                                                    <i class="dashicons dashicons-admin-page"></i>
                                                 </button>
                                             </div>
-                                            
-                                            <!-- Città Multi Configuration -->
-                                            <div id="citta_multi_config_<?php echo $monitor['id']; ?>" class="layout-specific-config" style="<?php echo $monitor['layout_type'] !== 'citta_multi' ? 'display: none;' : ''; ?>">
-                                                <div class="form-row">
-                                                    <label for="days_range_<?php echo $monitor['id']; ?>"><?php _e('Giorni da visualizzare:', 'dokan-mod'); ?></label>
-                                                    <select name="days_range" id="days_range_<?php echo $monitor['id']; ?>">
-                                                        <option value="1" <?php selected($layout_config['days_range'] ?? 7, 1); ?>><?php _e('Solo oggi', 'dokan-mod'); ?></option>
-                                                        <option value="3" <?php selected($layout_config['days_range'] ?? 7, 3); ?>><?php _e('Ultimi 3 giorni', 'dokan-mod'); ?></option>
-                                                        <option value="7" <?php selected($layout_config['days_range'] ?? 7, 7); ?>><?php _e('Ultimi 7 giorni', 'dokan-mod'); ?></option>
-                                                        <option value="14" <?php selected($layout_config['days_range'] ?? 7, 14); ?>><?php _e('Ultimi 14 giorni', 'dokan-mod'); ?></option>
-                                                        <option value="30" <?php selected($layout_config['days_range'] ?? 7, 30); ?>><?php _e('Ultimo mese', 'dokan-mod'); ?></option>
+                                        </td>
+                                        
+                                        <!-- Status -->
+                                        <td class="monitor-status-cell">
+                                            <?php if ($monitor['associated_post_id']): ?>
+                                                <div class="status-badge status-active">
+                                                    <i class="dashicons dashicons-yes"></i>
+                                                    <span class="status-text">
+                                                        <strong><?php _e('ATTIVO', 'dokan-mod'); ?></strong>
+                                                    </span>
+                                                </div>
+                                            <?php else: ?>
+                                                <div class="status-badge status-inactive">
+                                                    <i class="dashicons dashicons-warning"></i>
+                                                    <span class="status-text">
+                                                        <strong><?php _e('INATTIVO', 'dokan-mod'); ?></strong>
+                                                    </span>
+                                                </div>
+                                            <?php endif; ?>
+                                        </td>
+                                        
+                                        <!-- Association -->
+                                        <td class="monitor-association-cell">
+                                            <?php
+                                            switch ($monitor['layout_type']) {
+                                                case 'solo_annuncio':
+                                                case 'manifesti':
+                                                    if ($monitor['associated_post_id'] && $associated_post_title) {
+                                                        echo '<div class="association-info association-single">';
+                                                        echo '<i class="dashicons dashicons-admin-post"></i>';
+                                                        echo '<div class="association-content">';
+                                                        echo '<strong>' . esc_html($associated_post_title) . '</strong>';
+                                                        
+                                                        // Get post date for additional info
+                                                        $post_date = get_the_date('d/m/Y', $monitor['associated_post_id']);
+                                                        echo '<small>' . sprintf(__('Pubblicato: %s', 'dokan-mod'), $post_date) . '</small>';
+                                                        echo '</div></div>';
+                                                    } else {
+                                                        echo '<div class="association-info association-none">';
+                                                        echo '<i class="dashicons dashicons-minus"></i>';
+                                                        echo '<span>' . __('Nessuna associazione', 'dokan-mod') . '</span>';
+                                                        echo '</div>';
+                                                    }
+                                                    break;
+                                                    
+                                                case 'citta_multi':
+                                                    echo '<div class="association-info association-multi">';
+                                                    echo '<i class="dashicons dashicons-admin-multisite"></i>';
+                                                    echo '<div class="association-content">';
+                                                    echo '<strong>' . __('Multi annuncio', 'dokan-mod') . '</strong>';
+                                                    
+                                                    // Build configuration description
+                                                    $config_parts = [];
+                                                    
+                                                    // Days range
+                                                    $days_range = $layout_config['days_range'] ?? 7;
+                                                    if ($days_range == 1) {
+                                                        $config_parts[] = __('Solo oggi', 'dokan-mod');
+                                                    } else {
+                                                        $config_parts[] = sprintf(__('Ultimi %d giorni', 'dokan-mod'), $days_range);
+                                                    }
+                                                    
+                                                    // Agency scope
+                                                    if ($layout_config['show_all_agencies'] ?? false) {
+                                                        $config_parts[] = __('Tutte le agenzie', 'dokan-mod');
+                                                    } else {
+                                                        $config_parts[] = __('Solo la tua agenzia', 'dokan-mod');
+                                                    }
+                                                    
+                                                    echo '<small>' . implode(' • ', $config_parts) . '</small>';
+                                                    echo '</div></div>';
+                                                    break;
+                                                    
+                                                default:
+                                                    echo '<div class="association-info association-none">';
+                                                    echo '<i class="dashicons dashicons-minus"></i>';
+                                                    echo '<span>' . __('Non configurato', 'dokan-mod') . '</span>';
+                                                    echo '</div>';
+                                                    break;
+                                            }
+                                            ?>
+                                        </td>
+                                        
+                                        <!-- Layout Selector -->
+                                        <td class="monitor-layout-cell">
+                                            <form method="post" class="layout-form-inline">
+                                                <?php wp_nonce_field('monitor_update_layout', 'monitor_nonce'); ?>
+                                                <input type="hidden" name="action" value="update_layout">
+                                                <input type="hidden" name="monitor_id" value="<?php echo $monitor['id']; ?>">
+                                                
+                                                <div class="layout-selector-wrapper">
+                                                    <select name="layout_type" class="layout-selector" onchange="this.form.submit()">
+                                                        <?php foreach ($available_layouts as $layout_key => $layout_name): ?>
+                                                            <option value="<?php echo $layout_key; ?>" <?php selected($monitor['layout_type'], $layout_key); ?>>
+                                                                <?php echo esc_html($layout_name); ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
                                                     </select>
+                                                    
+                                                    <?php if ($monitor['layout_type'] === 'citta_multi'): ?>
+                                                        <button type="button" class="layout-config-btn" onclick="toggleCittaMultiConfig('<?php echo $monitor['id']; ?>')" title="<?php _e('Configura', 'dokan-mod'); ?>">
+                                                            <i class="dashicons dashicons-admin-settings"></i>
+                                                        </button>
+                                                    <?php endif; ?>
                                                 </div>
-                                                <div class="form-row">
-                                                    <label>
-                                                        <input type="checkbox" name="show_all_agencies" value="1" 
-                                                               <?php checked($layout_config['show_all_agencies'] ?? false); ?>>
-                                                        <?php _e('Mostra annunci di tutte le agenzie (non solo la tua)', 'dokan-mod'); ?>
-                                                    </label>
-                                                </div>
+                                                
+                                                <!-- Hidden Città Multi Configuration -->
+                                                <?php if ($monitor['layout_type'] === 'citta_multi'): ?>
+                                                    <div id="citta_multi_popup_<?php echo $monitor['id']; ?>" class="citta-multi-config-popup" style="display: none;">
+                                                        <div class="config-popup-content">
+                                                            <h4><?php _e('Configurazione Città Multi-Agenzia', 'dokan-mod'); ?></h4>
+                                                            <div class="config-row">
+                                                                <label for="days_range_<?php echo $monitor['id']; ?>"><?php _e('Giorni:', 'dokan-mod'); ?></label>
+                                                                <select name="days_range" id="days_range_<?php echo $monitor['id']; ?>">
+                                                                    <option value="1" <?php selected($layout_config['days_range'] ?? 7, 1); ?>><?php _e('Solo oggi', 'dokan-mod'); ?></option>
+                                                                    <option value="3" <?php selected($layout_config['days_range'] ?? 7, 3); ?>><?php _e('3 giorni', 'dokan-mod'); ?></option>
+                                                                    <option value="7" <?php selected($layout_config['days_range'] ?? 7, 7); ?>><?php _e('7 giorni', 'dokan-mod'); ?></option>
+                                                                    <option value="14" <?php selected($layout_config['days_range'] ?? 7, 14); ?>><?php _e('14 giorni', 'dokan-mod'); ?></option>
+                                                                    <option value="30" <?php selected($layout_config['days_range'] ?? 7, 30); ?>><?php _e('30 giorni', 'dokan-mod'); ?></option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="config-row">
+                                                                <label>
+                                                                    <input type="checkbox" name="show_all_agencies" value="1" <?php checked($layout_config['show_all_agencies'] ?? false); ?>>
+                                                                    <?php _e('Tutte le agenzie', 'dokan-mod'); ?>
+                                                                </label>
+                                                            </div>
+                                                            <div class="config-actions">
+                                                                <button type="submit" class="button button-primary button-small"><?php _e('Salva', 'dokan-mod'); ?></button>
+                                                                <button type="button" class="button button-secondary button-small" onclick="toggleCittaMultiConfig('<?php echo $monitor['id']; ?>')"><?php _e('Annulla', 'dokan-mod'); ?></button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </form>
+                                        </td>
+                                        
+                                        <!-- Actions -->
+                                        <td class="monitor-actions-cell">
+                                            <div class="action-buttons">
+                                                <a href="<?php echo esc_url($monitor_url); ?>" 
+                                                   target="_blank" 
+                                                   class="button button-primary button-small monitor-live-btn"
+                                                   title="<?php _e('Visualizza Monitor Live', 'dokan-mod'); ?>">
+                                                    <i class="dashicons dashicons-visibility"></i>
+                                                    <span class="button-text"><?php _e('Monitor Live', 'dokan-mod'); ?></span>
+                                                </a>
                                             </div>
-                                        </form>
-                                    </div>
-                                    
-                                    <!-- Monitor Actions -->
-                                    <div class="monitor-actions">
-                                        <button type="button" class="btn-preview-layout custom-widget-button" 
-                                                data-monitor-id="<?php echo $monitor['id']; ?>"
-                                                data-monitor-name="<?php echo esc_attr($monitor['monitor_name']); ?>"
-                                                data-layout-type="<?php echo esc_attr($monitor['layout_type']); ?>"
-                                                style="background: #667eea; margin-right: 8px;">
-                                            <i class="dashicons dashicons-desktop"></i> <?php _e('Anteprima Layout', 'dokan-mod'); ?>
-                                        </button>
-                                        <a href="<?php echo home_url('/monitor/display/' . $user_id . '/' . $monitor['id'] . '/' . $monitor['monitor_slug']); ?>" 
-                                           target="_blank" class="custom-widget-button" style="background: #28a745;">
-                                            <i class="dashicons dashicons-visibility"></i> <?php _e('Monitor Live', 'dokan-mod'); ?>
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
 
                     <!-- Search Form -->
@@ -498,14 +593,23 @@ $active_menu = 'monitor-digitale';
 </main>
 
 <script>
-// Monitor URL Copy Function
+// Monitor URL Copy Function - Updated for table structure
 function copyMonitorUrl(monitorId) {
-    const monitorCard = document.querySelector(`[data-monitor-id="${monitorId}"]`);
-    const url = monitorCard.querySelector('.monitor-url code').textContent;
+    const monitorRow = document.querySelector(`[data-monitor-id="${monitorId}"]`);
+    const url = monitorRow.querySelector('.monitor-url-code').textContent;
     
     if (navigator.clipboard) {
         navigator.clipboard.writeText(url).then(function() {
-            alert('URL copiato negli appunti!');
+            // Show success feedback
+            const button = monitorRow.querySelector('.copy-url-btn');
+            const originalHTML = button.innerHTML;
+            button.innerHTML = '<i class="dashicons dashicons-yes"></i>';
+            button.style.color = '#46b450';
+            
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+                button.style.color = '#666';
+            }, 1500);
         });
     } else {
         // Fallback for older browsers
@@ -515,28 +619,93 @@ function copyMonitorUrl(monitorId) {
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        alert('URL copiato negli appunti!');
+        
+        // Show success feedback
+        const button = monitorRow.querySelector('.copy-url-btn');
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="dashicons dashicons-yes"></i>';
+        button.style.color = '#46b450';
+        
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+            button.style.color = '#666';
+        }, 1500);
     }
 }
 
-// Toggle layout-specific configuration
-function toggleLayoutConfig(monitorId) {
-    const layoutSelect = document.getElementById(`layout_type_${monitorId}`);
-    const cittaMultiConfig = document.getElementById(`citta_multi_config_${monitorId}`);
+// Toggle Città Multi Configuration Popup
+function toggleCittaMultiConfig(monitorId) {
+    const popup = document.getElementById(`citta_multi_popup_${monitorId}`);
+    const isVisible = popup.style.display !== 'none';
     
-    if (layoutSelect.value === 'citta_multi') {
-        cittaMultiConfig.style.display = 'block';
-    } else {
-        cittaMultiConfig.style.display = 'none';
+    // Hide all popups first
+    document.querySelectorAll('.citta-multi-config-popup').forEach(p => {
+        p.style.display = 'none';
+    });
+    
+    // Toggle current popup
+    if (!isVisible) {
+        popup.style.display = 'block';
+        
+        // Close popup when clicking outside
+        const closeHandler = function(event) {
+            if (!popup.contains(event.target) && !event.target.closest('.layout-config-btn')) {
+                popup.style.display = 'none';
+                document.removeEventListener('click', closeHandler);
+            }
+        };
+        
+        setTimeout(() => {
+            document.addEventListener('click', closeHandler);
+        }, 100);
     }
 }
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize layout configs
-    <?php foreach ($vendor_monitors as $monitor): ?>
-    toggleLayoutConfig(<?php echo $monitor['id']; ?>);
-    <?php endforeach; ?>
+    // Add enhanced interactions for table interface
+    
+    // Enhanced URL display with tooltip on hover
+    document.querySelectorAll('.monitor-url-code').forEach(function(urlCode) {
+        const fullUrl = urlCode.textContent;
+        
+        // Create tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.className = 'url-tooltip';
+        tooltip.textContent = fullUrl;
+        tooltip.style.display = 'none';
+        document.body.appendChild(tooltip);
+        
+        urlCode.addEventListener('mouseenter', function(e) {
+            tooltip.style.display = 'block';
+            tooltip.style.left = e.pageX + 10 + 'px';
+            tooltip.style.top = e.pageY - 30 + 'px';
+        });
+        
+        urlCode.addEventListener('mouseleave', function() {
+            tooltip.style.display = 'none';
+        });
+        
+        urlCode.addEventListener('mousemove', function(e) {
+            tooltip.style.left = e.pageX + 10 + 'px';
+            tooltip.style.top = e.pageY - 30 + 'px';
+        });
+    });
+    
+    // Enhanced layout selector feedback
+    document.querySelectorAll('.layout-selector').forEach(function(selector) {
+        selector.addEventListener('change', function() {
+            // Show loading state
+            this.style.opacity = '0.6';
+            this.disabled = true;
+            
+            // Re-enable after form submission (fallback)
+            setTimeout(() => {
+                this.style.opacity = '1';
+                this.disabled = false;
+            }, 3000);
+        });
+    });
 });
 </script>
 
@@ -606,97 +775,359 @@ document.addEventListener('DOMContentLoaded', function() {
         border-color: #f5c6cb;
     }
 
-    /* Monitor Cards */
-    .monitors-container {
-        display: grid;
-        gap: 20px;
+    /* Monitor Table */
+    .monitors-table-container {
         margin-bottom: 30px;
+        overflow-x: auto;
     }
     
-    .monitor-card {
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 20px;
-        background: #fff;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    .monitors-table {
+        width: 100%;
+        border-collapse: collapse;
     }
     
-    .monitor-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 20px;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 15px;
+    .monitors-table th,
+    .monitors-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #e1e1e1;
     }
     
-    .monitor-info h4 {
-        margin: 0 0 10px 0;
+    .monitors-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .monitor-row:hover {
+        background-color: #f8f9fa;
+    }
+    
+    /* Table Column Styles */
+    .monitor-name-col {
+        width: 20%;
+    }
+    
+    .monitor-url-col {
+        width: 25%;
+    }
+    
+    .monitor-status-col {
+        width: 12%;
+    }
+    
+    .monitor-association-col {
+        width: 20%;
+    }
+    
+    .monitor-layout-col {
+        width: 13%;
+    }
+    
+    .monitor-actions-col {
+        width: 10%;
+    }
+    
+    /* Monitor Name Cell */
+    .monitor-name-cell strong {
+        display: block;
+        font-size: 14px;
         color: #333;
-        font-size: 18px;
+        margin-bottom: 4px;
     }
     
-    .monitor-url {
+    .monitor-description {
+        font-size: 12px;
+        color: #666;
+        font-style: italic;
+    }
+    
+    /* URL Display */
+    .url-display {
         display: flex;
         align-items: center;
-        flex-wrap: wrap;
-        gap: 10px;
+        gap: 8px;
     }
     
-    .monitor-url code {
+    .monitor-url-code {
         background: #f8f9fa;
-        padding: 5px 10px;
+        padding: 4px 8px;
         border-radius: 4px;
-        font-size: 12px;
+        font-size: 11px;
+        word-break: break-all;
+        flex: 1;
+        max-width: 280px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .copy-url-btn {
+        background: none;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 4px 6px;
+        cursor: pointer;
+        color: #666;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+    }
+    
+    .copy-url-btn:hover {
+        background: #f0f0f0;
+        color: #333;
+    }
+    
+    .copy-url-btn .dashicons {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+    }
+    
+    /* URL Tooltip */
+    .url-tooltip {
+        position: absolute;
+        background: #333;
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        white-space: nowrap;
+        z-index: 10000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        pointer-events: none;
+        max-width: 400px;
         word-break: break-all;
     }
     
-    .status-active {
-        background: #d4edda;
-        color: #155724;
-        padding: 10px 15px;
-        border-radius: 5px;
-        text-align: center;
-        min-width: 120px;
+    .url-tooltip:before {
+        content: '';
+        position: absolute;
+        bottom: 100%;
+        left: 20px;
+        width: 0;
+        height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-bottom: 5px solid #333;
     }
     
-    .status-inactive {
-        background: #fff3cd;
-        color: #856404;
-        padding: 10px 15px;
-        border-radius: 5px;
-        text-align: center;
-        min-width: 120px;
-    }
-    
-    .layout-config {
-        background: #f8f9fa;
-        padding: 15px;
-        border-radius: 5px;
-        margin-bottom: 15px;
-    }
-    
-    .form-row {
+    /* Status Badge */
+    .status-badge {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+    }
+    
+    .status-badge.status-active {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .status-badge.status-inactive {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeaa7;
+    }
+    
+    .status-badge .dashicons {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+    }
+    
+    .status-text strong {
+        display: block;
+        margin-bottom: 2px;
+    }
+    
+    .status-text small {
+        font-size: 11px;
+        opacity: 0.8;
+    }
+    
+    /* Association Info */
+    .association-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+    }
+    
+    .association-info .dashicons {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+    }
+    
+    .association-content {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .association-content strong {
+        display: block;
+        color: #333;
+        margin-bottom: 2px;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .association-content small {
+        font-size: 11px;
+        color: #666;
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Association type specific styles */
+    .association-single .dashicons {
+        color: #0073aa;
+    }
+    
+    .association-multi .dashicons {
+        color: #46b450;
+    }
+    
+    .association-none .dashicons {
+        color: #999;
+    }
+    
+    .association-none span {
+        color: #999;
+        font-style: italic;
+    }
+    
+    /* Layout Selector */
+    .layout-form-inline {
+        margin: 0;
+        position: relative;
+    }
+    
+    .layout-selector-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .layout-selector {
+        font-size: 12px;
+        padding: 4px 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: #fff;
+    }
+    
+    .layout-config-btn {
+        background: none;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 4px 6px;
+        cursor: pointer;
+        color: #666;
+        transition: all 0.2s ease;
+    }
+    
+    .layout-config-btn:hover {
+        background: #f0f0f0;
+        color: #333;
+    }
+    
+    .layout-config-btn .dashicons {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+    }
+    
+    /* Città Multi Configuration Popup */
+    .citta-multi-config-popup {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 1000;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        padding: 15px;
+        min-width: 250px;
+        margin-top: 5px;
+    }
+    
+    .config-popup-content h4 {
+        margin: 0 0 12px 0;
+        font-size: 13px;
+        color: #333;
+    }
+    
+    .config-row {
         margin-bottom: 10px;
-        flex-wrap: wrap;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
     
-    .form-row label {
-        min-width: 120px;
-        font-weight: 600;
+    .config-row label {
+        font-size: 12px;
+        color: #666;
+        min-width: 60px;
     }
     
-    .form-row select {
-        min-width: 200px;
+    .config-row select {
+        font-size: 12px;
+        padding: 3px 6px;
     }
     
-    .layout-specific-config {
-        margin-top: 15px;
-        padding-top: 15px;
-        border-top: 1px solid #dee2e6;
+    .config-actions {
+        margin-top: 12px;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+    
+    .config-actions .button-small {
+        padding: 4px 8px;
+        font-size: 11px;
+        height: auto;
+        line-height: 1.4;
+    }
+    
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 6px;
+    }
+    
+    .monitor-live-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 10px;
+        font-size: 12px;
+        text-decoration: none;
+        border-radius: 4px;
+        height: auto;
+        line-height: 1;
+    }
+    
+    .monitor-live-btn .dashicons {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+    }
+    
+    .button-text {
+        display: inline;
     }
     
     /* Defunti Section */
@@ -743,24 +1174,73 @@ document.addEventListener('DOMContentLoaded', function() {
         gap: 5px;
     }
     
+    /* Responsive Design */
+    @media (max-width: 1200px) {
+        .monitor-url-code {
+            max-width: 200px;
+        }
+        
+        .button-text {
+            display: none;
+        }
+    }
+    
     @media (max-width: 768px) {
-        .monitor-card-header {
-            flex-direction: column;
-            gap: 15px;
-            text-align: center;
+        .monitors-table-container {
+            overflow-x: auto;
         }
         
-        .monitor-url {
-            justify-content: center;
+        .monitors-table {
+            min-width: 1000px;
         }
         
-        .form-row {
-            flex-direction: column;
-            align-items: stretch;
+        .monitors-table th,
+        .monitors-table td {
+            padding: 8px;
+            font-size: 12px;
         }
         
-        .form-row label {
-            min-width: auto;
+        .monitor-url-code {
+            max-width: 150px;
+        }
+        
+        .status-badge {
+            padding: 4px 6px;
+        }
+        
+        .status-badge .dashicons {
+            font-size: 14px;
+            width: 14px;
+            height: 14px;
+        }
+        
+        .layout-selector {
+            font-size: 11px;
+            padding: 3px 6px;
+        }
+        
+        .monitor-live-btn {
+            padding: 4px 6px;
+            font-size: 11px;
+        }
+        
+        .association-content strong,
+        .association-content small {
+            max-width: 120px;
+        }
+        
+        .association-info {
+            gap: 6px;
+        }
+        
+        .citta-multi-config-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 300px;
+            z-index: 10000;
         }
         
         .defunti-table {
