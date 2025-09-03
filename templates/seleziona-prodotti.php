@@ -28,16 +28,20 @@ $RenderDokanSelectProducts = new Dokan_Mods\RenderDokanSelectProducts();
 
 ?>
 
-<main id="content" class="site-main post-58 page type-page status-publish hentry">
+<?php do_action('dokan_dashboard_wrap_start'); ?>
 
-    <header class="page-header">
-        <h1 class="entry-title"><?php __('Aggiungi i servizi offerti', 'dokan-mod') ?></h1></header>
+<div class="dokan-dashboard-wrap">
 
-    <div class="page-content">
-
-        <div class="dokan-dashboard-wrap">
-
-            <?php dokan_get_template_part('global/dashboard-nav', '', ['active_menu' => $active_menu]); ?>
+            <?php
+            /**
+             *  Adding dokan_dashboard_content_before hook
+             *
+             * @hooked dashboard_side_navigation
+             *
+             * @since 2.4
+             */
+            do_action('dokan_dashboard_content_before');
+            ?>
 
             <div class="dokan-dashboard-content dokan-product-edit">
                 <?php do_action('dokan_dashboard_content_inside_before'); ?>
@@ -156,13 +160,43 @@ $RenderDokanSelectProducts = new Dokan_Mods\RenderDokanSelectProducts();
                     <?php endif; ?>
                 </div>
             </div>
-        </div>
 
-        <div class="post-tags"></div>
-    </div>
-</main>
+            <?php
+            /**
+             *  Added dokan_dashboard_content_after hook
+             *
+             * @since 2.4
+             */
+            do_action('dokan_dashboard_content_after');
+            ?>
+
+        </div><!-- .dokan-dashboard-wrap -->
+
+        <?php do_action('dokan_dashboard_wrap_end'); ?>
 
 <style>
+    /* Override theme CSS per omogeneizzare con layout standard Dokan */
+    body.dokan-dashboard.theme-hello-elementor .site-main,
+    body.dokan-dashboard .site-main {
+        max-width: none !important;
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    
+    body.dokan-dashboard.theme-hello-elementor .page-content,
+    body.dokan-dashboard .page-content {
+        max-width: none !important;
+        width: 100% !important;
+    }
+    
+    body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+    body.dokan-dashboard .dokan-dashboard-wrap {
+        width: 100% !important;
+        max-width: 1140px !important;
+        margin: 0 auto !important;
+    }
+
     .dokan-form-group {
         margin-bottom: 20px;
     }

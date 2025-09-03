@@ -176,15 +176,22 @@ $active_menu = 'monitor-digitale';
         <div class="dokan-dashboard-wrap">
 
             <?php
-            dokan_get_template_part('global/dashboard-nav', '', ['active_menu' => $active_menu]);
+            /**
+             *  Adding dokan_dashboard_content_before hook
+             *
+             * @hooked dashboard_side_navigation
+             *
+             * @since 2.4
+             */
+            do_action('dokan_dashboard_content_before');
             ?>
 
             <div class="dokan-dashboard-content dokan-product-edit">
                 <?php
                 /**
-                 *  Adding dokan_dashboard_content_before hook
+                 *  Adding dokan_dashboard_content_inside_before hook
                  *
-                 * @hooked get_dashboard_side_navigation
+                 * @hooked show_seller_dashboard_notice
                  *
                  * @since 2.4
                  */
@@ -710,6 +717,29 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
+    /* Override theme CSS per omogeneizzare con layout standard Dokan */
+    body.dokan-dashboard.theme-hello-elementor .site-main,
+    body.dokan-dashboard .site-main {
+        max-width: none !important;
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    
+    body.dokan-dashboard.theme-hello-elementor .page-content,
+    body.dokan-dashboard .page-content {
+        max-width: none !important;
+        width: 100% !important;
+    }
+    
+    body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+    body.dokan-dashboard .dokan-dashboard-wrap {
+        width: 100% !important;
+        max-width: 1140px !important;
+        margin: 0 auto !important;
+    }
+
+
     .dokan-btn {
         display: inline-block;
         padding: 8px 16px;
