@@ -1,7 +1,7 @@
 <?php
 /**
- * Monitor Admin Template
- * Admin interface for managing vendor monitor permissions
+ * Monitor Admin Template - Enhanced for Multiple Monitors
+ * Admin interface for managing vendor monitor permissions and configurations
  */
 
 if (!defined('ABSPATH')) {
@@ -13,499 +13,472 @@ if (!current_user_can('manage_options')) {
     wp_die(__('Non hai i permessi per accedere a questa pagina.', 'dokan-mod'));
 }
 
-// Get all vendors
-$vendors_query = new WP_User_Query(array(
-    'role' => 'seller',
-    'orderby' => 'display_name',
-    'order' => 'ASC',
-    'number' => -1
-));
-
-$vendors = $vendors_query->get_results();
 $monitor_class = new Dokan_Mods\MonitorTotemClass();
+$db_manager = Dokan_Mods\MonitorDatabaseManager::get_instance();
 
-// Handle bulk actions
-if (isset($_POST['bulk_action']) && isset($_POST['vendor_ids']) && wp_verify_nonce($_POST['_wpnonce'], 'monitor_bulk_action')) {
-    $bulk_action = sanitize_text_field($_POST['bulk_action']);
-    $vendor_ids = array_map('intval', $_POST['vendor_ids']);
-    
-    if ($bulk_action === 'enable' || $bulk_action === 'disable') {
-        $enabled = ($bulk_action === 'enable');
-        $count = 0;
-        
-        foreach ($vendor_ids as $vendor_id) {
-            $monitor_class->set_vendor_enabled($vendor_id, $enabled);
-            $count++;
-        }
-        
-        $message = sprintf(
-            _n(
-                '%d vendor %s per il monitor.',
-                '%d vendor %s per il monitor.',
-                $count,
-                'dokan-mod'
-            ),
-            $count,
-            $enabled ? 'abilitato' : 'disabilitato'
-        );
-        
-        echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
-    }
+// Handle migration success/error messages
+if (isset($_GET['migration_success'])) {
+    echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(urldecode($_GET['migration_success'])) . '</p></div>';
 }
+if (isset($_GET['migration_error'])) {
+    echo '<div class="notice notice-error is-dismissible"><p>' . esc_html(urldecode($_GET['migration_error'])) . '</p></div>';
+}
+
+// Check if table exists
+$table_exists = $db_manager->table_exists();
+
+// Get statistics
+$stats = $table_exists ? $db_manager->get_monitor_stats() : null;
 
 ?>
 
 <div class="wrap">
     <h1 class="wp-heading-inline">
         <i class="dashicons dashicons-desktop"></i>
-        <?php _e('Monitor Digitale - Gestione Vendor', 'dokan-mod'); ?>
+        <?php _e('Monitor Digitale - Gestione Sistema', 'dokan-mod'); ?>
     </h1>
     
     <hr class="wp-header-end">
 
-    <!-- Stats Overview -->
-    <div class="monitor-stats-cards" style="display: flex; gap: 20px; margin: 20px 0;">
-        <?php
-        $total_vendors = count($vendors);
-        $enabled_vendors = 0;
-        $active_monitors = 0;
-        
-        foreach ($vendors as $vendor) {
-            if ($monitor_class->is_vendor_enabled($vendor->ID)) {
-                $enabled_vendors++;
-                if ($monitor_class->get_associated_post($vendor->ID)) {
-                    $active_monitors++;
-                }
-            }
-        }
-        ?>
-        
-        <div class="monitor-stat-card">
-            <div class="stat-number"><?php echo $total_vendors; ?></div>
-            <div class="stat-label">Vendor Totali</div>
-        </div>
-        
-        <div class="monitor-stat-card enabled">
-            <div class="stat-number"><?php echo $enabled_vendors; ?></div>
-            <div class="stat-label">Vendor Abilitati</div>
-        </div>
-        
-        <div class="monitor-stat-card active">
-            <div class="stat-number"><?php echo $active_monitors; ?></div>
-            <div class="stat-label">Monitor Attivi</div>
-        </div>
-        
-        <div class="monitor-stat-card inactive">
-            <div class="stat-number"><?php echo $enabled_vendors - $active_monitors; ?></div>
-            <div class="stat-label">Monitor Inattivi</div>
-        </div>
-    </div>
-
-    <!-- Filters and Search -->
-    <div class="monitor-admin-filters" style="margin: 20px 0;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; gap: 15px; align-items: center;">
-                <input type="text" id="vendor-search" placeholder="<?php _e('Cerca vendor...', 'dokan-mod'); ?>" 
-                       style="width: 250px;" class="regular-text">
-                
-                <select id="status-filter">
-                    <option value=""><?php _e('Tutti gli stati', 'dokan-mod'); ?></option>
-                    <option value="enabled"><?php _e('Abilitati', 'dokan-mod'); ?></option>
-                    <option value="disabled"><?php _e('Disabilitati', 'dokan-mod'); ?></option>
-                    <option value="active"><?php _e('Attivi', 'dokan-mod'); ?></option>
-                    <option value="inactive"><?php _e('Inattivi', 'dokan-mod'); ?></option>
-                </select>
-                
-                <button type="button" id="filter-btn" class="button">
-                    <?php _e('Filtra', 'dokan-mod'); ?>
-                </button>
-                
-                <button type="button" id="reset-filters" class="button">
-                    <?php _e('Reset', 'dokan-mod'); ?>
-                </button>
-            </div>
+    <?php if (!$table_exists): ?>
+        <!-- Migration Required Section -->
+        <div class="notice notice-warning">
+            <h2>🚀 Sistema Database Non Inizializzato</h2>
+            <p>Il nuovo sistema di gestione monitor multipli richiede l'inizializzazione della tabella database dedicata.</p>
             
-            <div>
-                <button type="button" id="refresh-data" class="button">
-                    <i class="dashicons dashicons-update"></i>
-                    <?php _e('Aggiorna', 'dokan-mod'); ?>
+            <div style="margin: 20px 0;">
+                <p><strong>Procedura di migrazione:</strong></p>
+                <ol>
+                    <li><strong>Crea la tabella</strong> - Clicca sul bottone qui sotto per creare la nuova tabella database</li>
+                    <li><strong>Migra i dati</strong> - Dopo la creazione, migra i dati esistenti dal sistema precedente</li>
+                    <li><strong>Gestisci monitor</strong> - Accedi alle nuove funzionalità di gestione monitor multipli</li>
+                </ol>
+            </div>
+
+            <div class="migration-buttons" style="margin: 20px 0;">
+                <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=dokan-monitor-digitale&dkmod_migrate_monitors=create_table'), 'dkmod_migrate_monitors'); ?>" 
+                   class="button button-primary button-hero">
+                    📊 Crea Tabella Database
+                </a>
+                <p class="description">
+                    <strong>Sicuro:</strong> Questa operazione crea solo la nuova tabella senza modificare dati esistenti.
+                </p>
+            </div>
+        </div>
+
+    <?php else: ?>
+        <!-- Main Dashboard -->
+        
+        <!-- Stats Overview -->
+        <div class="monitor-stats-section" style="margin: 20px 0;">
+            <h2>📊 Statistiche Sistema</h2>
+            <div class="monitor-stats-cards" style="display: flex; gap: 20px; flex-wrap: wrap;">
+                
+                <div class="monitor-stat-card" style="background: #f8f9fa; padding: 20px; border-radius: 8px; min-width: 200px; border-left: 4px solid #007cba;">
+                    <div class="stat-number" style="font-size: 32px; font-weight: bold; color: #007cba;">
+                        <?php echo intval($stats['total_monitors']); ?>
+                    </div>
+                    <div class="stat-label" style="color: #666;">Monitor Totali</div>
+                </div>
+                
+                <div class="monitor-stat-card" style="background: #f8f9fa; padding: 20px; border-radius: 8px; min-width: 200px; border-left: 4px solid #46b450;">
+                    <div class="stat-number" style="font-size: 32px; font-weight: bold; color: #46b450;">
+                        <?php echo intval($stats['enabled_monitors']); ?>
+                    </div>
+                    <div class="stat-label" style="color: #666;">Monitor Abilitati</div>
+                </div>
+                
+                <div class="monitor-stat-card" style="background: #f8f9fa; padding: 20px; border-radius: 8px; min-width: 200px; border-left: 4px solid #00a32a;">
+                    <div class="stat-number" style="font-size: 32px; font-weight: bold; color: #00a32a;">
+                        <?php echo intval($stats['active_monitors']); ?>
+                    </div>
+                    <div class="stat-label" style="color: #666;">Monitor Attivi</div>
+                </div>
+                
+                <div class="monitor-stat-card" style="background: #f8f9fa; padding: 20px; border-radius: 8px; min-width: 200px; border-left: 4px solid #ff8c00;">
+                    <div class="stat-number" style="font-size: 32px; font-weight: bold; color: #ff8c00;">
+                        <?php echo intval($stats['vendors_with_monitors']); ?>
+                    </div>
+                    <div class="stat-label" style="color: #666;">Vendor con Monitor</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="monitor-actions-section" style="margin: 30px 0;">
+            <h2>⚡ Azioni Rapide</h2>
+            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                <button class="button button-primary" onclick="showCreateMonitorModal()">
+                    <i class="dashicons dashicons-plus"></i> Crea Nuovo Monitor
+                </button>
+                <button class="button button-secondary" onclick="refreshMonitorList()">
+                    <i class="dashicons dashicons-update"></i> Aggiorna Lista
+                </button>
+                <button class="button button-secondary" onclick="showBulkOperationsModal()">
+                    <i class="dashicons dashicons-admin-settings"></i> Operazioni Bulk
                 </button>
             </div>
         </div>
-    </div>
 
-    <!-- Bulk Actions and Vendor Table -->
-    <form method="post" id="monitor-vendor-form">
-        <?php wp_nonce_field('monitor_bulk_action'); ?>
-        
-        <div class="tablenav top">
-            <div class="alignleft actions bulkactions">
-                <select name="bulk_action" id="bulk-action-selector-top">
-                    <option value="-1"><?php _e('Azioni di gruppo', 'dokan-mod'); ?></option>
-                    <option value="enable"><?php _e('Abilita per Monitor', 'dokan-mod'); ?></option>
-                    <option value="disable"><?php _e('Disabilita per Monitor', 'dokan-mod'); ?></option>
-                </select>
-                <input type="submit" id="doaction" class="button action" value="<?php _e('Applica', 'dokan-mod'); ?>">
-            </div>
-        </div>
-
-        <table class="wp-list-table widefat fixed striped" id="monitor-vendor-table">
-            <thead>
-                <tr>
-                    <td id="cb" class="manage-column column-cb check-column">
-                        <input id="cb-select-all-1" type="checkbox">
-                    </td>
-                    <th scope="col" class="manage-column column-vendor-id sortable" data-sort="id">
-                        <a href="#"><span><?php _e('ID', 'dokan-mod'); ?></span><span class="sorting-indicator"></span></a>
-                    </th>
-                    <th scope="col" class="manage-column column-shop-name sortable" data-sort="name">
-                        <a href="#"><span><?php _e('Nome Negozio', 'dokan-mod'); ?></span><span class="sorting-indicator"></span></a>
-                    </th>
-                    <th scope="col" class="manage-column column-email sortable" data-sort="email">
-                        <a href="#"><span><?php _e('Email', 'dokan-mod'); ?></span><span class="sorting-indicator"></span></a>
-                    </th>
-                    <th scope="col" class="manage-column column-city">
-                        <?php _e('Città', 'dokan-mod'); ?>
-                    </th>
-                    <th scope="col" class="manage-column column-monitor-status">
-                        <?php _e('Stato Monitor', 'dokan-mod'); ?>
-                    </th>
-                    <th scope="col" class="manage-column column-monitor-url">
-                        <?php _e('URL Monitor', 'dokan-mod'); ?>
-                    </th>
-                    <th scope="col" class="manage-column column-last-access sortable" data-sort="last_access">
-                        <a href="#"><span><?php _e('Ultimo Accesso', 'dokan-mod'); ?></span><span class="sorting-indicator"></span></a>
-                    </th>
-                    <th scope="col" class="manage-column column-actions">
-                        <?php _e('Azioni', 'dokan-mod'); ?>
-                    </th>
-                </tr>
-            </thead>
+        <!-- Monitor Management Table -->
+        <div class="monitor-table-section" style="margin: 30px 0;">
+            <h2>🖥️ Gestione Monitor</h2>
             
-            <tbody id="vendor-table-body">
-                <?php foreach ($vendors as $vendor): 
-                    $vendor_obj = dokan()->vendor->get($vendor->ID);
-                    $shop_name = $vendor_obj->get_shop_name();
-                    $shop_address = $vendor_obj->get_address();
-                    $city = isset($shop_address['city']) ? $shop_address['city'] : '';
-                    
-                    $is_enabled = $monitor_class->is_vendor_enabled($vendor->ID);
-                    $monitor_url = get_user_meta($vendor->ID, 'monitor_url', true);
-                    $last_access = get_user_meta($vendor->ID, 'monitor_last_access', true);
-                    $associated_post = $monitor_class->get_associated_post($vendor->ID);
-                    
-                    $status_class = '';
-                    $status_text = '';
-                    
-                    if ($is_enabled) {
-                        if ($associated_post) {
-                            $status_class = 'status-active';
-                            $status_text = __('Attivo', 'dokan-mod');
-                        } else {
-                            $status_class = 'status-inactive';
-                            $status_text = __('Inattivo', 'dokan-mod');
-                        }
-                    } else {
-                        $status_class = 'status-disabled';
-                        $status_text = __('Disabilitato', 'dokan-mod');
-                    }
-                ?>
-                <tr data-vendor-id="<?php echo $vendor->ID; ?>" 
-                    data-enabled="<?php echo $is_enabled ? '1' : '0'; ?>"
-                    data-active="<?php echo $associated_post ? '1' : '0'; ?>">
-                    
-                    <th scope="row" class="check-column">
-                        <input type="checkbox" name="vendor_ids[]" value="<?php echo $vendor->ID; ?>">
-                    </th>
-                    
-                    <td class="vendor-id">
-                        <strong><?php echo $vendor->ID; ?></strong>
-                    </td>
-                    
-                    <td class="shop-name">
-                        <strong><?php echo esc_html($shop_name); ?></strong>
-                        <div class="row-actions">
-                            <span class="view">
-                                <a href="<?php echo $vendor_obj->get_shop_url(); ?>" target="_blank">
-                                    <?php _e('Visualizza Negozio', 'dokan-mod'); ?>
-                                </a>
-                            </span>
-                        </div>
-                    </td>
-                    
-                    <td class="email">
-                        <a href="mailto:<?php echo esc_attr($vendor->user_email); ?>">
-                            <?php echo esc_html($vendor->user_email); ?>
-                        </a>
-                    </td>
-                    
-                    <td class="city">
-                        <?php echo esc_html($city); ?>
-                    </td>
-                    
-                    <td class="monitor-status">
-                        <span class="status-badge <?php echo $status_class; ?>">
-                            <?php echo $status_text; ?>
-                        </span>
-                        <?php if ($associated_post): ?>
-                            <br><small>
-                                <?php echo esc_html(get_the_title($associated_post)); ?>
-                            </small>
-                        <?php endif; ?>
-                    </td>
-                    
-                    <td class="monitor-url">
-                        <?php if ($is_enabled && $monitor_url): ?>
-                            <code><?php echo esc_html($monitor_url); ?></code>
-                            <br>
-                            <a href="<?php echo $monitor_class->get_monitor_display_url($vendor->ID); ?>" 
-                               target="_blank" class="button button-small">
-                                <i class="dashicons dashicons-external"></i>
-                                <?php _e('Apri Monitor', 'dokan-mod'); ?>
-                            </a>
-                        <?php else: ?>
-                            <span class="description"><?php _e('Non configurato', 'dokan-mod'); ?></span>
-                        <?php endif; ?>
-                    </td>
-                    
-                    <td class="last-access">
-                        <?php if ($last_access): ?>
-                            <?php echo date('d/m/Y H:i', strtotime($last_access)); ?>
-                        <?php else: ?>
-                            <span class="description"><?php _e('Mai', 'dokan-mod'); ?></span>
-                        <?php endif; ?>
-                    </td>
-                    
-                    <td class="actions">
-                        <div class="monitor-toggle-container">
-                            <label class="monitor-toggle-switch">
-                                <input type="checkbox" 
-                                       class="monitor-toggle-checkbox" 
-                                       data-vendor-id="<?php echo $vendor->ID; ?>"
-                                       <?php checked($is_enabled); ?>>
-                                <span class="monitor-toggle-slider"></span>
-                            </label>
-                        </div>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-        
-        <div class="tablenav bottom">
-            <div class="alignleft actions bulkactions">
-                <select name="bulk_action" id="bulk-action-selector-bottom">
-                    <option value="-1"><?php _e('Azioni di gruppo', 'dokan-mod'); ?></option>
-                    <option value="enable"><?php _e('Abilita per Monitor', 'dokan-mod'); ?></option>
-                    <option value="disable"><?php _e('Disabilita per Monitor', 'dokan-mod'); ?></option>
-                </select>
-                <input type="submit" id="doaction2" class="button action" value="<?php _e('Applica', 'dokan-mod'); ?>">
+            <!-- Filters -->
+            <div class="monitor-filters" style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
+                    <div>
+                        <label for="vendor-filter"><strong>Vendor:</strong></label>
+                        <select id="vendor-filter" style="margin-left: 10px;">
+                            <option value="">Tutti i Vendor</option>
+                            <!-- Populated via AJAX -->
+                        </select>
+                    </div>
+                    <div>
+                        <label for="layout-filter"><strong>Layout:</strong></label>
+                        <select id="layout-filter" style="margin-left: 10px;">
+                            <option value="">Tutti i Layout</option>
+                            <option value="manifesti">Manifesti</option>
+                            <option value="solo_annuncio">Solo Annuncio</option>
+                            <option value="citta_multi">Città Multi-Agenzia</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="status-filter"><strong>Stato:</strong></label>
+                        <select id="status-filter" style="margin-left: 10px;">
+                            <option value="">Tutti</option>
+                            <option value="enabled">Abilitati</option>
+                            <option value="disabled">Disabilitati</option>
+                            <option value="active">Attivi</option>
+                        </select>
+                    </div>
+                    <button type="button" class="button" onclick="applyFilters()">Filtra</button>
+                    <button type="button" class="button" onclick="resetFilters()">Reset</button>
+                </div>
+            </div>
+
+            <!-- Loading -->
+            <div id="monitor-loading" style="display: none; text-align: center; padding: 40px;">
+                <div class="spinner is-active" style="float: none; margin: 0 auto;"></div>
+                <p>Caricamento monitor...</p>
+            </div>
+
+            <!-- Monitor Table -->
+            <div id="monitor-table-container">
+                <table class="wp-list-table widefat fixed striped" id="monitor-table">
+                    <thead>
+                        <tr>
+                            <td class="manage-column column-cb check-column">
+                                <input type="checkbox" id="monitor-select-all">
+                            </td>
+                            <th class="manage-column">Monitor</th>
+                            <th class="manage-column">Vendor</th>
+                            <th class="manage-column">Layout</th>
+                            <th class="manage-column">Stato</th>
+                            <th class="manage-column">Associazione</th>
+                            <th class="manage-column">URL Display</th>
+                            <th class="manage-column">Ultimo Accesso</th>
+                            <th class="manage-column">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monitor-table-body">
+                        <!-- Populated via AJAX -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div id="monitor-pagination" style="margin: 20px 0; text-align: center;">
+                <!-- Populated via AJAX -->
             </div>
         </div>
-    </form>
 
-    <!-- Info Box -->
-    <div class="monitor-info-box" style="margin-top: 30px; padding: 20px; background: #f9f9f9; border-left: 4px solid #007cba;">
-        <h3><?php _e('Come funziona il Monitor Digitale', 'dokan-mod'); ?></h3>
-        <ul>
-            <li><?php _e('Abilita i vendor che possono utilizzare il monitor digitale', 'dokan-mod'); ?></li>
-            <li><?php _e('Ogni vendor abilitato riceve un URL univoco per il proprio monitor', 'dokan-mod'); ?></li>
-            <li><?php _e('Il vendor può associare un defunto al monitor dal proprio pannello', 'dokan-mod'); ?></li>
-            <li><?php _e('Il monitor si aggiorna automaticamente ogni 15 secondi', 'dokan-mod'); ?></li>
-            <li><?php _e('Solo un defunto per volta può essere associato al monitor', 'dokan-mod'); ?></li>
-        </ul>
+    <?php endif; ?>
+</div>
+
+<!-- Modal: Create Monitor -->
+<div id="create-monitor-modal" class="monitor-modal" style="display: none;">
+    <div class="monitor-modal-content">
+        <div class="monitor-modal-header">
+            <h2>🆕 Crea Nuovo Monitor</h2>
+            <span class="monitor-modal-close" onclick="closeCreateMonitorModal()">&times;</span>
+        </div>
+        <div class="monitor-modal-body">
+            <form id="create-monitor-form">
+                <table class="form-table">
+                    <tbody>
+                        <tr>
+                            <th scope="row"><label for="vendor-select">Vendor *</label></th>
+                            <td>
+                                <select id="vendor-select" name="vendor_id" required style="width: 100%;">
+                                    <option value="">Seleziona Vendor...</option>
+                                    <!-- Populated via AJAX -->
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="monitor-name">Nome Monitor *</label></th>
+                            <td>
+                                <input type="text" id="monitor-name" name="monitor_name" required 
+                                       style="width: 100%;" placeholder="Es: Monitor Sala Principale">
+                                <p class="description">Nome descrittivo per identificare il monitor</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="monitor-description">Descrizione</label></th>
+                            <td>
+                                <textarea id="monitor-description" name="monitor_description" 
+                                         style="width: 100%;" rows="3" 
+                                         placeholder="Descrizione opzionale del monitor..."></textarea>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="layout-type">Tipo Layout *</label></th>
+                            <td>
+                                <select id="layout-type" name="layout_type" required style="width: 100%;">
+                                    <option value="manifesti">Manifesti (Default)</option>
+                                    <option value="solo_annuncio">Solo Annuncio di Morte</option>
+                                    <option value="citta_multi">Città Multi-Agenzia</option>
+                                </select>
+                                <p class="description">Seleziona il tipo di contenuto da visualizzare</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </form>
+        </div>
+        <div class="monitor-modal-footer">
+            <button type="button" class="button button-secondary" onclick="closeCreateMonitorModal()">Annulla</button>
+            <button type="button" class="button button-primary" onclick="createMonitor()">Crea Monitor</button>
+        </div>
     </div>
 </div>
 
-<!-- Loading Overlay -->
-<div id="monitor-loading-overlay" class="monitor-loading-overlay" style="display: none;">
-    <div class="monitor-spinner"></div>
-    <p><?php _e('Operazione in corso...', 'dokan-mod'); ?></p>
+<!-- Modal: Monitor Details -->
+<div id="monitor-details-modal" class="monitor-modal" style="display: none;">
+    <div class="monitor-modal-content">
+        <div class="monitor-modal-header">
+            <h2>📊 Dettagli Monitor</h2>
+            <span class="monitor-modal-close" onclick="closeMonitorDetailsModal()">&times;</span>
+        </div>
+        <div class="monitor-modal-body" id="monitor-details-content">
+            <!-- Populated dynamically -->
+        </div>
+        <div class="monitor-modal-footer">
+            <button type="button" class="button button-secondary" onclick="closeMonitorDetailsModal()">Chiudi</button>
+        </div>
+    </div>
 </div>
 
+<!-- Messages -->
+<div id="monitor-messages" style="margin: 20px 0;"></div>
+
+<!-- CSS Styles -->
 <style>
-/* Stats Cards */
-.monitor-stat-card {
-    background: #fff;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    text-align: center;
-    min-width: 120px;
-    border-top: 4px solid #ddd;
-}
-
-.monitor-stat-card.enabled {
-    border-top-color: #46b450;
-}
-
-.monitor-stat-card.active {
-    border-top-color: #00a0d2;
-}
-
-.monitor-stat-card.inactive {
-    border-top-color: #ffb900;
-}
-
-.stat-number {
-    font-size: 2.5rem;
-    font-weight: bold;
-    line-height: 1;
-    margin-bottom: 5px;
-}
-
-.stat-label {
-    font-size: 0.9rem;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* Status Badges */
-.status-badge {
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    display: inline-block;
-}
-
-.status-badge.status-active {
-    background: #d4edda;
-    color: #155724;
-}
-
-.status-badge.status-inactive {
-    background: #fff3cd;
-    color: #856404;
-}
-
-.status-badge.status-disabled {
-    background: #f8d7da;
-    color: #721c24;
-}
-
-/* Toggle Switch */
-.monitor-toggle-switch {
-    position: relative;
-    display: inline-block;
-    width: 50px;
-    height: 24px;
-}
-
-.monitor-toggle-checkbox {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.monitor-toggle-slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: .3s;
-    border-radius: 24px;
-}
-
-.monitor-toggle-slider:before {
-    position: absolute;
-    content: "";
-    height: 18px;
-    width: 18px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: .3s;
-    border-radius: 50%;
-}
-
-.monitor-toggle-checkbox:checked + .monitor-toggle-slider {
-    background-color: #46b450;
-}
-
-.monitor-toggle-checkbox:checked + .monitor-toggle-slider:before {
-    transform: translateX(26px);
-}
-
-/* Table Enhancements */
-.wp-list-table .column-vendor-id {
-    width: 60px;
-}
-
-.wp-list-table .column-monitor-status {
-    width: 150px;
-}
-
-.wp-list-table .column-actions {
-    width: 80px;
-}
-
-.wp-list-table .column-last-access {
-    width: 130px;
-}
-
-/* Loading Overlay */
-.monitor-loading-overlay {
+.monitor-modal {
     position: fixed;
-    top: 0;
+    z-index: 100000;
     left: 0;
+    top: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0,0,0,0.5);
+}
+
+.monitor-modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    width: 70%;
+    max-width: 800px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.monitor-modal-header {
+    padding: 20px 25px;
+    border-bottom: 1px solid #ddd;
     display: flex;
-    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
-    z-index: 999999;
-    color: white;
+    background-color: #f8f9fa;
+    border-radius: 8px 8px 0 0;
 }
 
-.monitor-spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid rgba(255, 255, 255, 0.3);
-    border-top: 4px solid white;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 20px;
+.monitor-modal-header h2 {
+    margin: 0;
+    color: #333;
 }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+.monitor-modal-close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
 }
 
-/* Responsive */
-@media (max-width: 782px) {
+.monitor-modal-close:hover,
+.monitor-modal-close:focus {
+    color: #000;
+}
+
+.monitor-modal-body {
+    padding: 25px;
+}
+
+.monitor-modal-footer {
+    padding: 15px 25px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+    background-color: #f8f9fa;
+    border-radius: 0 0 8px 8px;
+}
+
+.monitor-modal-footer button {
+    margin-left: 10px;
+}
+
+.monitor-status-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.monitor-status-enabled {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.monitor-status-disabled {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.monitor-status-active {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+.monitor-url-display {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 11px;
+    background-color: #f1f1f1;
+    padding: 4px 8px;
+    border-radius: 4px;
+    max-width: 250px;
+    word-break: break-all;
+}
+
+.monitor-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.monitor-actions .button {
+    padding: 4px 8px;
+    font-size: 12px;
+    height: auto;
+    line-height: 1.4;
+}
+
+@media (max-width: 768px) {
+    .monitor-modal-content {
+        width: 95%;
+        margin: 2% auto;
+    }
+    
     .monitor-stats-cards {
         flex-direction: column;
-        gap: 10px !important;
     }
     
-    .monitor-stat-card {
-        min-width: auto;
-    }
-    
-    .monitor-admin-filters > div {
+    .monitor-filters > div {
         flex-direction: column;
-        gap: 15px;
-        align-items: stretch !important;
-    }
-    
-    .monitor-admin-filters > div > div {
-        flex-wrap: wrap;
-        justify-content: center;
+        gap: 10px;
     }
 }
 </style>
 
-<?php
-// Enqueue admin scripts and styles
-wp_enqueue_script('jquery');
-wp_enqueue_style('dashicons');
-?>
+<script>
+// Modal functions for monitor management
+function showCreateMonitorModal() {
+    alert('La funzionalità di creazione monitor è in sviluppo.\n\nPer ora, i monitor vengono creati automaticamente quando un vendor viene abilitato.');
+    // TODO: Implement modal for creating monitors
+}
+
+function editMonitor(monitorId) {
+    alert('Modifica monitor #' + monitorId + ' - Funzionalità in sviluppo.');
+    // TODO: Implement edit functionality
+}
+
+function deleteMonitor(monitorId) {
+    if (confirm('Sei sicuro di voler eliminare questo monitor?')) {
+        // TODO: Implement delete functionality via AJAX
+        alert('Eliminazione monitor #' + monitorId + ' - Funzionalità in sviluppo.');
+    }
+}
+
+function viewMonitor(monitorId) {
+    // This function can open the monitor in a new tab
+    const monitorRow = document.querySelector(`tr[data-monitor-id="${monitorId}"]`);
+    if (monitorRow) {
+        const monitorUrl = monitorRow.querySelector('.monitor-url-display').textContent;
+        if (monitorUrl) {
+            window.open(monitorUrl, '_blank');
+        }
+    }
+}
+
+// Copy monitor URL to clipboard
+function copyMonitorUrl(url) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(function() {
+            alert('URL copiato negli appunti!');
+        }).catch(function(err) {
+            // Fallback
+            copyToClipboardFallback(url);
+        });
+    } else {
+        copyToClipboardFallback(url);
+    }
+}
+
+function copyToClipboardFallback(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+        document.execCommand('copy');
+        alert('URL copiato negli appunti!');
+    } catch (err) {
+        alert('Impossibile copiare l\'URL. Seleziona e copia manualmente: ' + text);
+    }
+    document.body.removeChild(textArea);
+}
+
+// Initialize monitor admin functionality when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click handlers for monitor action buttons
+    document.querySelectorAll('.copy-url-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const url = this.getAttribute('data-url');
+            if (url) copyMonitorUrl(url);
+        });
+    });
+    
+    // Initialize tooltips if needed
+    const tooltips = document.querySelectorAll('[title]');
+    tooltips.forEach(el => {
+        el.style.cursor = 'help';
+    });
+});
+</script>

@@ -52,14 +52,14 @@ if (!class_exists(__NAMESPACE__ . '\CloudFlareGeo')) {
 
             ?>
             <div class="wrap">
-                <h1><?php esc_html_e('Impostazioni del Worker', 'textdomain'); ?></h1>
+                <h1><?php esc_html_e('Impostazioni del Worker', 'dokan-mod'); ?></h1>
 
                 <!-- Form per inserire URL e Token -->
                 <form method="post" action="">
                     <table class="form-table">
                         <tr valign="top">
                             <th scope="row">
-                                <label for="worker_url"><?php esc_html_e('URL del Worker', 'textdomain'); ?></label>
+                                <label for="worker_url"><?php esc_html_e('URL del Worker', 'dokan-mod'); ?></label>
                             </th>
                             <td>
                                 <input type="text" id="worker_url" name="worker_url" value="<?php echo $worker_url; ?>"
@@ -69,7 +69,7 @@ if (!class_exists(__NAMESPACE__ . '\CloudFlareGeo')) {
 
                         <tr valign="top">
                             <th scope="row">
-                                <label for="worker_token"><?php esc_html_e('Token del Worker', 'textdomain'); ?></label>
+                                <label for="worker_token"><?php esc_html_e('Token del Worker', 'dokan-mod'); ?></label>
                             </th>
                             <td>
                                 <input type="text" id="worker_token" name="worker_token"
@@ -82,7 +82,7 @@ if (!class_exists(__NAMESPACE__ . '\CloudFlareGeo')) {
                 </form>
 
                 <!-- Guida completa per configurare il Worker su Cloudflare -->
-                <h2><?php esc_html_e('Guida alla Configurazione del Worker su Cloudflare', 'textdomain'); ?></h2>
+                <h2><?php esc_html_e('Guida alla Configurazione del Worker su Cloudflare', 'dokan-mod'); ?></h2>
                 <p>Segui i passaggi qui sotto per creare e configurare il Worker su Cloudflare:</p>
 
                 <ol>
