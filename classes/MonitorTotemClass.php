@@ -57,6 +57,22 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             add_action('admin_init', array($this, 'handle_migration_requests'));
         }
 
+        /**
+         * Safely decode layout_config JSON data
+         * Handles both string JSON and already decoded arrays
+         */
+        private function safe_decode_layout_config($layout_config)
+        {
+            if (is_string($layout_config) && !empty($layout_config)) {
+                $decoded = json_decode($layout_config, true);
+                return is_array($decoded) ? $decoded : [];
+            } elseif (is_array($layout_config)) {
+                return $layout_config;
+            } else {
+                return [];
+            }
+        }
+
         public function init()
         {
             // Register rewrite rules for monitor display URLs
@@ -1042,7 +1058,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
         private function generate_preview_data($monitor)
         {
             $layout_type = $monitor['layout_type'];
-            $layout_config = json_decode($monitor['layout_config'] ?? '{}', true);
+            $layout_config = $this->safe_decode_layout_config($monitor['layout_config'] ?? '{}');
             
             // Get preview data based on layout type
             switch ($layout_type) {
@@ -1688,7 +1704,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
 
             // Process monitors data
             foreach ($monitors as &$monitor) {
-                $monitor['layout_config'] = json_decode($monitor['layout_config'], true);
+                $monitor['layout_config'] = $this->safe_decode_layout_config($monitor['layout_config']);
             }
 
             // Get filter data (vendors and counts)

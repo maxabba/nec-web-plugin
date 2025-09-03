@@ -37,6 +37,22 @@ if (!class_exists(__NAMESPACE__ . '\MonitorDatabaseManager')) {
         }
 
         /**
+         * Safely decode layout_config JSON data
+         * Handles both string JSON and already decoded arrays
+         */
+        private function safe_decode_layout_config($layout_config)
+        {
+            if (is_string($layout_config) && !empty($layout_config)) {
+                $decoded = json_decode($layout_config, true);
+                return is_array($decoded) ? $decoded : [];
+            } elseif (is_array($layout_config)) {
+                return $layout_config;
+            } else {
+                return [];
+            }
+        }
+
+        /**
          * Check if table exists
          */
         public function table_exists()
@@ -270,7 +286,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorDatabaseManager')) {
             );
 
             if ($result) {
-                $result['layout_config'] = json_decode($result['layout_config'], true);
+                $result['layout_config'] = $this->safe_decode_layout_config($result['layout_config']);
             }
 
             return $result;
@@ -297,7 +313,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorDatabaseManager')) {
 
             // Decode layout_config for each monitor
             foreach ($results as &$monitor) {
-                $monitor['layout_config'] = json_decode($monitor['layout_config'], true);
+                $monitor['layout_config'] = $this->safe_decode_layout_config($monitor['layout_config']);
             }
 
             return $results;
@@ -320,7 +336,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorDatabaseManager')) {
             );
 
             if ($result) {
-                $result['layout_config'] = json_decode($result['layout_config'], true);
+                $result['layout_config'] = $this->safe_decode_layout_config($result['layout_config']);
             }
 
             return $result;

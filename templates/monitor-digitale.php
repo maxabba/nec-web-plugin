@@ -121,6 +121,20 @@ $available_layouts = [
     'citta_multi' => __('Layout Città Multi-Agenzia', 'dokan-mod')
 ];
 
+// Helper function for safe JSON decoding
+if (!function_exists('dkmod_safe_decode_layout_config')) {
+    function dkmod_safe_decode_layout_config($layout_config) {
+        if (is_string($layout_config) && !empty($layout_config)) {
+            $decoded = json_decode($layout_config, true);
+            return is_array($decoded) ? $decoded : [];
+        } elseif (is_array($layout_config)) {
+            return $layout_config;
+        } else {
+            return [];
+        }
+    }
+}
+
 // Get pagination
 if (get_query_var('paged')) {
     $paged = get_query_var('paged');
@@ -213,7 +227,7 @@ $active_menu = 'monitor-digitale';
                     <!-- Monitors List -->
                     <div class="monitors-container">
                         <?php foreach ($vendor_monitors as $monitor): 
-                            $layout_config = json_decode($monitor['layout_config'], true) ?: [];
+                            $layout_config = dkmod_safe_decode_layout_config($monitor['layout_config']);
                             $associated_post_title = $monitor['associated_post_id'] ? get_the_title($monitor['associated_post_id']) : null;
                         ?>
                             <div class="monitor-card" data-monitor-id="<?php echo $monitor['id']; ?>">
