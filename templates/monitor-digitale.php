@@ -9,6 +9,7 @@ use Dokan_Mods\Templates_MiscClass;
 // Check if vendor is logged in and enabled for monitor
 $template_class = new Templates_MiscClass();
 $template_class->check_dokan_can_and_message_login();
+$template_class->enqueue_dashboard_common_styles();
 
 $user_id = get_current_user_id();
 $monitor_class = new Dokan_Mods\MonitorTotemClass();
@@ -262,8 +263,17 @@ $active_menu = 'monitor-digitale';
                                         <!-- URL Display -->
                                         <td class="monitor-url-cell">
                                             <div class="url-display">
-                                                <code class="monitor-url-code"><?php echo esc_html($monitor_url); ?></code>
-                                                <button type="button" class="copy-url-btn" onclick="copyMonitorUrl('<?php echo $monitor['id']; ?>')" title="<?php _e('Copia URL', 'dokan-mod'); ?>">
+                                                <?php 
+                                                // Extract only the path after domain for display
+                                                $parsed_url = parse_url($monitor_url);
+                                                $display_path = $parsed_url['path'] ?? '';
+                                                // Show only the monitor-specific part (last 3 segments)
+                                                $path_segments = array_filter(explode('/', $display_path));
+                                                $display_segments = array_slice($path_segments, -3); // vendor_id/monitor_id/slug
+                                                $short_display = '.../' . implode('/', $display_segments);
+                                                ?>
+                                                <code class="monitor-url-code" title="<?php echo esc_attr($monitor_url); ?>"><?php echo esc_html($short_display); ?></code>
+                                                <button type="button" class="copy-url-btn compact" onclick="copyMonitorUrl('<?php echo $monitor['id']; ?>')" title="<?php _e('Copia URL completo', 'dokan-mod'); ?>">
                                                     <i class="dashicons dashicons-admin-page"></i>
                                                 </button>
                                             </div>
@@ -348,6 +358,17 @@ $active_menu = 'monitor-digitale';
                                                     break;
                                             }
                                             ?>
+                                            
+                                            <!-- Manage Association Button -->
+                                            <div class="association-actions" style="margin-top: 8px;">
+                                                <button type="button" 
+                                                        class="button button-small manage-association-btn"
+                                                        onclick="openAssociationModal(<?php echo $monitor['id']; ?>, '<?php echo esc_js($monitor['layout_type']); ?>', '<?php echo esc_js($monitor['monitor_name']); ?>')" 
+                                                        title="<?php _e('Gestisci associazioni per questo monitor', 'dokan-mod'); ?>">
+                                                    <i class="dashicons dashicons-admin-users"></i>
+                                                    <?php _e('Gestisci', 'dokan-mod'); ?>
+                                                </button>
+                                            </div>
                                         </td>
                                         
                                         <!-- Layout Selector -->
@@ -422,870 +443,900 @@ $active_menu = 'monitor-digitale';
                         </table>
                     </div>
 
-                    <!-- Search Form -->
-                    <form method="get" action="<?php echo site_url('/dashboard/monitor-digitale'); ?>" style="display: flex; margin-bottom: 15px;">
-                        <input type="text" name="s" value="<?php echo esc_attr(get_query_var('s')); ?>" 
-                               placeholder="<?php _e('Cerca per nome defunto...', 'dokan-mod'); ?>" 
-                               style="margin-right: 10px; flex: 1; max-width: 400px;">
-                        <input type="submit" value="<?php _e('Cerca', 'dokan-mod'); ?>">
-                        <?php if (get_query_var('s')): ?>
-                            <a href="<?php echo site_url('/dashboard/monitor-digitale'); ?>" class="custom-widget-button" style="margin-left: 10px;">
-                                <?php _e('Reset', 'dokan-mod'); ?>
-                            </a>
-                        <?php endif; ?>
-                    </form>
-
-                    <div class="defunti-section">
-                        <h3><?php _e('Gestisci Associazioni Defunti', 'dokan-mod'); ?></h3>
-                        <table class="defunti-table">
-                            <thead>
-                            <tr>
-                                <th><?php _e('Foto', 'dokan-mod'); ?></th>
-                                <th><?php _e('Nome Defunto', 'dokan-mod'); ?></th>
-                                <th><?php _e('Data Morte', 'dokan-mod'); ?></th>
-                                <th><?php _e('Pubblicazione', 'dokan-mod'); ?></th>
-                                <th><?php _e('Monitor Associati', 'dokan-mod'); ?></th>
-                                <th><?php _e('Azioni', 'dokan-mod'); ?></th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <?php
-                            if ($query->have_posts()) :
-                                while ($query->have_posts()) : $query->the_post();
-                                    $post_id = get_the_ID();
-                                    $foto_defunto = get_field('fotografia', $post_id);
-                                    $data_morte = get_field('data_di_morte', $post_id);
-                                    
-                                    // Check which monitors this defunto is associated with
-                                    $associated_monitors = [];
-                                    foreach ($vendor_monitors as $monitor) {
-                                        if ($monitor['associated_post_id'] == $post_id) {
-                                            $associated_monitors[] = $monitor;
-                                        }
-                                    }
-                                    
-                                    $has_associations = !empty($associated_monitors);
-                                    ?>
-                                    <tr <?php echo $has_associations ? 'class="has-associations"' : ''; ?>>
-                                        <td>
-                                            <?php if ($foto_defunto): ?>
-                                                <?php 
-                                                $foto_url = is_array($foto_defunto) && isset($foto_defunto['sizes']['thumbnail']) 
-                                                    ? $foto_defunto['sizes']['thumbnail'] 
-                                                    : (is_array($foto_defunto) && isset($foto_defunto['url']) ? $foto_defunto['url'] : $foto_defunto);
-                                                ?>
-                                                <img src="<?php echo esc_url($foto_url); ?>" 
-                                                     alt="<?php echo esc_attr(get_the_title()); ?>" 
-                                                     style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">
-                                            <?php else: ?>
-                                                <div style="width: 50px; height: 50px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 4px;">
-                                                    <i class="dashicons dashicons-admin-users" style="color: #ccc;"></i>
-                                                </div>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <strong><?php the_title(); ?></strong>
-                                        </td>
-                                        <td><?php echo $data_morte ? date('d/m/Y', strtotime($data_morte)) : get_the_date('d/m/Y'); ?></td>
-                                        <td><?php echo get_the_date('d/m/Y'); ?></td>
-                                        <td>
-                                            <?php if ($has_associations): ?>
-                                                <?php foreach ($associated_monitors as $monitor): ?>
-                                                    <span class="monitor-tag active"><?php echo esc_html($monitor['monitor_name']); ?></span>
-                                                <?php endforeach; ?>
-                                            <?php else: ?>
-                                                <span class="monitor-tag inactive">Nessuno</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <div class="defunto-actions">
-                                                <!-- Association dropdowns for each applicable monitor -->
-                                                <?php foreach ($vendor_monitors as $monitor): 
-                                                    $is_associated = $monitor['associated_post_id'] == $post_id;
-                                                    $can_associate = in_array($monitor['layout_type'], ['manifesti', 'solo_annuncio']);
-                                                ?>
-                                                    <?php if ($can_associate): ?>
-                                                        <?php if ($is_associated): ?>
-                                                            <form method="post" style="display: inline; margin: 2px;" onsubmit="return confirm('<?php _e('Rimuovere questo defunto dal monitor?', 'dokan-mod'); ?>');">
-                                                                <?php wp_nonce_field('monitor_remove_association', 'monitor_nonce'); ?>
-                                                                <input type="hidden" name="action" value="remove_association">
-                                                                <input type="hidden" name="monitor_id" value="<?php echo $monitor['id']; ?>">
-                                                                <button type="submit" class="custom-widget-button" style="background: #dc3545; color: white; font-size: 12px; padding: 4px 8px;">
-                                                                    <i class="dashicons dashicons-no"></i> <?php echo esc_html($monitor['monitor_name']); ?>
-                                                                </button>
-                                                            </form>
-                                                        <?php elseif (!$monitor['associated_post_id']): // Only show if monitor is free ?>
-                                                            <form method="post" style="display: inline; margin: 2px;" onsubmit="return confirm('<?php _e('Associare questo defunto al monitor?', 'dokan-mod'); ?>');">
-                                                                <?php wp_nonce_field('monitor_associate_defunto', 'monitor_nonce'); ?>
-                                                                <input type="hidden" name="action" value="associate_defunto">
-                                                                <input type="hidden" name="monitor_id" value="<?php echo $monitor['id']; ?>">
-                                                                <input type="hidden" name="post_id" value="<?php echo $post_id; ?>">
-                                                                <button type="submit" class="custom-widget-button" style="background: #007cba; color: white; font-size: 12px; padding: 4px 8px;">
-                                                                    <i class="dashicons dashicons-yes"></i> <?php echo esc_html($monitor['monitor_name']); ?>
-                                                                </button>
-                                                            </form>
-                                                        <?php endif; ?>
-                                                    <?php endif; ?>
-                                                <?php endforeach; ?>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php
-                                endwhile;
-                            else :
-                                ?>
-                                <tr>
-                                    <td colspan="6">
-                                        <?php if (get_query_var('s')): ?>
-                                            <?php _e('Nessun annuncio trovato per la ricerca.', 'dokan-mod'); ?>
-                                        <?php else: ?>
-                                            <?php _e('Non hai ancora pubblicato annunci di morte.', 'dokan-mod'); ?>
-                                            <br><br>
-                                            <a href="<?php echo site_url('/dashboard/crea-annuncio'); ?>" class="custom-widget-button">
-                                                <i class="dashicons dashicons-plus"></i> <?php _e('Crea il tuo primo annuncio', 'dokan-mod'); ?>
-                                            </a>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php
-                            endif;
-                            wp_reset_postdata();
-                            ?>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="pagination">
-                        <div class="tablenav-pages">
-                            <span class="displaying-num"><?php echo $query->found_posts; ?> elementi</span>
-                            <span class="pagination-links">
-                            <?php
-                            $paginate_links = paginate_links(array(
-                                'base' => str_replace(999999999, '%#%', esc_url(get_pagenum_link(999999999))),
-                                'total' => $query->max_num_pages,
-                                'current' => max(1, get_query_var('paged')),
-                                'show_all' => false,
-                                'type' => 'array',
-                                'end_size' => 2,
-                                'mid_size' => 1,
-                                'prev_next' => true,
-                                'prev_text' => '‹',
-                                'next_text' => '›',
-                                'add_args' => get_query_var('s') ? array('s' => get_query_var('s')) : false,
-                                'add_fragment' => '',
-                            ));
-
-                            if ($paginate_links) {
-                                $pagination = '';
-                                foreach ($paginate_links as $link) {
-                                    $pagination .= "<span class='paging-input'>$link</span>";
-                                }
-                                echo $pagination;
-                            }
-                            ?>
-                        </span>
-                        </div>
-                    </div>
-
                 </div>
 
             </div><!-- .dokan-dashboard-content -->
 
         </div><!-- .dokan-dashboard-wrap -->
 
-        <div class="post-tags">
         </div>
     </div>
 
 </main>
 
+<!-- CSS Styles for Modal -->
+<style>
+/* Table Column Widths Optimization */
+.monitors-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.monitor-name-col {
+    width: 20%;
+}
+
+.monitor-url-col {
+    width: 15%; /* Reduced from default */
+}
+
+.monitor-status-col {
+    width: 12%;
+}
+
+.monitor-association-col {
+    width: 18%;
+}
+
+.monitor-layout-col {
+    width: 20%; /* Increased for better dropdown visibility */
+}
+
+.monitor-actions-col {
+    width: 15%;
+}
+
+/* URL Display Optimization */
+.url-display {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.monitor-url-code {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 11px;
+    background-color: #f1f1f1;
+    padding: 4px 6px;
+    border-radius: 3px;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: help;
+    flex: 1;
+}
+
+.copy-url-btn {
+    padding: 2px 4px;
+    font-size: 12px;
+    line-height: 1;
+    min-height: auto;
+    height: 24px;
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+}
+
+.copy-url-btn.compact {
+    padding: 1px 2px;
+    height: 20px;
+    width: 20px;
+}
+
+.copy-url-btn .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+}
+
+.copy-url-btn.compact .dashicons {
+    font-size: 12px;
+    width: 12px;
+    height: 12px;
+}
+
+/* Layout Selector Optimization */
+.layout-selector-wrapper {
+    min-width: 140px; /* Ensure minimum width for dropdown */
+}
+
+.layout-selector {
+    width: 100%;
+    min-width: 140px;
+    font-size: 13px;
+    padding: 4px 8px;
+}
+
+/* Monitor Modal Styles */
+.monitor-modal {
+    position: fixed;
+    z-index: 999999 !important;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease-out;
+    backdrop-filter: blur(2px);
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.monitor-modal.show {
+    opacity: 1;
+}
+
+.monitor-modal-content {
+    background-color: #fefefe;
+    width: 80%;
+    max-width: 900px;
+    max-height: 90vh;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    position: relative;
+    margin: 0 auto;
+    transform: scale(0.9);
+    transition: transform 0.3s ease-out;
+    display: flex;
+    flex-direction: column;
+}
+
+.monitor-modal.show .monitor-modal-content {
+    transform: scale(1);
+}
+
+.monitor-modal-header {
+    padding: 20px 25px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+}
+
+.monitor-modal-header h2 {
+    margin: 0;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.monitor-modal-close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    background: none;
+    border: none;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.monitor-modal-close:hover,
+.monitor-modal-close:focus {
+    color: #000;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.monitor-modal-body {
+    padding: 25px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.monitor-modal-footer {
+    padding: 15px 25px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+    background-color: #f8f9fa;
+    border-radius: 0 0 8px 8px;
+}
+
+.monitor-modal-footer button {
+    margin-left: 10px;
+}
+
+/* Association Modal Specific Styles */
+.association-modal-content {
+    /* Inherits from .monitor-modal-content */
+}
+
+.modal-layout-explanation {
+    background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+    padding: 15px 25px;
+    margin: 0;
+}
+
+.modal-layout-explanation p {
+    margin: 0;
+    font-size: 1rem;
+    color: #666;
+    text-align: center;
+}
+
+.modal-layout-explanation strong {
+    color: #2271b1;
+    font-weight: 600;
+}
+
+.search-form-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.search-form-wrapper input {
+    flex: 1;
+    max-width: 400px;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.defunti-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.defunti-table th {
+    background: #f1f1f1;
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.defunti-table td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+}
+
+.defunto-foto {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.defunto-foto-placeholder {
+    width: 50px;
+    height: 50px;
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: #ccc;
+}
+
+.association-action-btn {
+    margin-right: 8px;
+    margin-bottom: 4px;
+}
+
+.association-action-btn.associated {
+    background-color: #d63638;
+    border-color: #d63638;
+    color: white !important;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.association-action-btn.not-associated {
+    background-color: #2271b1;
+    border-color: #2271b1;
+    color: white;
+}
+
+.association-actions .button {
+    margin: 2px;
+}
+
+.manage-association-btn {
+    background-color: #50575e;
+    border-color: #50575e;
+    color: white;
+}
+
+.manage-association-btn:hover {
+    background-color: #3c434a;
+    border-color: #3c434a;
+}
+
+/* Prevent body scroll when modal is open */
+body.modal-open {
+    overflow: hidden !important;
+}
+
+/* Ensure footer is always visible */
+body.dokan-dashboard {
+    min-height: 100vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+body.dokan-dashboard main {
+    flex: 1 !important;
+}
+
+/* Ensure modal is above WordPress admin bar */
+@media screen and (min-width: 783px) {
+    .admin-bar .monitor-modal {
+        z-index: 99999 !important;
+    }
+}
+
+@media screen and (max-width: 782px) {
+    .admin-bar .monitor-modal {
+        z-index: 99999 !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .association-modal-content {
+        max-width: 95%;
+        max-height: 95vh;
+    }
+    
+    .search-form-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .search-form-wrapper input {
+        max-width: 100%;
+        margin-bottom: 10px;
+    }
+}
+</style>
+
 <script>
-// Monitor URL Copy Function - Updated for table structure
+// Global variables for modal management
+let currentModalMonitorId = null;
+let currentModalLayoutType = null;
+let currentModalMonitorName = null;
+let currentDefuntiPage = 1;
+let defuntiSearchTerm = '';
+
+// Open Association Modal
+function openAssociationModal(monitorId, layoutType, monitorName) {
+    currentModalMonitorId = monitorId;
+    currentModalLayoutType = layoutType;
+    currentModalMonitorName = monitorName;
+    
+    // Update modal title and layout explanation
+    document.getElementById('modal-monitor-name').textContent = monitorName;
+    
+    const layoutNameElement = document.getElementById('modal-layout-name');
+    layoutNameElement.textContent = getLayoutDisplayName(layoutType);
+    
+    // Reset search
+    document.getElementById('defunto-search').value = '';
+    defuntiSearchTerm = '';
+    currentDefuntiPage = 1;
+    
+    // Show modal
+    const modal = document.getElementById('association-modal');
+    document.body.classList.add('modal-open');
+    modal.style.display = 'flex';
+    setTimeout(() => {
+        modal.classList.add('show');
+        loadDefuntiForModal();
+    }, 10);
+}
+
+// Close Association Modal
+function closeAssociationModal() {
+    const modal = document.getElementById('association-modal');
+    modal.classList.remove('show');
+    document.body.classList.remove('modal-open');
+    setTimeout(() => {
+        modal.style.display = 'none';
+        currentModalMonitorId = null;
+        currentModalLayoutType = null;
+        currentModalMonitorName = null;
+    }, 300);
+}
+
+// Load defunti data for modal via AJAX
+function loadDefuntiForModal(page = 1) {
+    document.getElementById('defunti-loading').style.display = 'block';
+    document.getElementById('defunti-modal-table').style.opacity = '0.5';
+    
+    const formData = new FormData();
+    formData.append('action', 'monitor_get_defunti_for_association');
+    formData.append('nonce', '<?php echo wp_create_nonce("monitor_association_nonce"); ?>');
+    formData.append('monitor_id', currentModalMonitorId);
+    formData.append('layout_type', currentModalLayoutType);
+    formData.append('search', defuntiSearchTerm);
+    formData.append('page', page);
+    
+    fetch('<?php echo admin_url("admin-ajax.php"); ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            renderDefuntiTable(data.data.defunti);
+            renderDefuntiPagination(data.data.pagination);
+            currentDefuntiPage = page;
+        } else {
+            console.error('Error loading defunti:', data.data);
+            document.getElementById('defunti-table-body').innerHTML = 
+                '<tr><td colspan="5">Errore nel caricamento defunti: ' + (data.data || 'Errore sconosciuto') + '</td></tr>';
+        }
+    })
+    .catch(error => {
+        console.error('Network error:', error);
+        document.getElementById('defunti-table-body').innerHTML = 
+            '<tr><td colspan="5">Errore di rete nel caricamento defunti</td></tr>';
+    })
+    .finally(() => {
+        document.getElementById('defunti-loading').style.display = 'none';
+        document.getElementById('defunti-modal-table').style.opacity = '1';
+    });
+}
+
+// Render defunti table
+function renderDefuntiTable(defunti) {
+    const tbody = document.getElementById('defunti-table-body');
+    
+    if (defunti.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5">Nessun defunto trovato.</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = defunti.map(defunto => {
+        const fotoHtml = defunto.foto ? 
+            `<img src="${defunto.foto}" alt="${defunto.nome}" class="defunto-foto">` :
+            `<div class="defunto-foto-placeholder"><i class="dashicons dashicons-admin-users"></i></div>`;
+            
+        const actions = createAssociationActions(defunto);
+        
+        return `
+            <tr>
+                <td>${fotoHtml}</td>
+                <td><strong>${defunto.nome}</strong></td>
+                <td>${defunto.data_morte || defunto.data_pubblicazione}</td>
+                <td>${defunto.data_pubblicazione}</td>
+                <td class="association-actions">${actions}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Create association action buttons
+function createAssociationActions(defunto) {
+    const isAssociated = defunto.is_associated;
+    const layoutDisplay = getLayoutDisplayName(currentModalLayoutType);
+    
+    if (currentModalLayoutType === 'citta_multi') {
+        return '<span class="button button-secondary button-small disabled">N/A per layout città multi</span>';
+    }
+    
+    if (isAssociated) {
+        return `
+            <button type="button" 
+                    class="button button-secondary button-small association-action-btn associated" 
+                    onclick="toggleDefuntoAssociation(${defunto.id}, false)"
+                    title="Rimuovi da ${currentModalMonitorName}">
+                <i class="dashicons dashicons-minus"></i>
+                Rimuovi da ${layoutDisplay}
+            </button>
+        `;
+    } else {
+        return `
+            <button type="button" 
+                    class="button button-primary button-small association-action-btn not-associated" 
+                    onclick="toggleDefuntoAssociation(${defunto.id}, true)"
+                    title="Associa a ${currentModalMonitorName}">
+                <i class="dashicons dashicons-plus"></i>
+                Associa a ${layoutDisplay}
+            </button>
+        `;
+    }
+}
+
+// Toggle defunto association
+function toggleDefuntoAssociation(defuntoId, associate) {
+    const action = associate ? 'add_defunto' : 'remove_defunto';
+    const actionText = associate ? 'Associa' : 'Rimuovi';
+    
+    if (!confirm(`${actionText} questo defunto ${associate ? 'a' : 'da'} ${currentModalMonitorName}?`)) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('action', 'monitor_toggle_defunto_association');
+    formData.append('nonce', '<?php echo wp_create_nonce("monitor_association_nonce"); ?>');
+    formData.append('monitor_id', currentModalMonitorId);
+    formData.append('post_id', defuntoId);
+    formData.append('association_action', action);
+    
+    fetch('<?php echo admin_url("admin-ajax.php"); ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload both modal and main table
+            loadDefuntiForModal(currentDefuntiPage);
+            location.reload(); // Refresh main page to show updated associations
+        } else {
+            alert('Errore: ' + (data.data || 'Operazione fallita'));
+        }
+    })
+    .catch(error => {
+        console.error('Network error:', error);
+        alert('Errore di rete durante l\'operazione');
+    });
+}
+
+// Render pagination for modal
+function renderDefuntiPagination(pagination) {
+    const container = document.getElementById('defunti-pagination');
+    
+    if (pagination.total_pages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    let html = '<div class="tablenav-pages">';
+    html += `<span class="displaying-num">${pagination.total_items} elementi</span>`;
+    
+    if (pagination.current_page > 1) {
+        html += `<button class="button" onclick="loadDefuntiForModal(${pagination.current_page - 1})">« Precedente</button>`;
+    }
+    
+    // Page numbers (show 5 pages max)
+    const startPage = Math.max(1, pagination.current_page - 2);
+    const endPage = Math.min(pagination.total_pages, pagination.current_page + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        if (i === pagination.current_page) {
+            html += `<span class="button button-primary" style="margin: 0 2px;">${i}</span>`;
+        } else {
+            html += `<button class="button" style="margin: 0 2px;" onclick="loadDefuntiForModal(${i})">${i}</button>`;
+        }
+    }
+    
+    if (pagination.current_page < pagination.total_pages) {
+        html += `<button class="button" onclick="loadDefuntiForModal(${pagination.current_page + 1})">Successiva »</button>`;
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Search functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('defunto-search');
+    const searchBtn = document.getElementById('search-defunto-btn');
+    const resetBtn = document.getElementById('reset-search-btn');
+    
+    if (searchInput) {
+        // Search on button click
+        searchBtn.addEventListener('click', function() {
+            defuntiSearchTerm = searchInput.value.trim();
+            currentDefuntiPage = 1;
+            loadDefuntiForModal(1);
+        });
+        
+        // Search on Enter key
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchBtn.click();
+            }
+        });
+        
+        // Reset search
+        resetBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            defuntiSearchTerm = '';
+            currentDefuntiPage = 1;
+            loadDefuntiForModal(1);
+        });
+    }
+});
+
+// Helper function to get layout display name
+function getLayoutDisplayName(layoutType) {
+    const layoutNames = {
+        'manifesti': 'Manifesti',
+        'solo_annuncio': 'Solo Annuncio',
+        'citta_multi': 'Città Multi-Agenzia'
+    };
+    return layoutNames[layoutType] || layoutType;
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('association-modal');
+    if (event.target === modal) {
+        closeAssociationModal();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const modal = document.getElementById('association-modal');
+        if (modal && modal.style.display !== 'none') {
+            closeAssociationModal();
+        }
+    }
+});
+
+// Monitor URL Copy Function
 function copyMonitorUrl(monitorId) {
     const monitorRow = document.querySelector(`[data-monitor-id="${monitorId}"]`);
+    if (!monitorRow) return;
+    
     const url = monitorRow.querySelector('.monitor-url-code').textContent;
     
     if (navigator.clipboard) {
         navigator.clipboard.writeText(url).then(function() {
             // Show success feedback
-            const button = monitorRow.querySelector('.copy-url-btn');
-            const originalHTML = button.innerHTML;
-            button.innerHTML = '<i class="dashicons dashicons-yes"></i>';
-            button.style.color = '#46b450';
-            
-            setTimeout(() => {
-                button.innerHTML = originalHTML;
-                button.style.color = '#666';
-            }, 1500);
+            showSuccessMessage('URL copiato negli appunti!');
+        }).catch(function() {
+            fallbackCopyToClipboard(url);
         });
     } else {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = url;
-        document.body.appendChild(textArea);
-        textArea.select();
+        fallbackCopyToClipboard(url);
+    }
+}
+
+function fallbackCopyToClipboard(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
         document.execCommand('copy');
-        document.body.removeChild(textArea);
-        
-        // Show success feedback
-        const button = monitorRow.querySelector('.copy-url-btn');
-        const originalHTML = button.innerHTML;
-        button.innerHTML = '<i class="dashicons dashicons-yes"></i>';
-        button.style.color = '#46b450';
-        
-        setTimeout(() => {
-            button.innerHTML = originalHTML;
-            button.style.color = '#666';
-        }, 1500);
+        showSuccessMessage('URL copiato negli appunti!');
+    } catch (err) {
+        showErrorMessage('Impossibile copiare automaticamente. URL: ' + text);
     }
+    document.body.removeChild(textArea);
 }
 
-// Toggle Città Multi Configuration Popup
-function toggleCittaMultiConfig(monitorId) {
-    const popup = document.getElementById(`citta_multi_popup_${monitorId}`);
-    const isVisible = popup.style.display !== 'none';
+function showSuccessMessage(message) {
+    // Simple toast notification
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #46b450;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 4px;
+        z-index: 100001;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
     
-    // Hide all popups first
-    document.querySelectorAll('.citta-multi-config-popup').forEach(p => {
-        p.style.display = 'none';
-    });
-    
-    // Toggle current popup
-    if (!isVisible) {
-        popup.style.display = 'block';
-        
-        // Close popup when clicking outside
-        const closeHandler = function(event) {
-            if (!popup.contains(event.target) && !event.target.closest('.layout-config-btn')) {
-                popup.style.display = 'none';
-                document.removeEventListener('click', closeHandler);
-            }
-        };
-        
-        setTimeout(() => {
-            document.addEventListener('click', closeHandler);
-        }, 100);
-    }
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, 3000);
 }
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-    // Add enhanced interactions for table interface
+function showErrorMessage(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #d63638;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 4px;
+        z-index: 100001;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
     
-    // Enhanced URL display with tooltip on hover
-    document.querySelectorAll('.monitor-url-code').forEach(function(urlCode) {
-        const fullUrl = urlCode.textContent;
-        
-        // Create tooltip element
-        const tooltip = document.createElement('div');
-        tooltip.className = 'url-tooltip';
-        tooltip.textContent = fullUrl;
-        tooltip.style.display = 'none';
-        document.body.appendChild(tooltip);
-        
-        urlCode.addEventListener('mouseenter', function(e) {
-            tooltip.style.display = 'block';
-            tooltip.style.left = e.pageX + 10 + 'px';
-            tooltip.style.top = e.pageY - 30 + 'px';
-        });
-        
-        urlCode.addEventListener('mouseleave', function() {
-            tooltip.style.display = 'none';
-        });
-        
-        urlCode.addEventListener('mousemove', function(e) {
-            tooltip.style.left = e.pageX + 10 + 'px';
-            tooltip.style.top = e.pageY - 30 + 'px';
-        });
-    });
-    
-    // Enhanced layout selector feedback
-    document.querySelectorAll('.layout-selector').forEach(function(selector) {
-        selector.addEventListener('change', function() {
-            // Show loading state
-            this.style.opacity = '0.6';
-            this.disabled = true;
-            
-            // Re-enable after form submission (fallback)
-            setTimeout(() => {
-                this.style.opacity = '1';
-                this.disabled = false;
-            }, 3000);
-        });
-    });
-});
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, 5000);
+}
 </script>
 
+<!-- Association Modal - Positioned outside main structure for proper overlay -->
+<div id="association-modal" class="monitor-modal" style="display: none;">
+    <div class="monitor-modal-content association-modal-content">
+        <div class="monitor-modal-header">
+            <h2 id="modal-title">
+                <i class="dashicons dashicons-admin-users"></i>
+                Gestisci Associazioni - <span id="modal-monitor-name">Monitor</span>
+            </h2>
+            <span class="monitor-modal-close" onclick="closeAssociationModal()">&times;</span>
+        </div>
+        <div class="modal-layout-explanation">
+            <p id="modal-layout-info-text">Stai associando defunti al layout <strong id="modal-layout-name">Layout</strong></p>
+        </div>
+        <div class="monitor-modal-body">
+            <!-- Search Form -->
+            <div class="defunto-search-section" style="margin-bottom: 20px;">
+                <div class="search-form-wrapper">
+                    <input type="text" 
+                           id="defunto-search" 
+                           placeholder="<?php _e('Cerca per nome defunto...', 'dokan-mod'); ?>" 
+                           style="width: 100%; margin-bottom: 10px;">
+                    <button type="button" id="search-defunto-btn" class="button">
+                        <i class="dashicons dashicons-search"></i>
+                        <?php _e('Cerca', 'dokan-mod'); ?>
+                    </button>
+                    <button type="button" id="reset-search-btn" class="button button-secondary" style="margin-left: 10px;">
+                        <?php _e('Reset', 'dokan-mod'); ?>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Defunti Table -->
+            <div id="defunti-table-container" class="defunti-section">
+                <div id="defunti-loading" class="loading-state" style="display: none; text-align: center; padding: 40px;">
+                    <div class="spinner is-active" style="float: none; margin: 0 auto;"></div>
+                    <p>Caricamento defunti...</p>
+                </div>
+                
+                <table class="defunti-table wp-list-table widefat fixed striped" id="defunti-modal-table">
+                    <thead>
+                        <tr>
+                            <th><?php _e('Foto', 'dokan-mod'); ?></th>
+                            <th><?php _e('Nome Defunto', 'dokan-mod'); ?></th>
+                            <th><?php _e('Data Morte', 'dokan-mod'); ?></th>
+                            <th><?php _e('Pubblicazione', 'dokan-mod'); ?></th>
+                            <th><?php _e('Azioni', 'dokan-mod'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody id="defunti-table-body">
+                        <!-- Populated via AJAX -->
+                    </tbody>
+                </table>
+                
+                <!-- Pagination for modal -->
+                <div id="defunti-pagination" class="pagination" style="margin: 20px 0; text-align: center;">
+                    <!-- Populated via AJAX -->
+                </div>
+            </div>
+        </div>
+        <div class="monitor-modal-footer">
+            <button type="button" class="button button-secondary" onclick="closeAssociationModal()">
+                <?php _e('Chiudi', 'dokan-mod'); ?>
+            </button>
+        </div>
+    </div>
+</div>
+
 <style>
-    /* Override theme CSS per omogeneizzare con layout standard Dokan */
-    body.dokan-dashboard.theme-hello-elementor .site-main,
-    body.dokan-dashboard .site-main {
-        max-width: none !important;
-        width: 100% !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-    }
-    
-    body.dokan-dashboard.theme-hello-elementor .page-content,
-    body.dokan-dashboard .page-content {
-        max-width: none !important;
-        width: 100% !important;
-    }
-    
-    body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
-    body.dokan-dashboard .dokan-dashboard-wrap {
-        width: 100% !important;
-        max-width: 1140px !important;
-        margin: 0 auto !important;
-    }
+/* Monitor-specific CSS - common dashboard styles now loaded via dokan-dashboard-common.css */
 
-
-    .dokan-btn {
-        display: inline-block;
-        padding: 8px 16px;
-        font-size: 14px;
-        font-weight: 600;
-        text-decoration: none;
-        border-radius: 3px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        border: 1px solid transparent;
-        text-align: center;
-        line-height: 1.4;
-    }
-
-    .dokan-btn-theme {
-        background-color: #007cba;
-        color: #ffffff;
-        border-color: #007cba;
-    }
-
-    .dokan-btn-theme:hover {
-        background-color: #005a85;
-        border-color: #005a85;
-        color: #ffffff;
-    }
-
-    .custom-widget-button {
-        display: inline-block;
-        padding: 8px 16px;
-        background-color: #007cba;
-        color: #ffffff;
-        text-decoration: none;
-        border-radius: 3px;
-        font-size: 14px;
-        font-weight: 600;
-        border: none;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .custom-widget-button:hover {
-        background-color: #005a85;
-        color: #ffffff;
-        text-decoration: none;
-    }
-
-    .dokan-alert {
-        padding: 12px 16px;
-        margin-bottom: 20px;
-        border: 1px solid transparent;
-        border-radius: 4px;
-    }
-
-    .dokan-alert-success {
-        color: #155724;
-        background-color: #d4edda;
-        border-color: #c3e6cb;
-    }
-
-    .dokan-alert-danger {
-        color: #721c24;
-        background-color: #f8d7da;
-        border-color: #f5c6cb;
-    }
-
-    /* Monitor Table */
-    .monitors-table-container {
-        margin-bottom: 30px;
-        overflow-x: auto;
-    }
-    
-    .monitors-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    
-    .monitors-table th,
-    .monitors-table td {
-        padding: 12px;
-        text-align: left;
-        border-bottom: 1px solid #e1e1e1;
-    }
-    
-    .monitors-table th {
-        background: #f8f9fa;
-        font-weight: 600;
-        border-bottom: 2px solid #dee2e6;
-    }
-    
-    .monitor-row:hover {
-        background-color: #f8f9fa;
-    }
-    
-    /* Table Column Styles */
-    .monitor-name-col {
-        width: 20%;
-    }
-    
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    /* Adjust column widths for medium screens */
     .monitor-url-col {
-        width: 25%;
-    }
-    
-    .monitor-status-col {
         width: 12%;
     }
     
-    .monitor-association-col {
-        width: 20%;
-    }
-    
     .monitor-layout-col {
-        width: 13%;
-    }
-    
-    .monitor-actions-col {
-        width: 10%;
-    }
-    
-    /* Monitor Name Cell */
-    .monitor-name-cell strong {
-        display: block;
-        font-size: 14px;
-        color: #333;
-        margin-bottom: 4px;
-    }
-    
-    .monitor-description {
-        font-size: 12px;
-        color: #666;
-        font-style: italic;
-    }
-    
-    /* URL Display */
-    .url-display {
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        width: 18%;
     }
     
     .monitor-url-code {
-        background: #f8f9fa;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 11px;
-        word-break: break-all;
-        flex: 1;
-        max-width: 280px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        max-width: 100px;
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 768px) {
+    body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+    body.dokan-dashboard .dokan-dashboard-wrap {
+        margin: 0 10px !important;
+        max-width: calc(100% - 20px) !important;
     }
     
-    .copy-url-btn {
-        background: none;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        padding: 4px 6px;
-        cursor: pointer;
-        color: #666;
-        transition: all 0.2s ease;
-        flex-shrink: 0;
+    .dokan-dashboard-content {
+        padding: 15px;
     }
     
-    .copy-url-btn:hover {
-        background: #f0f0f0;
-        color: #333;
+    /* Stack table columns on mobile */
+    .monitors-table {
+        table-layout: auto;
     }
     
-    .copy-url-btn .dashicons {
-        font-size: 14px;
-        width: 14px;
-        height: 14px;
+    .monitor-url-cell .url-display {
+        flex-direction: column;
+        gap: 4px;
+        align-items: flex-start;
     }
     
-    /* URL Tooltip */
-    .url-tooltip {
-        position: absolute;
-        background: #333;
-        color: #fff;
-        padding: 8px 12px;
-        border-radius: 4px;
-        font-size: 11px;
-        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-        white-space: nowrap;
-        z-index: 10000;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        pointer-events: none;
-        max-width: 400px;
-        word-break: break-all;
+    .monitor-url-code {
+        max-width: none;
+        width: 100%;
+        font-size: 9px;
     }
     
-    .url-tooltip:before {
-        content: '';
-        position: absolute;
-        bottom: 100%;
-        left: 20px;
-        width: 0;
-        height: 0;
-        border-left: 5px solid transparent;
-        border-right: 5px solid transparent;
-        border-bottom: 5px solid #333;
-    }
-    
-    /* Status Badge */
-    .status-badge {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 10px;
-        border-radius: 6px;
-        font-size: 12px;
-    }
-    
-    .status-badge.status-active {
-        background: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-    }
-    
-    .status-badge.status-inactive {
-        background: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeaa7;
-    }
-    
-    .status-badge .dashicons {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
-    }
-    
-    .status-text strong {
-        display: block;
-        margin-bottom: 2px;
-    }
-    
-    .status-text small {
-        font-size: 11px;
-        opacity: 0.8;
-    }
-    
-    /* Association Info */
-    .association-info {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 12px;
-    }
-    
-    .association-info .dashicons {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
-        flex-shrink: 0;
-    }
-    
-    .association-content {
-        flex: 1;
-        min-width: 0;
-    }
-    
-    .association-content strong {
-        display: block;
-        color: #333;
-        margin-bottom: 2px;
-        font-size: 12px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .association-content small {
-        font-size: 11px;
-        color: #666;
-        display: block;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    /* Association type specific styles */
-    .association-single .dashicons {
-        color: #0073aa;
-    }
-    
-    .association-multi .dashicons {
-        color: #46b450;
-    }
-    
-    .association-none .dashicons {
-        color: #999;
-    }
-    
-    .association-none span {
-        color: #999;
-        font-style: italic;
-    }
-    
-    /* Layout Selector */
-    .layout-form-inline {
-        margin: 0;
-        position: relative;
-    }
-    
-    .layout-selector-wrapper {
-        display: flex;
-        align-items: center;
-        gap: 6px;
+    .copy-url-btn.compact {
+        height: 18px;
+        width: 18px;
+        align-self: flex-start;
     }
     
     .layout-selector {
+        min-width: 120px;
         font-size: 12px;
-        padding: 4px 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        background: #fff;
     }
     
-    .layout-config-btn {
-        background: none;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        padding: 4px 6px;
-        cursor: pointer;
-        color: #666;
-        transition: all 0.2s ease;
+    /* Modal responsive adjustments */
+    .monitor-modal-content {
+        width: 95%;
+        max-width: 95%;
+        margin: 2% auto;
+        max-height: 95vh;
     }
     
-    .layout-config-btn:hover {
-        background: #f0f0f0;
-        color: #333;
+    .monitor-modal-header {
+        padding: 15px 20px;
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
     }
     
-    .layout-config-btn .dashicons {
-        font-size: 14px;
-        width: 14px;
-        height: 14px;
+    .monitor-modal-header h2 {
+        font-size: 1.3em;
     }
     
-    /* Città Multi Configuration Popup */
-    .citta-multi-config-popup {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        z-index: 1000;
-        background: #fff;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        padding: 15px;
-        min-width: 250px;
-        margin-top: 5px;
+    .monitor-modal-body {
+        padding: 20px;
+        max-height: calc(95vh - 120px);
     }
     
-    .config-popup-content h4 {
-        margin: 0 0 12px 0;
-        font-size: 13px;
-        color: #333;
+    .monitor-modal-footer {
+        padding: 15px 20px;
     }
     
-    .config-row {
+    .search-form-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .search-form-wrapper input {
+        max-width: 100%;
         margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
     }
-    
-    .config-row label {
-        font-size: 12px;
-        color: #666;
-        min-width: 60px;
-    }
-    
-    .config-row select {
-        font-size: 12px;
-        padding: 3px 6px;
-    }
-    
-    .config-actions {
-        margin-top: 12px;
-        display: flex;
-        gap: 8px;
-        justify-content: flex-end;
-    }
-    
-    .config-actions .button-small {
-        padding: 4px 8px;
-        font-size: 11px;
-        height: auto;
-        line-height: 1.4;
-    }
-    
-    /* Action Buttons */
-    .action-buttons {
-        display: flex;
-        gap: 6px;
-    }
-    
-    .monitor-live-btn {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        padding: 6px 10px;
-        font-size: 12px;
-        text-decoration: none;
-        border-radius: 4px;
-        height: auto;
-        line-height: 1;
-    }
-    
-    .monitor-live-btn .dashicons {
-        font-size: 14px;
-        width: 14px;
-        height: 14px;
-    }
-    
-    .button-text {
-        display: inline;
-    }
-    
-    /* Defunti Section */
-    .defunti-section {
-        margin-top: 40px;
-    }
-    
-    .defunti-section h3 {
-        margin-bottom: 20px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #007cba;
-    }
-    
-    .defunti-table {
-        width: 100%;
-    }
-    
-    .defunti-table tr.has-associations {
-        background-color: #f0f8ff;
-    }
-    
-    .monitor-tag {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 3px;
-        font-size: 11px;
-        font-weight: bold;
-        margin: 1px;
-    }
-    
-    .monitor-tag.active {
-        background: #d4edda;
-        color: #155724;
-    }
-    
-    .monitor-tag.inactive {
-        background: #f8d7da;
-        color: #721c24;
-    }
-    
-    .defunto-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 5px;
-    }
-    
-    /* Responsive Design */
-    @media (max-width: 1200px) {
-        .monitor-url-code {
-            max-width: 200px;
-        }
-        
-        .button-text {
-            display: none;
-        }
-    }
-    
-    @media (max-width: 768px) {
-        .monitors-table-container {
-            overflow-x: auto;
-        }
-        
-        .monitors-table {
-            min-width: 1000px;
-        }
-        
-        .monitors-table th,
-        .monitors-table td {
-            padding: 8px;
-            font-size: 12px;
-        }
-        
-        .monitor-url-code {
-            max-width: 150px;
-        }
-        
-        .status-badge {
-            padding: 4px 6px;
-        }
-        
-        .status-badge .dashicons {
-            font-size: 14px;
-            width: 14px;
-            height: 14px;
-        }
-        
-        .layout-selector {
-            font-size: 11px;
-            padding: 3px 6px;
-        }
-        
-        .monitor-live-btn {
-            padding: 4px 6px;
-            font-size: 11px;
-        }
-        
-        .association-content strong,
-        .association-content small {
-            max-width: 120px;
-        }
-        
-        .association-info {
-            gap: 6px;
-        }
-        
-        .citta-multi-config-popup {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 90%;
-            max-width: 300px;
-            z-index: 10000;
-        }
-        
-        .defunti-table {
-            font-size: 14px;
-        }
-        
-        .defunti-table th, 
-        .defunti-table td {
-            padding: 8px 4px;
-        }
-        
-        .defunto-actions {
-            flex-direction: column;
-        }
-    }
+}
 </style>
 
 <?php

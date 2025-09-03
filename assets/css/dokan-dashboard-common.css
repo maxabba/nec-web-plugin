@@ -1,0 +1,314 @@
+/**
+ * Dokan Dashboard Common Styles
+ * Centralizzato da tutti i template per ridurre duplicazione CSS
+ * 
+ * @package DokanMod
+ * @version 1.0.0
+ */
+
+/* =============================================================================
+   THEME OVERRIDE STYLES - Hello Elementor Compatibility
+   ============================================================================= */
+
+/* Override theme CSS per omogeneizzare con layout standard Dokan */
+body.dokan-dashboard.theme-hello-elementor .site-main,
+body.dokan-dashboard .site-main {
+    max-width: none !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+body.dokan-dashboard.theme-hello-elementor .page-content,
+body.dokan-dashboard .page-content {
+    max-width: none !important;
+    width: 100% !important;
+}
+
+body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+body.dokan-dashboard .dokan-dashboard-wrap {
+    width: 100% !important;
+    max-width: 1140px !important;
+    margin: 0 auto !important;
+}
+
+/* Ensure container compatibility */
+body.dokan-dashboard .container,
+body.dokan-dashboard .elementor-container {
+    max-width: none !important;
+    width: 100% !important;
+}
+
+/* Additional dashboard styling overrides */
+.dokan-dashboard-wrap {
+    background: #fff;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.dokan-dashboard-content {
+    padding: 20px;
+}
+
+/* =============================================================================
+   DOKAN FORM COMPONENTS
+   ============================================================================= */
+
+.dokan-form-group {
+    margin-bottom: 20px;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+}
+
+/* =============================================================================
+   DOKAN BUTTONS
+   ============================================================================= */
+
+.dokan-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.dokan-btn-theme {
+    background-color: #f2f2f2;
+    color: #333;
+    border: 1px solid #ddd;
+}
+
+.dokan-btn-theme:hover {
+    background-color: #e6e6e6;
+    color: #333;
+    text-decoration: none;
+}
+
+/* =============================================================================
+   ALERT COMPONENTS
+   ============================================================================= */
+
+.alert {
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    box-shadow: 0 2px 1px -1px rgba(0, 0, 0, 0.2), 0 1px 1px 0 rgba(0, 0, 0, 0.14), 0 1px 3px 0 rgba(0, 0, 0, 0.12);
+}
+
+.alert-success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.alert-danger {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+/* =============================================================================
+   PAGINATION COMPONENTS
+   ============================================================================= */
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+
+.tablenav-pages {
+    display: flex;
+    align-items: center;
+}
+
+.displaying-num {
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+.pagination-links {
+    display: flex;
+}
+
+.tablenav-pages-navspan {
+    background-color: #f1f1f1;
+    border: 1px solid #ccc;
+    padding: 5px 10px;
+    margin-right: 5px;
+    cursor: not-allowed;
+}
+
+.paging-input {
+    display: flex;
+    align-items: center;
+}
+
+.paging-input input {
+    margin: 0 5px;
+}
+
+.paging-input .total-pages {
+    font-weight: bold;
+}
+
+.paging-input a {
+    background-color: #0073aa;
+    color: #fff;
+    padding: 5px 10px;
+    margin-right: 5px;
+    text-decoration: none;
+}
+
+.paging-input span {
+    padding: 5px 10px;
+    margin-right: 5px;
+    text-decoration: none;
+}
+
+.paging-input a:hover {
+    background-color: #009fd4;
+}
+
+/* =============================================================================
+   FORM COMPONENTS
+   ============================================================================= */
+
+form {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+}
+
+form input[type="text"] {
+    flex-grow: 1;
+    margin-right: 10px;
+}
+
+/* =============================================================================
+   JAVASCRIPT FADE OUT HELPERS
+   ============================================================================= */
+
+/* Helper classes for JavaScript fade animations */
+.fade-out {
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.fade-in {
+    opacity: 1;
+    transition: opacity 0.5s ease;
+}
+
+/* =============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================= */
+
+@media (max-width: 1024px) {
+    body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+    body.dokan-dashboard .dokan-dashboard-wrap {
+        max-width: calc(100% - 40px) !important;
+        margin: 0 20px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+    body.dokan-dashboard .dokan-dashboard-wrap {
+        margin: 0 10px !important;
+        max-width: calc(100% - 20px) !important;
+    }
+    
+    .dokan-dashboard-content {
+        padding: 15px;
+    }
+    
+    /* Stack form elements on mobile */
+    form {
+        flex-direction: column;
+    }
+    
+    form input[type="text"] {
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+    
+    /* Adjust pagination for mobile */
+    .pagination {
+        flex-wrap: wrap;
+    }
+    
+    .tablenav-pages {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
+
+/* =============================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ============================================================================= */
+
+/* Focus states for better keyboard navigation */
+.dokan-btn:focus,
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 2px solid #0073aa;
+    outline-offset: 2px;
+}
+
+/* Skip links for screen readers */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+.skip-link:focus {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: auto;
+    height: auto;
+    padding: 10px 15px;
+    background: #000;
+    color: #fff;
+    text-decoration: none;
+    z-index: 100000;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .alert-success {
+        border: 2px solid #155724;
+    }
+    
+    .alert-danger {
+        border: 2px solid #721c24;
+    }
+    
+    .dokan-btn {
+        border: 2px solid;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .dokan-btn,
+    .fade-out,
+    .fade-in {
+        transition: none;
+    }
+}

@@ -134,5 +134,57 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
             <?php
             return ob_get_clean();
         }
+
+        /**
+         * Include common dashboard CSS styles
+         * Centralizza gli stili CSS comuni per tutti i template dashboard
+         * 
+         * @return void
+         */
+        public function enqueue_dashboard_common_styles(): void
+        {
+            $css_url = plugin_dir_url(dirname(__FILE__)) . 'assets/css/dokan-dashboard-common.css';
+            $css_version = filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/css/dokan-dashboard-common.css');
+            
+            wp_enqueue_style(
+                'dokan-dashboard-common',
+                $css_url,
+                array(),
+                $css_version,
+                'all'
+            );
+        }
+
+        /**
+         * Include common dashboard JavaScript for fade effects
+         * 
+         * @return string
+         */
+        public function get_dashboard_common_scripts(): string
+        {
+            return '<script>
+                window.onload = function () {
+                    var alerts = document.querySelectorAll(\'.alert\');
+                    setTimeout(function () {
+                        for (var i = 0; i < alerts.length; i++) {
+                            fadeOut(alerts[i]);
+                        }
+                    }, 5000);
+                }
+
+                function fadeOut(element) {
+                    var op = 1;  // initial opacity
+                    var timer = setInterval(function () {
+                        if (op <= 0.1) {
+                            clearInterval(timer);
+                            element.style.display = \'none\';
+                        }
+                        element.style.opacity = op;
+                        element.style.filter = \'alpha(opacity=\' + op * 100 + ")\";
+                        op -= op * 0.1;
+                    }, 50);
+                }
+            </script>';
+        }
     }
 }

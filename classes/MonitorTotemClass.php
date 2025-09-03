@@ -49,6 +49,10 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             add_action('wp_ajax_monitor_get_all_monitors', array($this, 'ajax_get_all_monitors'));
             add_action('wp_ajax_monitor_get_monitor_details', array($this, 'ajax_get_monitor_details'));
             
+            // New AJAX endpoints for modal functionality
+            add_action('wp_ajax_monitor_get_defunti_for_association', array($this, 'ajax_get_defunti_for_association'));
+            add_action('wp_ajax_monitor_toggle_defunto_association', array($this, 'ajax_toggle_defunto_association'));
+            
             // Query vars and template loading
             add_filter('query_vars', array($this, 'add_query_vars'));
             add_filter('template_include', array($this, 'load_template'));
@@ -1765,6 +1769,149 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             wp_send_json_success([
                 'monitor' => $monitor
             ]);
+        }
+
+        /**
+         * AJAX: Get defunti for association modal
+         */
+        public function ajax_get_defunti_for_association()
+        {
+            if (!wp_verify_nonce($_POST['nonce'], 'monitor_association_nonce')) {
+                wp_send_json_error('Invalid nonce');
+            }
+
+            $user_id = get_current_user_id();
+            $monitor_id = isset($_POST['monitor_id']) ? intval($_POST['monitor_id']) : 0;
+            $layout_type = isset($_POST['layout_type']) ? sanitize_text_field($_POST['layout_type']) : '';
+            $search = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
+            $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+
+            // Verify monitor ownership
+            $db_manager = \Dokan_Mods\MonitorDatabaseManager::get_instance();
+            $monitor = $db_manager->get_monitor($monitor_id);
+            
+            if (!$monitor || $monitor['vendor_id'] != $user_id) {
+                wp_send_json_error('Monitor not found or access denied');
+            }
+
+            $args = array(
+                'post_type' => 'annuncio-di-morte',
+                'author' => $user_id,
+                'posts_per_page' => 20,
+                'paged' => $page,
+                'orderby' => 'date',
+                'order' => 'DESC'
+            );
+
+            if (!empty($search)) {
+                $args['s'] = $search;
+            }
+
+            $query = new \WP_Query($args);
+            $defunti = array();
+
+            if ($query->have_posts()) {
+                while ($query->have_posts()) {
+                    $query->the_post();
+                    $post_id = get_the_ID();
+                    
+                    // Check if this defunto is associated with the current monitor
+                    $is_associated = ($monitor['associated_post_id'] == $post_id);
+                    
+                    // Get defunto data
+                    $foto_defunto = get_field('fotografia', $post_id);
+                    $foto_url = '';
+                    
+                    if ($foto_defunto) {
+                        if (is_array($foto_defunto) && isset($foto_defunto['sizes']['thumbnail'])) {
+                            $foto_url = $foto_defunto['sizes']['thumbnail'];
+                        } elseif (is_array($foto_defunto) && isset($foto_defunto['url'])) {
+                            $foto_url = $foto_defunto['url'];
+                        } elseif (is_string($foto_defunto)) {
+                            $foto_url = $foto_defunto;
+                        }
+                    }
+
+                    $data_morte = get_field('data_di_morte', $post_id);
+                    
+                    $defunti[] = array(
+                        'id' => $post_id,
+                        'nome' => get_the_title(),
+                        'foto' => $foto_url,
+                        'data_morte' => $data_morte ? date('d/m/Y', strtotime($data_morte)) : '',
+                        'data_pubblicazione' => get_the_date('d/m/Y'),
+                        'is_associated' => $is_associated
+                    );
+                }
+                wp_reset_postdata();
+            }
+
+            wp_send_json_success(array(
+                'defunti' => $defunti,
+                'pagination' => array(
+                    'current_page' => $page,
+                    'total_pages' => $query->max_num_pages,
+                    'total_items' => $query->found_posts
+                )
+            ));
+        }
+
+        /**
+         * AJAX: Toggle defunto association with monitor
+         */
+        public function ajax_toggle_defunto_association()
+        {
+            if (!wp_verify_nonce($_POST['nonce'], 'monitor_association_nonce')) {
+                wp_send_json_error('Invalid nonce');
+            }
+
+            $user_id = get_current_user_id();
+            $monitor_id = isset($_POST['monitor_id']) ? intval($_POST['monitor_id']) : 0;
+            $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+            $action = isset($_POST['association_action']) ? sanitize_text_field($_POST['association_action']) : '';
+
+            // Verify monitor ownership
+            $db_manager = \Dokan_Mods\MonitorDatabaseManager::get_instance();
+            $monitor = $db_manager->get_monitor($monitor_id);
+            
+            if (!$monitor || $monitor['vendor_id'] != $user_id) {
+                wp_send_json_error('Monitor not found or access denied');
+            }
+
+            // Verify post ownership
+            $post = get_post($post_id);
+            if (!$post || $post->post_author != $user_id) {
+                wp_send_json_error('Post not found or access denied');
+            }
+
+            // Verify layout type supports single associations
+            if (!in_array($monitor['layout_type'], ['manifesti', 'solo_annuncio'])) {
+                wp_send_json_error('This layout type does not support single defunto associations');
+            }
+
+            try {
+                if ($action === 'add_defunto') {
+                    // Add association
+                    $result = $db_manager->associate_monitor_with_post($monitor_id, $post_id);
+                    if ($result) {
+                        wp_send_json_success('Defunto associato con successo al monitor');
+                    } else {
+                        wp_send_json_error('Errore durante l\'associazione del defunto');
+                    }
+                } elseif ($action === 'remove_defunto') {
+                    // Remove association
+                    $result = $db_manager->remove_monitor_association($monitor_id);
+                    if ($result) {
+                        wp_send_json_success('Associazione rimossa con successo');
+                    } else {
+                        wp_send_json_error('Errore durante la rimozione dell\'associazione');
+                    }
+                } else {
+                    wp_send_json_error('Azione non valida');
+                }
+            } catch (Exception $e) {
+                wp_send_json_error('Errore: ' . $e->getMessage());
+            }
         }
     }
 }

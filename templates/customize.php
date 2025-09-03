@@ -3,7 +3,9 @@
  * Template per la selezione dei prodotti predefiniti in Dokan.
  */
 
-(new \Dokan_Mods\Templates_MiscClass())->check_dokan_can_and_message_login();
+$template_helper = new \Dokan_Mods\Templates_MiscClass();
+$template_helper->check_dokan_can_and_message_login();
+$template_helper->enqueue_dashboard_common_styles();
 $user_id = get_current_user_id();
 $manifesto_background = get_user_meta($user_id, 'manifesto_background', true) !== '' ? get_user_meta($user_id, 'manifesto_background', true) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/images/default.jpg';
 $manifesto_orientation = get_user_meta($user_id, 'manifesto_orientation', true) !== '' ? get_user_meta($user_id, 'manifesto_orientation', true) : 'vertical';
@@ -242,100 +244,10 @@ $active_menu = 'settings/customize';
 
 
     </main>
-    <style>
-    /* Override theme CSS per omogeneizzare con layout standard Dokan */
-    body.dokan-dashboard.theme-hello-elementor .site-main,
-    body.dokan-dashboard .site-main {
-        max-width: none !important;
-        width: 100% !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-    }
-    
-    body.dokan-dashboard.theme-hello-elementor .page-content,
-    body.dokan-dashboard .page-content {
-        max-width: none !important;
-        width: 100% !important;
-    }
-    
-    body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
-    body.dokan-dashboard .dokan-dashboard-wrap {
-        width: 100% !important;
-        max-width: 1140px !important;
-        margin: 0 auto !important;
-    }
-
-
-        .dokan-form-group {
-            margin-bottom: 20px;
-        }
-
-        .checkbox-container {
-            display: flex;
-            align-items: center;
-        }
-
-        .alert {
-            padding: 20px;
-            margin-bottom: 20px;
-            border: 1px solid transparent;
-            border-radius: 5px;
-            box-shadow: 0 2px 1px -1px rgba(0, 0, 0, 0.2), 0 1px 1px 0 rgba(0, 0, 0, 0.14), 0 1px 3px 0 rgba(0, 0, 0, 0.12);
-        }
-
-        .alert-success {
-            color: #155724;
-            background-color: #d4edda;
-            border-color: #c3e6cb;
-        }
-
-        .alert-danger {
-            color: #721c24;
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
-        }
-
-        .alert.hide {
-            display: none;
-        }
-
-        #controls_wrapper {
-            display: flex;
-            flex-direction: column;
-            margin-bottom: 10px;
-        }
-
-        .margin-input {
-            margin-bottom: 5px;
-        }
-
-        .margin-input label {
-            margin-right: 5px;
-        }
-
-        .margin-input input {
-            width: 150px;
-        }
-
-        #image_container {
-            width: 80%; /* Imposta la larghezza massima al 80% */
-            max-width: 100%;
-            position: relative;
-            margin: 0 auto; /* Centra l'immagine */
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-        }
-
-        #inner_container {
-            position: absolute;
-            top: <?php echo $margin_top; ?>px;
-            right: <?php echo $margin_right; ?>px;
-            bottom: <?php echo $margin_bottom; ?>px;
-            left: <?php echo $margin_left; ?>px;
-        }
-
-    </style>
+    <?php
+    // Common dashboard JavaScript for alerts fade effect
+    echo $template_helper->get_dashboard_common_scripts();
+    ?>
 
     <script>
         jQuery(document).ready(function ($) {

@@ -5,6 +5,7 @@
 
 $template_class = (new \Dokan_Mods\Templates_MiscClass());
 $template_class->check_dokan_can_and_message_login();
+$template_class->enqueue_dashboard_common_styles();
 
 
 $user_id = get_current_user_id();
@@ -161,81 +162,11 @@ $active_menu = 'annunci/crea-annuncio';
 
 
     </main>
-    <style>
-        /* Override theme CSS per omogeneizzare con layout standard Dokan */
-        body.dokan-dashboard.theme-hello-elementor .site-main,
-        body.dokan-dashboard .site-main {
-            max-width: none !important;
-            width: 100% !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-        }
-        
-        body.dokan-dashboard.theme-hello-elementor .page-content,
-        body.dokan-dashboard .page-content {
-            max-width: none !important;
-            width: 100% !important;
-        }
-        
-        body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
-        body.dokan-dashboard .dokan-dashboard-wrap {
-            width: 100% !important;
-            max-width: 1140px !important;
-            margin: 0 auto !important;
-        }
-        .dokan-form-group {
-            margin-bottom: 20px;
-        }
+    <?php
+    // Common dashboard JavaScript for alerts fade effect
+    echo $template_class->get_dashboard_common_scripts();
+    ?>
 
-        .checkbox-container {
-            display: flex;
-            align-items: center;
-        }
-
-        .alert {
-            padding: 20px;
-            margin-bottom: 20px;
-            border: 1px solid transparent;
-            border-radius: 5px;
-            box-shadow: 0 2px 1px -1px rgba(0, 0, 0, 0.2), 0 1px 1px 0 rgba(0, 0, 0, 0.14), 0 1px 3px 0 rgba(0, 0, 0, 0.12);
-        }
-
-        .alert-success {
-            color: #155724;
-            background-color: #d4edda;
-            border-color: #c3e6cb;
-        }
-
-        .alert-danger {
-            color: #721c24;
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
-        }
-    </style>
-
-    <script>
-        window.onload = function () {
-            var alerts = document.querySelectorAll('.alert');
-            setTimeout(function () {
-                for (var i = 0; i < alerts.length; i++) {
-                    fadeOut(alerts[i]);
-                }
-            }, 5000);
-        }
-
-        function fadeOut(element) {
-            var op = 1;  // initial opacity
-            var timer = setInterval(function () {
-                if (op <= 0.1) {
-                    clearInterval(timer);
-                    element.style.display = 'none';
-                }
-                element.style.opacity = op;
-                element.style.filter = 'alpha(opacity=' + op * 100 + ")";
-                op -= op * 0.1;
-            }, 50);
-        }
-    </script>
 <?php
 
 get_footer();
