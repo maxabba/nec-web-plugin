@@ -13,6 +13,42 @@ $vendor_obj = dokan()->vendor->get($vendor_id);
 $shop_name = $vendor_obj ? $vendor_obj->get_shop_name() : 'Monitor Digitale';
 $shop_banner = $vendor_obj ? $vendor_obj->get_banner() : '';
 
+// Get monitor info from database
+$db_manager = new \Dokan_Mods\MonitorDatabaseManager();
+$monitors = $db_manager->get_vendor_monitors($vendor_id);
+$monitor_name = '';
+
+// Since we have limited monitors per vendor, usually just one
+// We can get the first enabled monitor as the current one
+if (!empty($monitors)) {
+    foreach ($monitors as $monitor) {
+        if ($monitor['is_enabled'] == 1) {
+            $monitor_name = isset($monitor['monitor_name']) ? $monitor['monitor_name'] : 'Monitor ' . $monitor['id'];
+            break;
+        }
+    }
+}
+
+// If no enabled monitor found, try to get the first one
+if (empty($monitor_name) && !empty($monitors)) {
+    $monitor = $monitors[0];
+    $monitor_name = isset($monitor['monitor_name']) ? $monitor['monitor_name'] : 'Monitor ' . $monitor['id'];
+}
+
+// If still no monitor name found, use default
+if (empty($monitor_name)) {
+    $monitor_name = 'Monitor 1';
+}
+
+// Get logo image URL - try from media library first, then fallback
+$logo_url = '';
+if (function_exists('wp_get_attachment_image_url')) {
+    $logo_url = wp_get_attachment_image_url(39, 'full');
+}
+if (empty($logo_url)) {
+    $logo_url = '/wp-content/uploads/2024/04/Necrologi-oro.png';
+}
+
 ?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
@@ -37,7 +73,7 @@ $shop_banner = $vendor_obj ? $vendor_obj->get_banner() : '';
             height: 100%;
             overflow: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: rgb(55, 55, 55);
             color: #fff;
         }
         
@@ -50,59 +86,39 @@ $shop_banner = $vendor_obj ? $vendor_obj->get_banner() : '';
             text-align: center;
             padding: 40px;
             position: relative;
+            background: rgb(55, 55, 55);
         }
         
         .waiting-content {
-            max-width: 600px;
-            animation: fadeInUp 1s ease-out;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
         
-        .monitor-icon {
-            font-size: 6rem;
-            margin-bottom: 30px;
-            opacity: 0.8;
-            animation: pulse 2s infinite;
+        .logo-image {
+            width: auto;
+            height: 30vh;
+            max-width: 90%;
+            margin-bottom: 40px;
+            opacity: 0.9;
+            object-fit: contain;
         }
         
         .waiting-title {
-            font-size: 3rem;
+            font-size: 2.5rem;
             font-weight: 300;
             margin-bottom: 20px;
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
         
         .waiting-message {
-            font-size: 1.4rem;
-            opacity: 0.9;
+            font-size: 1.3rem;
+            opacity: 0.85;
             margin-bottom: 40px;
             line-height: 1.6;
-        }
-        
-        .shop-info {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 30px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            margin-bottom: 40px;
-        }
-        
-        .shop-logo {
-            height: 80px;
-            width: auto;
-            margin-bottom: 20px;
-            border-radius: 8px;
-        }
-        
-        .shop-name {
-            font-size: 2rem;
-            font-weight: 300;
-            margin-bottom: 10px;
-        }
-        
-        .shop-subtitle {
-            font-size: 1.1rem;
-            opacity: 0.8;
+            max-width: 600px;
         }
         
         .status-indicator {
@@ -122,75 +138,27 @@ $shop_banner = $vendor_obj ? $vendor_obj->get_banner() : '';
             animation: blink 1.5s infinite;
         }
         
-        .floating-elements {
+        .footer-info {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            overflow: hidden;
+            bottom: 20px;
+            left: 40px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 0.9rem;
+            opacity: 0.7;
         }
         
-        .floating-element {
-            position: absolute;
-            font-size: 2rem;
-            opacity: 0.1;
-            animation: float 6s ease-in-out infinite;
-        }
-        
-        .floating-element:nth-child(1) {
-            top: 20%;
-            left: 10%;
-            animation-delay: 0s;
-        }
-        
-        .floating-element:nth-child(2) {
-            top: 30%;
-            right: 15%;
-            animation-delay: 2s;
-        }
-        
-        .floating-element:nth-child(3) {
-            bottom: 25%;
-            left: 20%;
-            animation-delay: 4s;
-        }
-        
-        .floating-element:nth-child(4) {
-            bottom: 35%;
-            right: 25%;
-            animation-delay: 1s;
+        .footer-separator {
+            color: rgba(255, 255, 255, 0.4);
         }
         
         .last-update {
             position: absolute;
             bottom: 20px;
-            right: 20px;
+            right: 40px;
             font-size: 0.9rem;
             opacity: 0.6;
-        }
-        
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-                opacity: 0.8;
-            }
-            50% {
-                transform: scale(1.05);
-                opacity: 1;
-            }
         }
         
         @keyframes blink {
@@ -202,40 +170,89 @@ $shop_banner = $vendor_obj ? $vendor_obj->get_banner() : '';
             }
         }
         
-        @keyframes float {
-            0%, 100% {
-                transform: translateY(0px) rotate(0deg);
+        /* Portrait orientation - 80% width for vertical screens */
+        @media (orientation: portrait) {
+            .logo-image {
+                width: 80vw;
+                height: auto;
+                max-height: 40vh;
             }
-            50% {
-                transform: translateY(-20px) rotate(180deg);
-            }
-        }
-        
-        @media (max-width: 768px) {
+            
             .waiting-title {
-                font-size: 2.2rem;
+                font-size: 2rem;
             }
             
             .waiting-message {
                 font-size: 1.2rem;
             }
-            
-            .shop-name {
-                font-size: 1.6rem;
-            }
-            
-            .monitor-icon {
-                font-size: 4rem;
+        }
+        
+        /* Landscape orientation - already set to 30vh in base styles */
+        @media (orientation: landscape) {
+            .logo-image {
+                height: 30vh;
+                width: auto;
+                max-width: 90%;
             }
         }
         
-        @media (orientation: portrait) {
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 768px) {
             .waiting-title {
-                font-size: 2.5rem;
+                font-size: 1.8rem;
             }
             
-            .monitor-icon {
-                font-size: 5rem;
+            .waiting-message {
+                font-size: 1.1rem;
+            }
+            
+            .footer-info {
+                left: 20px;
+                font-size: 0.8rem;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+            
+            .footer-separator {
+                display: none;
+            }
+            
+            .last-update {
+                right: 20px;
+                font-size: 0.8rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .waiting-container {
+                padding: 20px;
+            }
+            
+            .logo-image {
+                margin-bottom: 30px;
+            }
+            
+            .waiting-title {
+                font-size: 1.6rem;
+                margin-bottom: 15px;
+            }
+            
+            .waiting-message {
+                font-size: 1rem;
+                margin-bottom: 30px;
+            }
+            
+            .status-indicator {
+                font-size: 0.9rem;
+            }
+        }
+        
+        /* Very small portrait screens */
+        @media (max-width: 480px) and (orientation: portrait) {
+            .logo-image {
+                width: 70vw;
+                max-height: 30vh;
             }
         }
     </style>
@@ -243,41 +260,30 @@ $shop_banner = $vendor_obj ? $vendor_obj->get_banner() : '';
 
 <body>
     <div class="waiting-container">
-        <!-- Floating Background Elements -->
-        <div class="floating-elements">
-            <div class="floating-element">🖥️</div>
-            <div class="floating-element">📱</div>
-            <div class="floating-element">💻</div>
-            <div class="floating-element">🖨️</div>
-        </div>
-        
         <div class="waiting-content">
-            <div class="monitor-icon">🖥️</div>
+            <!-- Logo Image -->
+            <img src="<?php echo esc_url($logo_url); ?>" 
+                 alt="Logo" 
+                 class="logo-image">
             
-            <h1 class="waiting-title">Monitor in Attesa</h1>
+            <h1 class="waiting-title">Monitor in attesa di associazione</h1>
             
             <p class="waiting-message">
-                Il monitor è attivo e in attesa che venga associato un annuncio di morte.<br>
-                L'agenzia può selezionare un defunto dal proprio pannello di controllo.
+                Il monitor è attivo e in attesa che venga associato,<br>
+                accedi alla dashboard dell'agenzia per l'associazione.
             </p>
-            
-            <?php if ($vendor_obj): ?>
-            <div class="shop-info">
-                <?php if ($shop_banner): ?>
-                    <img src="<?php echo esc_url($shop_banner); ?>" 
-                         alt="<?php echo esc_attr($shop_name); ?>" 
-                         class="shop-logo">
-                <?php endif; ?>
-                
-                <div class="shop-name"><?php echo esc_html($shop_name); ?></div>
-                <div class="shop-subtitle">Monitor Digitale</div>
-            </div>
-            <?php endif; ?>
             
             <div class="status-indicator">
                 <div class="status-dot"></div>
-                <span>Sistema Attivo - In attesa di contenuti</span>
+                <span>Sistema Attivo</span>
             </div>
+        </div>
+        
+        <!-- Footer with agency and monitor info -->
+        <div class="footer-info">
+            <span class="agency-name"><?php echo esc_html($shop_name); ?></span>
+            <span class="footer-separator">|</span>
+            <span class="monitor-reference"><?php echo esc_html($monitor_name); ?></span>
         </div>
         
         <div class="last-update">

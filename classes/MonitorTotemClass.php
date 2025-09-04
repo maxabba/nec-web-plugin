@@ -552,7 +552,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             }
 
             $monitor_id = intval($_POST['monitor_id']);
-            $enabled = $_POST['enabled'] === 'true';
+            $enabled = $_POST['is_enabled'] === '1';
 
             $result = $this->set_monitor_enabled($monitor_id, $enabled);
 
@@ -1861,6 +1861,11 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
          */
         public function ajax_toggle_defunto_association()
         {
+            // Ensure clean output buffer
+            if (ob_get_level()) {
+                ob_clean();
+            }
+            
             if (!wp_verify_nonce($_POST['nonce'], 'monitor_association_nonce')) {
                 wp_send_json_error('Invalid nonce');
             }
@@ -1891,17 +1896,23 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
 
             try {
                 if ($action === 'add_defunto') {
-                    // Add association
-                    $result = $db_manager->associate_monitor_with_post($monitor_id, $post_id);
-                    if ($result) {
+                    // Add association using update_monitor
+                    $result = $db_manager->update_monitor($monitor_id, [
+                        'associated_post_id' => $post_id,
+                        'last_access' => current_time('mysql')
+                    ]);
+                    if ($result['success']) {
                         wp_send_json_success('Defunto associato con successo al monitor');
                     } else {
                         wp_send_json_error('Errore durante l\'associazione del defunto');
                     }
                 } elseif ($action === 'remove_defunto') {
-                    // Remove association
-                    $result = $db_manager->remove_monitor_association($monitor_id);
-                    if ($result) {
+                    // Remove association using update_monitor
+                    $result = $db_manager->update_monitor($monitor_id, [
+                        'associated_post_id' => null,
+                        'last_access' => current_time('mysql')
+                    ]);
+                    if ($result['success']) {
                         wp_send_json_success('Associazione rimossa con successo');
                     } else {
                         wp_send_json_error('Errore durante la rimozione dell\'associazione');

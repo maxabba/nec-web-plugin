@@ -5,7 +5,7 @@
 
 $template_helper = new \Dokan_Mods\Templates_MiscClass();
 $template_helper->check_dokan_can_and_message_login();
-$template_helper->enqueue_dashboard_common_styles();
+//$template_helper->enqueue_dashboard_common_styles();
 $user_id = get_current_user_id();
 $manifesto_background = get_user_meta($user_id, 'manifesto_background', true) !== '' ? get_user_meta($user_id, 'manifesto_background', true) : DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/images/default.jpg';
 $manifesto_orientation = get_user_meta($user_id, 'manifesto_orientation', true) !== '' ? get_user_meta($user_id, 'manifesto_orientation', true) : 'vertical';
@@ -27,7 +27,77 @@ $active_menu = 'settings/customize';
 // Include the Dokan dashboard sidebar
 
 ?>
+    <style>
 
+        /* Override theme CSS per omogeneizzare con layout standard Dokan */
+        body.dokan-dashboard.theme-hello-elementor .site-main,
+        body.dokan-dashboard .site-main {
+            max-width: none !important;
+            width: 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+        }
+
+        body.dokan-dashboard.theme-hello-elementor .page-content,
+        body.dokan-dashboard .page-content {
+            max-width: none !important;
+            width: 100% !important;
+        }
+
+        body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+        body.dokan-dashboard .dokan-dashboard-wrap {
+            width: 100% !important;
+            max-width: 1140px !important;
+            margin: 0 auto !important;
+        }
+
+        /* Ensure container compatibility */
+        body.dokan-dashboard .container,
+        body.dokan-dashboard .elementor-container {
+            max-width: none !important;
+            width: 100% !important;
+        }
+
+        @media (max-width: 1024px) {
+            body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+            body.dokan-dashboard .dokan-dashboard-wrap {
+                max-width: calc(100% - 40px) !important;
+                margin: 0 20px !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+            body.dokan-dashboard .dokan-dashboard-wrap {
+                margin: 0 10px !important;
+                max-width: calc(100% - 20px) !important;
+            }
+
+            .dokan-dashboard-content {
+                padding: 15px;
+            }
+
+            /* Stack form elements on mobile */
+            form {
+                flex-direction: column;
+            }
+
+            form input[type="text"] {
+                margin-right: 0;
+                margin-bottom: 10px;
+            }
+
+            /* Adjust pagination for mobile */
+            .pagination {
+                flex-wrap: wrap;
+            }
+
+            .tablenav-pages {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
@@ -119,7 +189,7 @@ $active_menu = 'settings/customize';
                                     <br>
                                     <br>
                                     <label class="dokan-w3 dokan-control-label"
-                                           for="poster_image"><?php _e('Immagine del Partecipazione', 'dokan-mod'); ?></label>
+                                           for="poster_image"><?php _e('Seleziona uno sfondo per le tue partecipazioni', 'dokan-mod'); ?></label>
                                     <div class="dokan-w5">
                                         <input type="button" class="button" value="Seleziona Immagine"
                                                id="upload_image_button">
@@ -196,20 +266,21 @@ $active_menu = 'settings/customize';
 
                                 <div class="dokan-form-group dokan-clearfix">
                                     <div class="dokan-w5">
+                                        <p>L'anteprima sotto riportata è valida per i soli margini, la dimensione del
+                                            testo non rispecchia la reale dimensione nelle partecipazioni online.</p>
+
                                         <div id="image_container"
                                              style="background-image: url('<?php echo $manifesto_background; ?>');
                                                      background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; width: 80%; max-width: 100%; margin: 0 auto;">
                                             <div id="inner_container" contenteditable="true"
-                                                 style="border: 2px solid #000; background-color: rgba(255, 255, 255, 0.5); position: absolute; font-size: 14px">
+                                                 style="border: 2px solid #000; background-color: rgba(255, 255, 255, 0.5); position: absolute; font-size: 14px;overflow: hidden;">
                                                 <p class="inner-text">Testo di
                                                     esempio</p>
                                                 <p class="inner-text">
                                                     Lorem ipsum dolor sit amet, consectetur adipiscing elit. In eu dui
                                                     odio. Aenean tempor elementum fringilla. Praesent finibus
                                                     condimentum dictum. Aenean a augue erat. Integer urna nulla, mattis
-                                                    quis bibendum consectetur, tincidunt id massa. Nulla vehicula
-                                                    maximus mauris, ac ultricies lacus ullamcorper a. Pellentesque ut
-                                                    odio metus. Fusce malesuada egestas luctus.
+                                                    quis bibendum consectetur, tincidunt id massa.
                                                 </p>
                                                 <p class="inner-text">Testo di
                                                     esempio</p>
@@ -427,7 +498,7 @@ $active_menu = 'settings/customize';
                     element.css('filter', '');
                 } else {
                     element.css('opacity', op);
-                    element.css('filter', 'alpha(opacity=' + op * 100 + ")");
+                    element.css('filter', `alpha(opacity=${op * 100})`);
                     op -= op * 0.1;
                 }
             }, 50);

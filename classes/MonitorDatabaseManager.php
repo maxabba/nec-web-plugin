@@ -373,10 +373,14 @@ if (!class_exists(__NAMESPACE__ . '\MonitorDatabaseManager')) {
                 if (array_key_exists($key, $allowed_fields)) {
                     if ($key === 'layout_config' && is_array($value)) {
                         $update_data[$key] = json_encode($value);
+                        $formats[] = $allowed_fields[$key];
+                    } elseif ($key === 'associated_post_id' && $value === null) {
+                        $update_data[$key] = null;
+                        $formats[] = '%s'; // Use %s for null values
                     } else {
                         $update_data[$key] = $value;
+                        $formats[] = $allowed_fields[$key];
                     }
-                    $formats[] = $allowed_fields[$key];
                 }
             }
 

@@ -45,19 +45,14 @@ $user_id = get_current_user_id();
 $monitor_class = new Dokan_Mods\MonitorTotemClass();
 $db_manager = Dokan_Mods\MonitorDatabaseManager::get_instance();
 
+// Check if vendor has any enabled monitors - redirect if not
+if (!$monitor_class->is_vendor_enabled($user_id)) {
+    wp_redirect(site_url('/dashboard'));
+    exit;
+}
+
 // Get vendor monitors
 $vendor_monitors = $db_manager->get_vendor_monitors($user_id);
-
-// Check if vendor has any monitors assigned
-if (empty($vendor_monitors)) {
-    ?>
-    <div class="dokan-alert dokan-alert-warning">
-        <strong>Nessun Monitor Assegnato:</strong> Il tuo account non ha monitor digitali assegnati. 
-        Contatta l'amministratore per richiedere l'assegnazione di un monitor.
-    </div>
-    <?php
-    return;
-}
 
 // Handle form submissions
 $message = '';
@@ -417,41 +412,15 @@ $active_menu = 'monitor-digitale';
                                                         <?php endforeach; ?>
                                                     </select>
                                                     
-                                                    <?php if ($monitor['layout_type'] === 'citta_multi'): ?>
-                                                        <button type="button" class="layout-config-btn" onclick="toggleCittaMultiConfig('<?php echo $monitor['id']; ?>')" title="<?php _e('Configura', 'dokan-mod'); ?>">
+                                                    <?php if (in_array($monitor['layout_type'], ['citta_multi', 'manifesti', 'solo_annuncio'])): ?>
+                                                        <button type="button" class="layout-config-btn" 
+                                                                onclick="openLayoutConfig('<?php echo $monitor['id']; ?>', '<?php echo $monitor['layout_type']; ?>')" 
+                                                                title="<?php _e('Configura Layout', 'dokan-mod'); ?>">
                                                             <i class="dashicons dashicons-admin-settings"></i>
                                                         </button>
                                                     <?php endif; ?>
                                                 </div>
                                                 
-                                                <!-- Hidden Città Multi Configuration -->
-                                                <?php if ($monitor['layout_type'] === 'citta_multi'): ?>
-                                                    <div id="citta_multi_popup_<?php echo $monitor['id']; ?>" class="citta-multi-config-popup" style="display: none;">
-                                                        <div class="config-popup-content">
-                                                            <h4><?php _e('Configurazione Città Multi-Agenzia', 'dokan-mod'); ?></h4>
-                                                            <div class="config-row">
-                                                                <label for="days_range_<?php echo $monitor['id']; ?>"><?php _e('Giorni:', 'dokan-mod'); ?></label>
-                                                                <select name="days_range" id="days_range_<?php echo $monitor['id']; ?>">
-                                                                    <option value="1" <?php selected($layout_config['days_range'] ?? 7, 1); ?>><?php _e('Solo oggi', 'dokan-mod'); ?></option>
-                                                                    <option value="3" <?php selected($layout_config['days_range'] ?? 7, 3); ?>><?php _e('3 giorni', 'dokan-mod'); ?></option>
-                                                                    <option value="7" <?php selected($layout_config['days_range'] ?? 7, 7); ?>><?php _e('7 giorni', 'dokan-mod'); ?></option>
-                                                                    <option value="14" <?php selected($layout_config['days_range'] ?? 7, 14); ?>><?php _e('14 giorni', 'dokan-mod'); ?></option>
-                                                                    <option value="30" <?php selected($layout_config['days_range'] ?? 7, 30); ?>><?php _e('30 giorni', 'dokan-mod'); ?></option>
-                                                                </select>
-                                                            </div>
-                                                            <div class="config-row">
-                                                                <label>
-                                                                    <input type="checkbox" name="show_all_agencies" value="1" <?php checked($layout_config['show_all_agencies'] ?? false); ?>>
-                                                                    <?php _e('Tutte le agenzie', 'dokan-mod'); ?>
-                                                                </label>
-                                                            </div>
-                                                            <div class="config-actions">
-                                                                <button type="submit" class="button button-primary button-small"><?php _e('Salva', 'dokan-mod'); ?></button>
-                                                                <button type="button" class="button button-secondary button-small" onclick="toggleCittaMultiConfig('<?php echo $monitor['id']; ?>')"><?php _e('Annulla', 'dokan-mod'); ?></button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                <?php endif; ?>
                                             </form>
                                         </td>
                                         
@@ -1113,9 +1082,17 @@ window.addEventListener('click', function(event) {
 // Close modal with Escape key
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
-        const modal = document.getElementById('association-modal');
-        if (modal && modal.style.display !== 'none') {
-            closeAssociationModal();
+        try {
+            const associationModal = document.getElementById('association-modal');
+            const configModal = document.getElementById('config-modal');
+            
+            if (associationModal && associationModal.style.display !== 'none' && associationModal.classList.contains('show')) {
+                closeAssociationModal();
+            } else if (configModal && configModal.style.display !== 'none' && configModal.classList.contains('show')) {
+                closeConfigModal();
+            }
+        } catch (error) {
+            console.error('Error handling escape key:', error);
         }
     }
 });
@@ -1201,6 +1178,414 @@ function showErrorMessage(message) {
         }
     }, 5000);
 }
+
+// ===== CONFIGURATION MODAL FUNCTIONS =====
+
+// Legacy function for backward compatibility
+function toggleCittaMultiConfig(monitorId) {
+    openLayoutConfig(monitorId, 'citta_multi');
+}
+
+// Open configuration modal for any layout type
+function openLayoutConfig(monitorId, layoutType) {
+    console.log('Opening layout config for monitor:', monitorId, 'layout:', layoutType);
+    
+    // Find monitor data from the table
+    const monitorRow = document.querySelector(`[data-monitor-id="${monitorId}"]`);
+    if (!monitorRow) {
+        console.error('Monitor row not found:', monitorId);
+        showErrorMessage('Errore: Monitor non trovato nella tabella');
+        return;
+    }
+    
+    // Get monitor name using the correct selector
+    let monitorName = 'Monitor';
+    const nameCell = monitorRow.querySelector('.monitor-name-cell strong');
+    if (nameCell) {
+        monitorName = nameCell.textContent.trim();
+    } else {
+        console.warn('Monitor name cell not found, using fallback');
+        // Try alternative selectors as fallback
+        const altNameElement = monitorRow.querySelector('td:first-child strong');
+        if (altNameElement) {
+            monitorName = altNameElement.textContent.trim();
+        }
+    }
+    
+    console.log('Found monitor name:', monitorName);
+    
+    // Get current configuration based on layout type
+    let currentConfig = {};
+    
+    if (layoutType === 'citta_multi') {
+        const daysRangeSelect = monitorRow.querySelector('[name="days_range"]');
+        const showAllCheckbox = monitorRow.querySelector('[name="show_all_agencies"]');
+        
+        currentConfig = {
+            days_range: daysRangeSelect ? daysRangeSelect.value : '7',
+            show_all_agencies: showAllCheckbox ? showAllCheckbox.checked : false
+        };
+        console.log('Current città multi config:', currentConfig);
+    }
+    
+    openConfigModal(monitorId, monitorName, layoutType, currentConfig);
+}
+
+// Open configuration modal
+function openConfigModal(monitorId, monitorName, layoutType, currentConfig = {}) {
+    console.log('Opening config modal:', { monitorId, monitorName, layoutType, currentConfig });
+    
+    try {
+        // Validate required elements exist
+        const modal = document.getElementById('config-modal');
+        const monitorNameSpan = document.getElementById('config-monitor-name');
+        const monitorIdInput = document.getElementById('config-monitor-id');
+        const layoutTypeInput = document.getElementById('config-layout-type');
+        const contentDiv = document.getElementById('config-content');
+        
+        if (!modal || !monitorNameSpan || !monitorIdInput || !layoutTypeInput || !contentDiv) {
+            console.error('Missing required modal elements');
+            showErrorMessage('Errore: Elementi modal non trovati');
+            return;
+        }
+        
+        // Set modal title and monitor info
+        monitorNameSpan.textContent = monitorName || 'Monitor';
+        monitorIdInput.value = monitorId;
+        layoutTypeInput.value = layoutType;
+        
+        // Generate config content based on layout type
+        const configContent = generateConfigContent(layoutType, currentConfig);
+        contentDiv.innerHTML = configContent;
+        
+        // Show modal
+        document.body.classList.add('modal-open');
+        modal.style.display = 'flex';
+        setTimeout(() => {
+            modal.classList.add('show');
+        }, 10);
+        
+        console.log('Config modal opened successfully');
+        
+    } catch (error) {
+        console.error('Error opening config modal:', error);
+        showErrorMessage('Errore durante l\'apertura della configurazione: ' + error.message);
+    }
+}
+
+// Close configuration modal
+function closeConfigModal() {
+    try {
+        const modal = document.getElementById('config-modal');
+        if (!modal) {
+            console.warn('Config modal not found during close');
+            return;
+        }
+        
+        modal.classList.remove('show');
+        document.body.classList.remove('modal-open');
+        
+        setTimeout(() => {
+            modal.style.display = 'none';
+            // Clear content
+            const contentDiv = document.getElementById('config-content');
+            if (contentDiv) {
+                contentDiv.innerHTML = '';
+            }
+        }, 300);
+        
+        console.log('Config modal closed successfully');
+        
+    } catch (error) {
+        console.error('Error closing config modal:', error);
+    }
+}
+
+// Generate configuration content based on layout type
+function generateConfigContent(layoutType, currentConfig) {
+    console.log('Generating config content for layout:', layoutType, currentConfig);
+    
+    try {
+        switch (layoutType) {
+            case 'citta_multi':
+                return generateCittaMultiConfig(currentConfig || {});
+            case 'manifesti':
+                return generateManifestiConfig(currentConfig || {});
+            case 'solo_annuncio':
+                return generateSoloAnnuncioConfig(currentConfig || {});
+            default:
+                console.warn('Unknown layout type:', layoutType);
+                return `<div class="config-section">
+                    <h3><i class="dashicons dashicons-admin-generic"></i> Layout: ${layoutType}</h3>
+                    <p class="config-description">
+                        <i class="dashicons dashicons-info"></i>
+                        Nessuna configurazione specifica disponibile per questo tipo di layout.
+                    </p>
+                    <div class="config-info">
+                        <p>Questo layout utilizza le impostazioni predefinite del sistema.</p>
+                    </div>
+                </div>`;
+        }
+    } catch (error) {
+        console.error('Error generating config content:', error);
+        return `<div class="config-section">
+            <h3><i class="dashicons dashicons-warning"></i> Errore di Configurazione</h3>
+            <p class="config-description" style="background: #ffebee; border-left-color: #f44336;">
+                <i class="dashicons dashicons-warning"></i>
+                Si è verificato un errore durante la generazione della configurazione.
+            </p>
+            <div class="config-info">
+                <p><strong>Errore:</strong> ${error.message}</p>
+                <p>Riprova ad aprire la configurazione o contatta il supporto tecnico.</p>
+            </div>
+        </div>`;
+    }
+}
+
+// Generate Città Multi configuration form
+function generateCittaMultiConfig(config) {
+    const daysRange = parseInt(config.days_range || 7);
+    const showAllAgencies = config.show_all_agencies || false;
+    
+    // Calculate end date (today minus selected days)
+    const today = new Date();
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() - daysRange);
+    
+    const formatDate = (date) => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+    };
+    
+    return `
+        <div class="config-section">
+            <h3>
+                <i class="dashicons dashicons-location-alt"></i>
+                Configurazione Città Multi-Agenzia
+            </h3>
+            <p class="config-description">
+                <i class="dashicons dashicons-info"></i>
+                Questo layout mostra gli annunci di morte della tua città da tutte le agenzie o solo dalla tua.
+                <br><strong>Periodo di visualizzazione:</strong> Seleziona per quanto tempo indietro mostrare gli annunci.
+            </p>
+            
+            <div class="config-row">
+                <label for="config-days-range">
+                    <strong><i class="dashicons dashicons-calendar-alt"></i> Giorni da visualizzare:</strong>
+                </label>
+                <div class="days-input-container">
+                    <input type="number" 
+                           name="days_range" 
+                           id="config-days-range" 
+                           class="small-text" 
+                           value="${daysRange}"
+                           min="1" 
+                           max="365"
+                           step="1"
+                           onchange="updateEndDate(this.value)"
+                           oninput="updateEndDate(this.value)"
+                           style="width: 80px; display: inline-block; vertical-align: middle;">
+                    <span style="margin-left: 8px; font-weight: normal;">giorni</span>
+                </div>
+                <div class="days-shortcuts" style="margin-top: 10px;">
+                    <small style="color: #666; margin-right: 8px;"><strong>Scelte rapide:</strong></small>
+                    <button type="button" class="button-small days-shortcut-btn" onclick="setDaysValue(1)">1</button>
+                    <button type="button" class="button-small days-shortcut-btn" onclick="setDaysValue(3)">3</button>
+                    <button type="button" class="button-small days-shortcut-btn" onclick="setDaysValue(7)">7</button>
+                    <button type="button" class="button-small days-shortcut-btn" onclick="setDaysValue(14)">14</button>
+                    <button type="button" class="button-small days-shortcut-btn" onclick="setDaysValue(30)">30</button>
+                </div>
+                <p class="description" style="margin-top: 8px;">
+                    <strong>Mostra fino al:</strong> <span id="end-date-display" style="color: #0073aa; font-weight: bold;">${formatDate(endDate)}</span>
+                    <span style="color: #666; font-style: italic;"> (calcolato: oggi - giorni selezionati)</span>
+                </p>
+            </div>
+            
+            <div class="config-row">
+                <label>
+                    <input type="checkbox" name="show_all_agencies" value="1" ${showAllAgencies ? 'checked' : ''}>
+                    <strong><i class="dashicons dashicons-building"></i> Mostra tutte le agenzie</strong>
+                </label>
+                <p class="description">
+                    Se attivato, mostra annunci da tutte le agenzie della città. Se disattivato, mostra solo i tuoi annunci.
+                </p>
+            </div>
+            
+            <div class="config-preview">
+                <h4><i class="dashicons dashicons-visibility"></i> Anteprima configurazione:</h4>
+                <div class="preview-info">
+                    <span class="preview-item">📅 Periodo: <strong id="preview-days">${daysRange} ${daysRange === 1 ? 'giorno' : 'giorni'}</strong></span>
+                    <span class="preview-item">📆 Fino al: <strong id="preview-end-date">${formatDate(endDate)}</strong></span>
+                    <span class="preview-item">🏢 Agenzie: <strong id="preview-agencies">${showAllAgencies ? 'Tutte le agenzie' : 'Solo la tua agenzia'}</strong></span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Generate Manifesti configuration form
+function generateManifestiConfig(config) {
+    return `
+        <div class="config-section">
+            <h3>
+                <i class="dashicons dashicons-format-gallery"></i>
+                Configurazione Layout Manifesti
+            </h3>
+            <p class="config-description">
+                <i class="dashicons dashicons-info"></i>
+                Il layout Manifesti mostra automaticamente i manifesti associati al defunto selezionato.
+            </p>
+            <div class="config-info">
+                <p><strong>Caratteristiche:</strong></p>
+                <ul>
+                    <li>📰 Slideshow automatico dei manifesti</li>
+                    <li>🔄 Rotazione ogni 10 secondi</li>
+                    <li>📱 Layout completamente responsive</li>
+                </ul>
+            </div>
+        </div>
+    `;
+}
+
+// Generate Solo Annuncio configuration form
+function generateSoloAnnuncioConfig(config) {
+    return `
+        <div class="config-section">
+            <h3>
+                <i class="dashicons dashicons-format-aside"></i>
+                Configurazione Layout Solo Annuncio
+            </h3>
+            <p class="config-description">
+                <i class="dashicons dashicons-info"></i>
+                Il layout Solo Annuncio mostra un singolo annuncio di morte in modo elegante e leggibile.
+            </p>
+            <div class="config-info">
+                <p><strong>Caratteristiche:</strong></p>
+                <ul>
+                    <li>📋 Focus su singolo annuncio</li>
+                    <li>🖼️ Visualizzazione ottimizzata delle immagini</li>
+                    <li>📱 Design pulito e moderno</li>
+                </ul>
+            </div>
+        </div>
+    `;
+}
+
+// Helper function to get days range label
+function getDaysRangeLabel(days) {
+    const daysNum = parseInt(days);
+    return daysNum === 1 ? '1 giorno' : `${daysNum} giorni`;
+}
+
+// Function to update end date display when days input changes
+function updateEndDate(days) {
+    try {
+        const daysNum = parseInt(days) || 1;
+        
+        // Validate input range
+        if (daysNum < 1) {
+            document.getElementById('config-days-range').value = 1;
+            return updateEndDate(1);
+        }
+        if (daysNum > 365) {
+            document.getElementById('config-days-range').value = 365;
+            return updateEndDate(365);
+        }
+        
+        // Calculate new end date
+        const today = new Date();
+        const endDate = new Date(today);
+        endDate.setDate(today.getDate() - daysNum);
+        
+        const formatDate = (date) => {
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        };
+        
+        // Update display elements
+        const endDateDisplay = document.getElementById('end-date-display');
+        const previewDays = document.getElementById('preview-days');
+        const previewEndDate = document.getElementById('preview-end-date');
+        
+        if (endDateDisplay) {
+            endDateDisplay.textContent = formatDate(endDate);
+        }
+        
+        if (previewDays) {
+            previewDays.textContent = `${daysNum} ${daysNum === 1 ? 'giorno' : 'giorni'}`;
+        }
+        
+        if (previewEndDate) {
+            previewEndDate.textContent = formatDate(endDate);
+        }
+        
+        console.log('Updated end date for', daysNum, 'days:', formatDate(endDate));
+        
+    } catch (error) {
+        console.error('Error updating end date:', error);
+    }
+}
+
+// Function to set days value from shortcut buttons
+function setDaysValue(days) {
+    try {
+        const input = document.getElementById('config-days-range');
+        if (input) {
+            input.value = days;
+            updateEndDate(days);
+            
+            // Visual feedback on the button
+            const buttons = document.querySelectorAll('.days-shortcut-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            const activeButton = document.querySelector(`.days-shortcut-btn[onclick="setDaysValue(${days})"]`);
+            if (activeButton) {
+                activeButton.classList.add('active');
+                setTimeout(() => activeButton.classList.remove('active'), 200);
+            }
+        }
+    } catch (error) {
+        console.error('Error setting days value:', error);
+    }
+}
+
+// Update preview when configuration changes
+document.addEventListener('change', function(event) {
+    if (event.target.name === 'days_range') {
+        // The updateEndDate function already handles this
+        updateEndDate(event.target.value);
+    }
+    
+    if (event.target.name === 'show_all_agencies') {
+        const previewAgencies = document.getElementById('preview-agencies');
+        if (previewAgencies) {
+            previewAgencies.textContent = event.target.checked ? 'Tutte le agenzie' : 'Solo la tua agenzia';
+        }
+    }
+});
+
+// Also handle input events for real-time updates
+document.addEventListener('input', function(event) {
+    if (event.target.name === 'days_range') {
+        updateEndDate(event.target.value);
+    }
+});
+
+// Close config modal when clicking outside
+window.addEventListener('click', function(event) {
+    try {
+        const configModal = document.getElementById('config-modal');
+        if (configModal && event.target === configModal) {
+            closeConfigModal();
+        }
+    } catch (error) {
+        console.error('Error handling outside click:', error);
+    }
+});
 </script>
 
 <!-- Association Modal - Positioned outside main structure for proper overlay -->
@@ -1270,8 +1655,305 @@ function showErrorMessage(message) {
     </div>
 </div>
 
+<!-- Configuration Modal -->
+<div id="config-modal" class="monitor-modal" style="display: none;">
+    <div class="monitor-modal-content">
+        <div class="monitor-modal-header">
+            <h2 id="config-modal-title">
+                <i class="dashicons dashicons-admin-settings"></i>
+                Configurazione Layout - <span id="config-monitor-name">Monitor</span>
+            </h2>
+            <span class="monitor-modal-close" onclick="closeConfigModal()">&times;</span>
+        </div>
+        <div class="monitor-modal-body">
+            <form id="config-form" method="post" action="">
+                <input type="hidden" name="action" value="update_layout">
+                <input type="hidden" name="monitor_nonce" value="<?php echo wp_create_nonce('monitor_update_layout'); ?>">
+                <input type="hidden" name="monitor_id" id="config-monitor-id">
+                <input type="hidden" name="layout_type" id="config-layout-type">
+                
+                <div id="config-content">
+                    <!-- Dynamic content will be loaded here -->
+                </div>
+                
+                <div class="config-actions" style="margin-top: 25px; text-align: center;">
+                    <button type="submit" class="button button-primary button-large">
+                        <i class="dashicons dashicons-yes"></i>
+                        <?php _e('Salva Configurazione', 'dokan-mod'); ?>
+                    </button>
+                    <button type="button" class="button button-secondary button-large" onclick="closeConfigModal()">
+                        <i class="dashicons dashicons-no"></i>
+                        <?php _e('Annulla', 'dokan-mod'); ?>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <style>
 /* Monitor-specific CSS - common dashboard styles now loaded via dokan-dashboard-common.css */
+
+/* Configuration Modal Styles */
+.config-section {
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #0073aa;
+}
+
+.config-section h3 {
+    margin-top: 0;
+    color: #23282d;
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.config-description {
+    background: #e7f3ff;
+    padding: 12px;
+    border-radius: 4px;
+    margin: 15px 0;
+    border-left: 3px solid #0073aa;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.config-row {
+    margin: 20px 0;
+    padding: 15px 0;
+    border-bottom: 1px solid #e1e1e1;
+}
+
+.config-row:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.config-row label {
+    display: block;
+    margin-bottom: 8px;
+    color: #23282d;
+}
+
+.config-row .description {
+    color: #666;
+    font-style: italic;
+    font-size: 0.95em;
+    margin-top: 5px;
+}
+
+.config-preview {
+    background: #ffffff;
+    border: 2px solid #0073aa;
+    border-radius: 6px;
+    padding: 15px;
+    margin-top: 25px;
+}
+
+.config-preview h4 {
+    margin: 0 0 10px 0;
+    color: #0073aa;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preview-info {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.preview-item {
+    background: #f0f8ff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #b3d9ff;
+    font-size: 0.9em;
+}
+
+.config-info {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+}
+
+.config-info ul {
+    margin: 10px 0 0 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+.config-info li {
+    margin: 8px 0;
+    padding: 5px 0;
+    border-bottom: 1px dotted #ccc;
+}
+
+.config-info li:last-child {
+    border-bottom: none;
+}
+
+.config-actions {
+    text-align: center;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #ddd;
+}
+
+.config-actions .button {
+    margin: 0 10px;
+    min-width: 150px;
+    padding: 8px 20px !important;
+    height: auto !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+}
+
+/* Layout Configuration Button */
+.layout-config-btn {
+    background: #0073aa !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 4px !important;
+    padding: 6px 8px !important;
+    margin-left: 8px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    vertical-align: middle !important;
+    font-size: 14px !important;
+    height: auto !important;
+    line-height: 1 !important;
+}
+
+.layout-config-btn:hover {
+    background: #005a87 !important;
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.layout-config-btn:active {
+    transform: scale(0.98);
+}
+
+.layout-config-btn .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* Days Input Container Styling */
+.days-input-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.days-input-container input[type="number"] {
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 14px;
+    text-align: center;
+    transition: border-color 0.2s ease;
+}
+
+.days-input-container input[type="number"]:focus {
+    border-color: #0073aa;
+    outline: none;
+    box-shadow: 0 0 0 1px #0073aa;
+}
+
+.days-input-container input[type="number"]:hover {
+    border-color: #999;
+}
+
+/* Preview End Date Styling */
+#end-date-display {
+    background: #f0f8ff;
+    padding: 4px 8px;
+    border-radius: 3px;
+    border: 1px solid #b3d9ff;
+    font-family: monospace;
+}
+
+/* Preview Item Enhancements */
+.preview-item {
+    background: #f0f8ff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #b3d9ff;
+    font-size: 0.9em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.config-description {
+    background: #e7f3ff;
+    padding: 15px;
+    border-radius: 4px;
+    margin: 15px 0;
+    border-left: 3px solid #0073aa;
+    line-height: 1.5;
+}
+
+.config-description strong {
+    color: #0073aa;
+}
+
+/* Days Shortcut Buttons */
+.days-shortcuts {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.days-shortcut-btn {
+    background: #f7f7f7;
+    border: 1px solid #ccd0d4;
+    border-radius: 3px;
+    color: #2c3338;
+    cursor: pointer;
+    display: inline-block;
+    font-size: 11px;
+    line-height: 1.4;
+    margin: 0;
+    padding: 3px 8px;
+    text-decoration: none;
+    white-space: nowrap;
+    min-width: 24px;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.days-shortcut-btn:hover {
+    background: #0073aa;
+    border-color: #0073aa;
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.days-shortcut-btn:active,
+.days-shortcut-btn.active {
+    background: #005a87;
+    border-color: #005a87;
+    color: #fff;
+    transform: scale(0.95);
+}
+
+.days-shortcuts small {
+    flex-shrink: 0;
+}
 
 /* Responsive adjustments */
 @media (max-width: 1024px) {
@@ -1365,6 +2047,36 @@ function showErrorMessage(message) {
     .search-form-wrapper input {
         max-width: 100%;
         margin-bottom: 10px;
+    }
+    
+    /* Mobile adjustments for configuration modal */
+    .days-input-container {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .days-input-container input[type="number"] {
+        width: 100px;
+    }
+    
+    .days-shortcuts {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    
+    .preview-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .config-preview {
+        margin-top: 15px;
+    }
+    
+    .config-row {
+        margin: 15px 0;
+        padding: 12px 0;
     }
 }
 </style>

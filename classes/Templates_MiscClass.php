@@ -180,7 +180,6 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
                             element.style.display = \'none\';
                         }
                         element.style.opacity = op;
-                        element.style.filter = \'alpha(opacity=\' + op * 100 + ")\";
                         op -= op * 0.1;
                     }, 50);
                 }
