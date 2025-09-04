@@ -412,7 +412,7 @@ $active_menu = 'monitor-digitale';
                                                         <?php endforeach; ?>
                                                     </select>
                                                     
-                                                    <?php if (in_array($monitor['layout_type'], ['citta_multi', 'manifesti', 'solo_annuncio'])): ?>
+                                                    <?php if (in_array($monitor['layout_type'], ['citta_multi', 'manifesti'])): ?>
                                                         <button type="button" class="layout-config-btn" 
                                                                 onclick="openLayoutConfig('<?php echo $monitor['id']; ?>', '<?php echo $monitor['layout_type']; ?>')" 
                                                                 title="<?php _e('Configura Layout', 'dokan-mod'); ?>">

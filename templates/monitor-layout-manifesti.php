@@ -60,59 +60,65 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
             <!-- No manifesti state - Full layout with defunto info -->
             <div class="no-manifesti" id="no-manifesti" style="display: none;">
                 <div class="no-manifesti-content">
-                    <!-- Defunto Image with cascading fallback: fotografia -> immagine_annuncio_di_morte -> logo -->
-                    <?php 
-                    // Cascading fallback logic for defunto image
-                    $foto_display_url = '';
-                    $foto_alt_text = esc_attr($defunto_title);
-                    $foto_class = 'defunto-foto-waiting';
-                    
-                    // 1. First try 'fotografia' ACF field
-                    if ($foto_defunto) {
-                        $foto_display_url = is_array($foto_defunto) && isset($foto_defunto['url']) 
-                            ? $foto_defunto['url'] 
-                            : (is_string($foto_defunto) ? $foto_defunto : '');
-                    }
-                    
-                    // 2. Fallback to 'immagine_annuncio_di_morte' ACF field
-                    if (empty($foto_display_url) && $immagine_annuncio) {
-                        $foto_display_url = is_array($immagine_annuncio) && isset($immagine_annuncio['url']) 
-                            ? $immagine_annuncio['url'] 
-                            : (is_string($immagine_annuncio) ? $immagine_annuncio : '');
-                    }
-                    
-                    // 3. Final fallback to main logo
-                    if (empty($foto_display_url)) {
-                        $foto_display_url = $logo_url;
-                        $foto_alt_text = 'Logo';
-                        $foto_class = 'defunto-foto-waiting logo-fallback'; // Different class for logo fallback
-                    }
-                    ?>
-                    
-                    <?php if ($foto_display_url): ?>
-                        <img src="<?php echo esc_url($foto_display_url); ?>" 
-                             alt="<?php echo $foto_alt_text; ?>" 
-                             class="<?php echo $foto_class; ?>">
-                    <?php else: ?>
-                        <div class="defunto-foto-waiting-placeholder">
-                            <i class="dashicons dashicons-admin-users"></i>
+                    <!-- Sezione sinistra: Foto defunto e info (visible in landscape) -->
+                    <div class="no-manifesti-left">
+                        <!-- Defunto Image with cascading fallback: fotografia -> immagine_annuncio_di_morte -> logo -->
+                        <?php 
+                        // Cascading fallback logic for defunto image
+                        $foto_display_url = '';
+                        $foto_alt_text = esc_attr($defunto_title);
+                        $foto_class = 'defunto-foto-waiting';
+                        
+                        // 1. First try 'fotografia' ACF field
+                        if ($foto_defunto) {
+                            $foto_display_url = is_array($foto_defunto) && isset($foto_defunto['url']) 
+                                ? $foto_defunto['url'] 
+                                : (is_string($foto_defunto) ? $foto_defunto : '');
+                        }
+                        
+                        // 2. Fallback to 'immagine_annuncio_di_morte' ACF field
+                        if (empty($foto_display_url) && $immagine_annuncio) {
+                            $foto_display_url = is_array($immagine_annuncio) && isset($immagine_annuncio['url']) 
+                                ? $immagine_annuncio['url'] 
+                                : (is_string($immagine_annuncio) ? $immagine_annuncio : '');
+                        }
+                        
+                        // 3. Final fallback to main logo
+                        if (empty($foto_display_url)) {
+                            $foto_display_url = $logo_url;
+                            $foto_alt_text = 'Logo';
+                            $foto_class = 'defunto-foto-waiting logo-fallback'; // Different class for logo fallback
+                        }
+                        ?>
+                        
+                        <?php if ($foto_display_url): ?>
+                            <img src="<?php echo esc_url($foto_display_url); ?>" 
+                                 alt="<?php echo $foto_alt_text; ?>" 
+                                 class="<?php echo $foto_class; ?>">
+                        <?php else: ?>
+                            <div class="defunto-foto-waiting-placeholder">
+                                <i class="dashicons dashicons-admin-users"></i>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <!-- Defunto Name and Date -->
+                        <div class="defunto-info-waiting">
+                            <h1><?php echo esc_html($defunto_title); ?></h1>
+                            <p><?php echo esc_html($display_date); ?></p>
                         </div>
-                    <?php endif; ?>
-                    
-                    <!-- Defunto Name and Date -->
-                    <div class="defunto-info-waiting">
-                        <h1><?php echo esc_html($defunto_title); ?></h1>
-                        <p><?php echo esc_html($display_date); ?></p>
                     </div>
                     
-                    <!-- Main Logo above the message -->
-                    <img src="<?php echo esc_url($logo_url); ?>" 
-                         alt="Logo" 
-                         class="logo-image-waiting">
-                    
-                    <!-- Waiting Message -->
-                    <div class="waiting-message-manifesti">
-                        <h3>Le partecipazioni saranno presto disponibili</h3>
+                    <!-- Sezione destra: Logo e messaggio (center in landscape, below in portrait) -->
+                    <div class="no-manifesti-right">
+                        <!-- Main Logo above the message -->
+                        <img src="<?php echo esc_url($logo_url); ?>" 
+                             alt="Logo" 
+                             class="logo-image-waiting">
+                        
+                        <!-- Waiting Message -->
+                        <div class="waiting-message-manifesti">
+                            <h3>Le partecipazioni saranno presto disponibili</h3>
+                        </div>
                     </div>
                 </div>
                 
@@ -200,6 +206,38 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     background: var(--monitor-bg-primary);
     color: var(--monitor-text-primary);
     font-family: var(--monitor-font-family);
+}
+
+/* Layout Orizzontale - Restructure completo */
+@media (orientation: landscape) {
+    .monitor-container {
+        flex-direction: column; /* Header/Body/Footer rimangono verticali */
+    }
+    
+    /* Header compatto con foto e info affiancate */
+    .monitor-header {
+        height: auto;
+        padding: var(--monitor-padding-small) var(--monitor-padding-medium);
+    }
+    
+    .defunto-info {
+        justify-content: flex-start;
+        width: 100%;
+        gap: var(--monitor-gap-large);
+    }
+    
+    /* Body occupa tutto lo spazio disponibile per manifesti */
+    .monitor-body {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .manifesti-slideshow {
+        width: 100%;
+        height: 100%;
+    }
 }
 
 /* Header Section - 20% */
@@ -484,6 +522,55 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     align-items: center;
     justify-content: center;
     flex: 1;
+}
+
+/* Layout Orizzontale No-Manifesti: Immagine a sinistra, contenuto a destra */
+@media (orientation: landscape) {
+    .no-manifesti {
+        flex-direction: row;
+        align-items: center;
+        text-align: left;
+        padding: var(--monitor-padding-medium) var(--monitor-padding-medium) 0;
+    }
+    
+    .no-manifesti-content {
+        max-width: none;
+        flex-direction: row;
+        align-items: center;
+        width: 100%;
+        gap: var(--monitor-gap-large);
+    }
+    
+    .no-manifesti-left {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex-shrink: 0;
+        gap: var(--monitor-gap-medium);
+        text-align: center; /* Centra tutti i testi nella sezione sinistra */
+    }
+    
+    .no-manifesti-right {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        text-align: center;
+        gap: var(--monitor-gap-large);
+    }
+}
+
+/* Layout Portrait: Disposizione verticale tradizionale */
+@media (orientation: portrait) {
+    .no-manifesti-content {
+        flex-direction: column;
+        text-align: center; /* Mantiene il centro per il layout verticale */
+    }
+    
+    .no-manifesti-left, .no-manifesti-right {
+        display: contents; /* Gli elementi appaiono come se fossero parte del parent */
+    }
 }
 
 /* Defunto Photo with responsive sizing like logo-image */

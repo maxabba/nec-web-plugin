@@ -83,6 +83,40 @@ $logo_url = plugin_dir_url(__FILE__) . '../assets/images/Necrologi-oro.png';
             background: rgb(55, 55, 55);
         }
         
+        /* Layout Orizzontale: Logo a sinistra, contenuto al centro */
+        @media (orientation: landscape) {
+            .waiting-container {
+                flex-direction: row;
+                text-align: left;
+                align-items: center;
+                gap: 40px;
+                padding: 40px 60px;
+            }
+            
+            .waiting-content {
+                flex-direction: row;
+                align-items: center;
+                gap: 60px;
+            }
+            
+            .waiting-left {
+                flex-shrink: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .waiting-right {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                gap: 30px;
+            }
+        }
+        
         .waiting-content {
             max-width: 800px;
             display: flex;
@@ -164,8 +198,16 @@ $logo_url = plugin_dir_url(__FILE__) . '../assets/images/Necrologi-oro.png';
             }
         }
         
-        /* Portrait orientation - 80% width for vertical screens */
+        /* Portrait orientation - disposizione verticale tradizionale */
         @media (orientation: portrait) {
+            .waiting-content {
+                flex-direction: column;
+            }
+            
+            .waiting-left, .waiting-right {
+                display: contents; /* Gli elementi appaiono come se fossero parte del parent */
+            }
+            
             .logo-image {
                 width: 80vw;
                 height: auto;
@@ -255,21 +297,27 @@ $logo_url = plugin_dir_url(__FILE__) . '../assets/images/Necrologi-oro.png';
 <body>
     <div class="waiting-container">
         <div class="waiting-content">
-            <!-- Logo Image -->
-            <img src="<?php echo esc_url($logo_url); ?>" 
-                 alt="Logo" 
-                 class="logo-image">
+            <!-- Sezione sinistra: Logo (visible in landscape) -->
+            <div class="waiting-left">
+                <!-- Logo Image -->
+                <img src="<?php echo esc_url($logo_url); ?>" 
+                     alt="Logo" 
+                     class="logo-image">
+            </div>
             
-            <h1 class="waiting-title">Monitor in attesa di associazione</h1>
-            
-            <p class="waiting-message">
-                Il monitor è attivo e in attesa che venga associato,<br>
-                accedi alla dashboard dell'agenzia per l'associazione.
-            </p>
-            
-            <div class="status-indicator">
-                <div class="status-dot"></div>
-                <span>Sistema Attivo</span>
+            <!-- Sezione destra: Contenuto testuale (center in landscape, below in portrait) -->
+            <div class="waiting-right">
+                <h1 class="waiting-title">Monitor in attesa di associazione</h1>
+                
+                <p class="waiting-message">
+                    Il monitor è attivo e in attesa che venga associato,<br>
+                    accedi alla dashboard dell'agenzia per l'associazione.
+                </p>
+                
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>Sistema Attivo</span>
+                </div>
             </div>
         </div>
         
