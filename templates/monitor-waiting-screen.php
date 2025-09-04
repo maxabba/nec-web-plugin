@@ -40,14 +40,8 @@ if (empty($monitor_name)) {
     $monitor_name = 'Monitor 1';
 }
 
-// Get logo image URL - try from media library first, then fallback
-$logo_url = '';
-if (function_exists('wp_get_attachment_image_url')) {
-    $logo_url = wp_get_attachment_image_url(39, 'full');
-}
-if (empty($logo_url)) {
-    $logo_url = '/wp-content/uploads/2024/04/Necrologi-oro.png';
-}
+// Get logo image URL from plugin assets - no dependency on site media library
+$logo_url = plugin_dir_url(__FILE__) . '../assets/images/Necrologi-oro.png';
 
 ?>
 <!DOCTYPE html>
