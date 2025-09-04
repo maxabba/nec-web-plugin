@@ -257,153 +257,155 @@ $active_menu = 'monitor-digitale';
                         <p><strong><?php _e('Monitor Assegnati:', 'dokan-mod'); ?></strong> <?php echo count($vendor_monitors); ?></p>
                     </div>
 
-                    <!-- Monitors Table -->
-                    <div class="monitors-table-container">
-                        <table class="wp-list-table widefat fixed striped monitors-table">
-                            <thead>
-                                <tr>
-                                    <th class="manage-column monitor-name-col"><?php _e('Nome Monitor', 'dokan-mod'); ?></th>
-                                    <th class="manage-column monitor-url-col"><?php _e('URL Display', 'dokan-mod'); ?></th>
-                                    <th class="manage-column monitor-status-col"><?php _e('Stato', 'dokan-mod'); ?></th>
-                                    <th class="manage-column monitor-association-col"><?php _e('Associazione', 'dokan-mod'); ?></th>
-                                    <th class="manage-column monitor-layout-col"><?php _e('Layout', 'dokan-mod'); ?></th>
-                                    <th class="manage-column monitor-actions-col"><?php _e('Azioni', 'dokan-mod'); ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($vendor_monitors as $monitor): 
-                                    $layout_config = dkmod_safe_decode_layout_config($monitor['layout_config']);
-                                    $associated_post_title = $monitor['associated_post_id'] ? get_the_title($monitor['associated_post_id']) : null;
-                                    $monitor_url = home_url('/monitor/display/' . $user_id . '/' . $monitor['id'] . '/' . $monitor['monitor_slug']);
-                                ?>
-                                    <tr data-monitor-id="<?php echo $monitor['id']; ?>" class="monitor-row">
-                                        <!-- Monitor Name -->
-                                        <td class="monitor-name-cell">
-                                            <strong><?php echo esc_html($monitor['monitor_name']); ?></strong>
+                    <!-- Monitors Cards Grid -->
+                    <div class="monitors-cards-container">
+                        <div class="monitors-grid">
+                            <?php foreach ($vendor_monitors as $monitor): 
+                                $layout_config = dkmod_safe_decode_layout_config($monitor['layout_config']);
+                                $associated_post_title = $monitor['associated_post_id'] ? get_the_title($monitor['associated_post_id']) : null;
+                                $monitor_url = home_url('/monitor/display/' . $user_id . '/' . $monitor['id'] . '/' . $monitor['monitor_slug']);
+                            ?>
+                                <div class="monitor-card" data-monitor-id="<?php echo $monitor['id']; ?>">
+                                    <!-- Card Header -->
+                                    <div class="monitor-card-header">
+                                        <div class="monitor-name-section">
+                                            <h3 class="monitor-name"><?php echo esc_html($monitor['monitor_name']); ?></h3>
                                             <?php if ($monitor['monitor_description']): ?>
-                                                <div class="monitor-description"><?php echo esc_html($monitor['monitor_description']); ?></div>
+                                                <p class="monitor-description"><?php echo esc_html($monitor['monitor_description']); ?></p>
                                             <?php endif; ?>
-                                        </td>
-                                        
-                                        <!-- URL Display -->
-                                        <td class="monitor-url-cell">
-                                            <div class="url-display">
-                                                <?php 
-                                                // Extract only the path after domain for display
-                                                $parsed_url = parse_url($monitor_url);
-                                                $display_path = $parsed_url['path'] ?? '';
-                                                // Show only the monitor-specific part (last 3 segments)
-                                                $path_segments = array_filter(explode('/', $display_path));
-                                                $display_segments = array_slice($path_segments, -3); // vendor_id/monitor_id/slug
-                                                $short_display = '.../' . implode('/', $display_segments);
-                                                ?>
-                                                <code class="monitor-url-code" title="<?php echo esc_attr($monitor_url); ?>"><?php echo esc_html($short_display); ?></code>
-                                                <button type="button" class="copy-url-btn compact" onclick="copyMonitorUrl('<?php echo $monitor['id']; ?>')" title="<?php _e('Copia URL completo', 'dokan-mod'); ?>">
-                                                    <i class="dashicons dashicons-admin-page"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                        
-                                        <!-- Status -->
-                                        <td class="monitor-status-cell">
+                                        </div>
+                                        <div class="monitor-status">
                                             <?php if ($monitor['associated_post_id']): ?>
                                                 <div class="status-badge status-active">
                                                     <i class="dashicons dashicons-yes"></i>
-                                                    <span class="status-text">
-                                                        <strong><?php _e('ATTIVO', 'dokan-mod'); ?></strong>
-                                                    </span>
+                                                    <span><?php _e('ATTIVO', 'dokan-mod'); ?></span>
                                                 </div>
                                             <?php else: ?>
                                                 <div class="status-badge status-inactive">
                                                     <i class="dashicons dashicons-warning"></i>
-                                                    <span class="status-text">
-                                                        <strong><?php _e('INATTIVO', 'dokan-mod'); ?></strong>
-                                                    </span>
+                                                    <span><?php _e('INATTIVO', 'dokan-mod'); ?></span>
                                                 </div>
                                             <?php endif; ?>
-                                        </td>
-                                        
-                                        <!-- Association -->
-                                        <td class="monitor-association-cell">
-                                            <?php
-                                            switch ($monitor['layout_type']) {
-                                                case 'solo_annuncio':
-                                                case 'manifesti':
-                                                    if ($monitor['associated_post_id'] && $associated_post_title) {
-                                                        echo '<div class="association-info association-single">';
-                                                        echo '<i class="dashicons dashicons-admin-post"></i>';
-                                                        echo '<div class="association-content">';
-                                                        echo '<strong>' . esc_html($associated_post_title) . '</strong>';
-                                                        
-                                                        // Get post date for additional info
-                                                        $post_date = get_the_date('d/m/Y', $monitor['associated_post_id']);
-                                                        echo '<small>' . sprintf(__('Pubblicato: %s', 'dokan-mod'), $post_date) . '</small>';
-                                                        echo '</div></div>';
-                                                    } else {
-                                                        echo '<div class="association-info association-none">';
-                                                        echo '<i class="dashicons dashicons-minus"></i>';
-                                                        echo '<span>' . __('Nessuna associazione', 'dokan-mod') . '</span>';
-                                                        echo '</div>';
-                                                    }
-                                                    break;
-                                                    
-                                                case 'citta_multi':
-                                                    echo '<div class="association-info association-multi">';
-                                                    echo '<i class="dashicons dashicons-admin-multisite"></i>';
-                                                    echo '<div class="association-content">';
-                                                    echo '<strong>' . __('Multi annuncio', 'dokan-mod') . '</strong>';
-                                                    
-                                                    // Build configuration description
-                                                    $config_parts = [];
-                                                    
-                                                    // Days range
-                                                    $days_range = $layout_config['days_range'] ?? 7;
-                                                    if ($days_range == 1) {
-                                                        $config_parts[] = __('Solo oggi', 'dokan-mod');
-                                                    } else {
-                                                        $config_parts[] = sprintf(__('Ultimi %d giorni', 'dokan-mod'), $days_range);
-                                                    }
-                                                    
-                                                    // Agency scope
-                                                    if ($layout_config['show_all_agencies'] ?? false) {
-                                                        $config_parts[] = __('Tutte le agenzie', 'dokan-mod');
-                                                    } else {
-                                                        $config_parts[] = __('Solo la tua agenzia', 'dokan-mod');
-                                                    }
-                                                    
-                                                    echo '<small>' . implode(' • ', $config_parts) . '</small>';
-                                                    echo '</div></div>';
-                                                    break;
-                                                    
-                                                default:
-                                                    echo '<div class="association-info association-none">';
-                                                    echo '<i class="dashicons dashicons-minus"></i>';
-                                                    echo '<span>' . __('Non configurato', 'dokan-mod') . '</span>';
-                                                    echo '</div>';
-                                                    break;
-                                            }
-                                            ?>
-                                            
-                                            <!-- Manage Association Button -->
-                                            <div class="association-actions" style="margin-top: 8px;">
-                                                <button type="button" 
-                                                        class="button button-small manage-association-btn"
-                                                        onclick="openAssociationModal(<?php echo $monitor['id']; ?>, '<?php echo esc_js($monitor['layout_type']); ?>', '<?php echo esc_js($monitor['monitor_name']); ?>')" 
-                                                        title="<?php _e('Gestisci associazioni per questo monitor', 'dokan-mod'); ?>">
-                                                    <i class="dashicons dashicons-admin-users"></i>
-                                                    <?php _e('Gestisci', 'dokan-mod'); ?>
+                                        </div>
+                                    </div>
+
+                                    <!-- Card Body -->
+                                    <div class="monitor-card-body">
+                                        <!-- URL Display Section -->
+                                        <div class="card-section url-section">
+                                            <label class="section-label"><?php _e('URL Display', 'dokan-mod'); ?></label>
+                                            <div class="url-display">
+                                                <?php 
+                                                // Extract path and show up to monitor/display
+                                                $parsed_url = parse_url($monitor_url);
+                                                $display_path = $parsed_url['path'] ?? '';
+                                                
+                                                // Find the monitor/display part and include it
+                                                if (strpos($display_path, 'monitor/display') !== false) {
+                                                    $monitor_pos = strpos($display_path, 'monitor/display');
+                                                    $short_display = substr($display_path, $monitor_pos);
+                                                } else {
+                                                    // Fallback to showing last 3 segments if monitor/display not found
+                                                    $path_segments = array_filter(explode('/', $display_path));
+                                                    $display_segments = array_slice($path_segments, -3);
+                                                    $short_display = '.../' . implode('/', $display_segments);
+                                                }
+                                                ?>
+                                                <code class="monitor-url-code" title="<?php echo esc_attr($monitor_url); ?>"><?php echo esc_html($short_display); ?></code>
+                                                <button type="button" class="copy-url-btn" onclick="copyMonitorUrl('<?php echo $monitor['id']; ?>')" title="<?php _e('Copia URL completo', 'dokan-mod'); ?>">
+                                                    <i class="dashicons dashicons-admin-page"></i>
                                                 </button>
                                             </div>
-                                        </td>
-                                        
-                                        <!-- Layout Selector -->
-                                        <td class="monitor-layout-cell">
-                                            <form method="post" class="layout-form-inline">
+                                        </div>
+
+                                        <!-- Association Section -->
+                                        <div class="card-section association-section">
+                                            <label class="section-label"><?php _e('Associazione', 'dokan-mod'); ?></label>
+                                            <div class="association-content">
+                                                <?php
+                                                switch ($monitor['layout_type']) {
+                                                    case 'solo_annuncio':
+                                                    case 'manifesti':
+                                                        if ($monitor['associated_post_id'] && $associated_post_title) {
+                                                            echo '<div class="association-info association-single association-clickable" ';
+                                                            echo 'onclick="openAssociationModal(' . $monitor['id'] . ', \'' . esc_js($monitor['layout_type']) . '\', \'' . esc_js($monitor['monitor_name']) . '\')" ';
+                                                            echo 'title="' . __('Clicca per gestire associazioni', 'dokan-mod') . '">';
+                                                            echo '<i class="dashicons dashicons-admin-post association-icon"></i>';
+                                                            echo '<div class="association-text">';
+                                                            echo '<strong>' . esc_html($associated_post_title) . '</strong>';
+                                                            
+                                                            // Get post date for additional info
+                                                            $post_date = get_the_date('d/m/Y', $monitor['associated_post_id']);
+                                                            echo '<small>' . sprintf(__('Pubblicato: %s', 'dokan-mod'), $post_date) . '</small>';
+                                                            echo '</div>';
+                                                            echo '<i class="dashicons dashicons-edit association-edit-icon"></i>';
+                                                            echo '</div>';
+                                                        } else {
+                                                            echo '<div class="association-info association-none association-clickable" ';
+                                                            echo 'onclick="openAssociationModal(' . $monitor['id'] . ', \'' . esc_js($monitor['layout_type']) . '\', \'' . esc_js($monitor['monitor_name']) . '\')" ';
+                                                            echo 'title="' . __('Clicca per aggiungere associazioni', 'dokan-mod') . '">';
+                                                            echo '<i class="dashicons dashicons-minus association-icon"></i>';
+                                                            echo '<span>' . __('Nessuna associazione', 'dokan-mod') . '</span>';
+                                                            echo '<i class="dashicons dashicons-edit association-edit-icon"></i>';
+                                                            echo '</div>';
+                                                        }
+                                                        break;
+                                                        
+                                                    case 'citta_multi':
+                                                        echo '<div class="association-info association-multi association-clickable" ';
+                                                        echo 'onclick="openAssociationModal(' . $monitor['id'] . ', \'' . esc_js($monitor['layout_type']) . '\', \'' . esc_js($monitor['monitor_name']) . '\')" ';
+                                                        echo 'title="' . __('Clicca per configurare layout multi-agenzia', 'dokan-mod') . '">';
+                                                        echo '<i class="dashicons dashicons-admin-multisite association-icon"></i>';
+                                                        echo '<div class="association-text">';
+                                                        echo '<strong>' . __('Multi annuncio', 'dokan-mod') . '</strong>';
+                                                        
+                                                        // Build configuration description
+                                                        $config_parts = [];
+                                                        
+                                                        // Days range
+                                                        $days_range = $layout_config['days_range'] ?? 7;
+                                                        if ($days_range == 1) {
+                                                            $config_parts[] = __('Solo oggi', 'dokan-mod');
+                                                        } else {
+                                                            $config_parts[] = sprintf(__('Ultimi %d giorni', 'dokan-mod'), $days_range);
+                                                        }
+                                                        
+                                                        // Agency scope
+                                                        if ($layout_config['show_all_agencies'] ?? false) {
+                                                            $config_parts[] = __('Tutte le agenzie', 'dokan-mod');
+                                                        } else {
+                                                            $config_parts[] = __('Solo la tua agenzia', 'dokan-mod');
+                                                        }
+                                                        
+                                                        echo '<small>' . implode(' • ', $config_parts) . '</small>';
+                                                        echo '</div>';
+                                                        echo '<i class="dashicons dashicons-edit association-edit-icon"></i>';
+                                                        echo '</div>';
+                                                        break;
+                                                        
+                                                    default:
+                                                        echo '<div class="association-info association-none association-clickable" ';
+                                                        echo 'onclick="openAssociationModal(' . $monitor['id'] . ', \'' . esc_js($monitor['layout_type']) . '\', \'' . esc_js($monitor['monitor_name']) . '\')" ';
+                                                        echo 'title="' . __('Clicca per configurare associazioni', 'dokan-mod') . '">';
+                                                        echo '<i class="dashicons dashicons-minus association-icon"></i>';
+                                                        echo '<span>' . __('Non configurato', 'dokan-mod') . '</span>';
+                                                        echo '<i class="dashicons dashicons-edit association-edit-icon"></i>';
+                                                        echo '</div>';
+                                                        break;
+                                                }
+                                                ?>
+                                            </div>
+                                        </div>
+
+                                        <!-- Layout Section -->
+                                        <div class="card-section layout-section">
+                                            <label class="section-label"><?php _e('Layout', 'dokan-mod'); ?></label>
+                                            <form method="post" class="layout-form">
                                                 <?php wp_nonce_field('monitor_update_layout', 'monitor_nonce'); ?>
                                                 <input type="hidden" name="action" value="update_layout">
                                                 <input type="hidden" name="monitor_id" value="<?php echo $monitor['id']; ?>">
                                                 
-                                                <div class="layout-selector-wrapper">
+                                                <div class="layout-controls">
                                                     <select name="layout_type" class="layout-selector" onchange="this.form.submit()">
                                                         <?php foreach ($available_layouts as $layout_key => $layout_name): ?>
                                                             <option value="<?php echo $layout_key; ?>" <?php selected($monitor['layout_type'], $layout_key); ?>>
@@ -412,34 +414,31 @@ $active_menu = 'monitor-digitale';
                                                         <?php endforeach; ?>
                                                     </select>
                                                     
-                                                    <?php if (in_array($monitor['layout_type'], ['citta_multi', 'manifesti'])): ?>
+                                                    <?php if ($monitor['layout_type'] === 'citta_multi'): ?>
                                                         <button type="button" class="layout-config-btn" 
                                                                 onclick="openLayoutConfig('<?php echo $monitor['id']; ?>', '<?php echo $monitor['layout_type']; ?>')" 
-                                                                title="<?php _e('Configura Layout', 'dokan-mod'); ?>">
+                                                                title="<?php _e('Configura Layout Città Multi-Agenzia', 'dokan-mod'); ?>">
                                                             <i class="dashicons dashicons-admin-settings"></i>
                                                         </button>
                                                     <?php endif; ?>
                                                 </div>
-                                                
                                             </form>
-                                        </td>
-                                        
-                                        <!-- Actions -->
-                                        <td class="monitor-actions-cell">
-                                            <div class="action-buttons">
-                                                <a href="<?php echo esc_url($monitor_url); ?>" 
-                                                   target="_blank" 
-                                                   class="button button-primary button-small monitor-live-btn"
-                                                   title="<?php _e('Visualizza Monitor Live', 'dokan-mod'); ?>">
-                                                    <i class="dashicons dashicons-visibility"></i>
-                                                    <span class="button-text"><?php _e('Monitor Live', 'dokan-mod'); ?></span>
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                                        </div>
+                                    </div>
+
+                                    <!-- Card Footer -->
+                                    <div class="monitor-card-footer">
+                                        <a href="<?php echo esc_url($monitor_url); ?>" 
+                                           target="_blank" 
+                                           class="button button-primary monitor-live-btn"
+                                           title="<?php _e('Visualizza Monitor Live', 'dokan-mod'); ?>">
+                                            <i class="dashicons dashicons-visibility"></i>
+                                            <span class="button-text"><?php _e('Monitor Live', 'dokan-mod'); ?></span>
+                                        </a>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
 
                 </div>
@@ -455,99 +454,532 @@ $active_menu = 'monitor-digitale';
 
 <!-- CSS Styles for Modal -->
 <style>
-/* Table Column Widths Optimization */
-.monitors-table {
-    table-layout: fixed;
+/* Monitor Cards Grid Layout */
+.monitors-cards-container {
     width: 100%;
+    margin: 20px 0;
 }
 
-.monitor-name-col {
-    width: 20%;
+.monitors-grid {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: 1fr; /* Mobile first: 1 column */
 }
 
-.monitor-url-col {
-    width: 15%; /* Reduced from default */
+/* Responsive grid breakpoints */
+@media (min-width: 768px) {
+    .monitors-grid {
+        grid-template-columns: repeat(2, 1fr); /* Tablet/Desktop: 2 columns */
+    }
 }
 
-.monitor-status-col {
-    width: 12%;
+@media (min-width: 1400px) {
+    .monitors-grid {
+        grid-template-columns: repeat(4, 1fr); /* Large screens: 4 columns */
+    }
 }
 
-.monitor-association-col {
-    width: 18%;
-}
-
-.monitor-layout-col {
-    width: 20%; /* Increased for better dropdown visibility */
-}
-
-.monitor-actions-col {
-    width: 15%;
-}
-
-/* URL Display Optimization */
-.url-display {
+/* Monitor Card Styling */
+.monitor-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
     display: flex;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    min-height: 400px; /* Ensure minimum height for equal sizing */
+    overflow: hidden;
 }
 
-.monitor-url-code {
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 11px;
-    background-color: #f1f1f1;
-    padding: 4px 6px;
-    border-radius: 3px;
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    cursor: help;
+.monitor-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+/* Card Header */
+.monitor-card-header {
+    padding: 20px 20px 15px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 15px;
+}
+
+.monitor-name-section {
     flex: 1;
 }
 
-.copy-url-btn {
-    padding: 2px 4px;
-    font-size: 12px;
-    line-height: 1;
-    min-height: auto;
-    height: 24px;
-    width: 24px;
+.monitor-name {
+    margin: 0 0 8px 0;
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #2c3338;
+    line-height: 1.3;
+}
+
+.monitor-description {
+    margin: 0;
+    font-size: 0.9em;
+    color: #666;
+    line-height: 1.4;
+}
+
+.monitor-status {
+    flex-shrink: 0;
+}
+
+/* Card Body */
+.monitor-card-body {
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.card-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.section-label {
+    font-weight: 600;
+    color: #2c3338;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
+}
+
+/* URL Section Styling */
+.url-section .url-display {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.url-section .monitor-url-code {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.85em;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    color: #0073aa;
+    word-break: break-all;
+    line-height: 1.4;
+    min-width: 0; /* Prevent flex overflow */
+    overflow-wrap: break-word;
+    display: flex;
+    align-items: center; /* Allineamento verticale al centro */
+    justify-content: flex-start; /* Mantiene l'allineamento a sinistra del testo */
+}
+
+.url-section .copy-url-btn {
+    background: #0073aa;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 3px;
 }
 
-.copy-url-btn.compact {
-    padding: 1px 2px;
-    height: 20px;
-    width: 20px;
+.url-section .copy-url-btn:hover {
+    background: #005a87;
+    transform: scale(1.05);
 }
 
-.copy-url-btn .dashicons {
+/* Association Section */
+.association-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.association-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #ddd;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+/* Clickable association info styling */
+.association-info.association-clickable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.association-info.association-clickable:hover {
+    background: #e8f4f8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.association-info.association-clickable:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+/* Color variations based on association type */
+.association-info.association-single {
+    border-left-color: #46b450;
+}
+
+.association-info.association-single:hover {
+    background: #f0f8f1;
+    border-left-color: #2d7d32;
+}
+
+.association-info.association-multi {
+    border-left-color: #0073aa;
+}
+
+.association-info.association-multi:hover {
+    background: #e7f3ff;
+    border-left-color: #005a87;
+}
+
+.association-info.association-none {
+    border-left-color: #ff9800;
+}
+
+.association-info.association-none:hover {
+    background: #fff8e1;
+    border-left-color: #f57c00;
+}
+
+/* Association icon (left side) */
+.association-icon {
+    flex-shrink: 0;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+/* Association text content */
+.association-text {
+    flex: 1;
+    min-width: 0; /* Prevent flex item from overflowing */
+}
+
+.association-text strong {
+    display: block;
+    margin-bottom: 6px;
+    color: #2c3338;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.association-text small {
+    color: #666;
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+
+/* Edit icon (right side - matita) */
+.association-edit-icon {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+
+/* Dynamic colors for edit icon based on association type */
+.association-single .association-edit-icon {
+    color: #46b450;
+}
+
+.association-multi .association-edit-icon {
+    color: #0073aa;
+}
+
+.association-none .association-edit-icon {
+    color: #ff9800;
+}
+
+/* Hover effects for edit icon */
+.association-info.association-clickable:hover .association-edit-icon {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.association-single:hover .association-edit-icon {
+    color: #2d7d32;
+}
+
+.association-multi:hover .association-edit-icon {
+    color: #005a87;
+}
+
+.association-none:hover .association-edit-icon {
+    color: #f57c00;
+}
+
+/* Layout Section */
+.layout-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.layout-selector {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9em;
+    background: white;
+    cursor: pointer;
+}
+
+.layout-config-btn {
+    background: #0073aa;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.layout-config-btn:hover {
+    background: #005a87;
+    transform: scale(1.05);
+}
+
+/* Card Footer */
+.monitor-card-footer {
+    padding: 15px 20px;
+    border-top: 1px solid #f0f0f0;
+    background: #f8f9fa;
+    margin-top: auto; /* Push to bottom */
+}
+
+.monitor-live-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #0073aa;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: none;
+}
+
+.monitor-live-btn:hover {
+    background: #005a87;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,115,170,0.3);
+}
+
+/* Status Badges */
+.status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.status-badge.status-active {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-badge.status-inactive {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.status-badge .dashicons {
     font-size: 14px;
     width: 14px;
     height: 14px;
 }
 
-.copy-url-btn.compact .dashicons {
-    font-size: 12px;
-    width: 12px;
-    height: 12px;
+/* Mobile Responsive Adjustments */
+@media (max-width: 767px) {
+    .monitor-card {
+        min-height: 350px;
+    }
+    
+    .monitor-card-header {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 15px;
+    }
+    
+    .monitor-status {
+        align-self: flex-start;
+    }
+    
+    .monitor-card-body {
+        padding: 15px;
+        gap: 15px;
+    }
+    
+    .section-label {
+        font-size: 0.8em;
+    }
+    
+    .monitor-name {
+        font-size: 1.1em;
+    }
+    
+    .url-section .monitor-url-code {
+        font-size: 0.75em;
+        line-height: 1.3;
+        word-break: break-all;
+        display: flex;
+        align-items: center; /* Allineamento verticale mobile */
+        justify-content: flex-start;
+    }
+    
+    .url-section .url-display {
+        padding: 8px;
+        align-items: center; /* Mantiene allineamento verticale su mobile */
+    }
+    
+    .url-section .copy-url-btn {
+        flex-shrink: 0;
+    }
+    
+    .layout-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .layout-config-btn {
+        align-self: center;
+        padding: 10px 15px;
+    }
+    
+    .monitor-card-footer {
+        padding: 12px 15px;
+    }
+    
+    .monitor-live-btn {
+        padding: 10px 16px;
+        font-size: 0.9em;
+    }
+    
+    /* Association mobile adjustments */
+    .association-info {
+        padding: 14px;
+    }
+    
+    .association-edit-icon {
+        top: 10px;
+        right: 10px;
+        font-size: 15px;
+        width: 15px;
+        height: 15px;
+    }
+    
+    .association-text strong {
+        font-size: 0.95em;
+    }
+    
+    .association-text small {
+        font-size: 0.8em;
+    }
 }
 
-/* Layout Selector Optimization */
-.layout-selector-wrapper {
-    min-width: 140px; /* Ensure minimum width for dropdown */
+/* Tablet Adjustments */
+@media (min-width: 768px) and (max-width: 1199px) {
+    .monitor-card {
+        min-height: 420px;
+    }
+    
+    .monitor-card-header {
+        padding: 18px;
+    }
+    
+    .monitor-card-body {
+        padding: 18px;
+    }
+    
+    /* URL optimizations for tablet */
+    .url-section .monitor-url-code {
+        font-size: 0.8em;
+        line-height: 1.4;
+        display: flex;
+        align-items: center; /* Allineamento verticale tablet */
+        justify-content: flex-start;
+    }
 }
 
-.layout-selector {
-    width: 100%;
-    min-width: 140px;
-    font-size: 13px;
-    padding: 4px 8px;
+/* Large Desktop Adjustments (4 columns) */
+@media (min-width: 1400px) {
+    .monitor-card {
+        min-height: 450px;
+    }
+    
+    .monitor-name {
+        font-size: 1.1em;
+    }
+    
+    .section-label {
+        font-size: 0.8em;
+    }
+    
+    /* URL optimizations for large screens (4 columns) */
+    .url-section .monitor-url-code {
+        font-size: 0.75em;
+        line-height: 1.3;
+        display: flex;
+        align-items: center; /* Allineamento verticale desktop largo */
+        justify-content: flex-start;
+    }
+    
+    .url-section .url-display {
+        padding: 10px 8px;
+    }
 }
+
+/* Legacy table styles removed - now using card layout */
+
+/* Legacy layout selector styles removed - now handled in card layout */
 
 /* Monitor Modal Styles */
 .monitor-modal {
@@ -1097,22 +1529,26 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-// Monitor URL Copy Function
+// Monitor URL Copy Function (Updated for card layout)
 function copyMonitorUrl(monitorId) {
-    const monitorRow = document.querySelector(`[data-monitor-id="${monitorId}"]`);
-    if (!monitorRow) return;
+    const monitorCard = document.querySelector(`[data-monitor-id="${monitorId}"]`);
+    if (!monitorCard) return;
     
-    const url = monitorRow.querySelector('.monitor-url-code').textContent;
+    const urlCodeElement = monitorCard.querySelector('.monitor-url-code');
+    if (!urlCodeElement) return;
+    
+    // Get the full URL from the title attribute
+    const fullUrl = urlCodeElement.getAttribute('title') || urlCodeElement.textContent;
     
     if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(function() {
+        navigator.clipboard.writeText(fullUrl).then(function() {
             // Show success feedback
             showSuccessMessage('URL copiato negli appunti!');
         }).catch(function() {
-            fallbackCopyToClipboard(url);
+            fallbackCopyToClipboard(fullUrl);
         });
     } else {
-        fallbackCopyToClipboard(url);
+        fallbackCopyToClipboard(fullUrl);
     }
 }
 
@@ -1955,23 +2391,7 @@ window.addEventListener('click', function(event) {
     flex-shrink: 0;
 }
 
-/* Responsive adjustments */
-@media (max-width: 1024px) {
-    /* Adjust column widths for medium screens */
-    .monitor-url-col {
-        width: 12%;
-    }
-    
-    .monitor-layout-col {
-        width: 18%;
-    }
-    
-    .monitor-url-code {
-        max-width: 100px;
-        font-size: 10px;
-    }
-}
-
+/* Global Dashboard Responsive Adjustments */
 @media (max-width: 768px) {
     body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
     body.dokan-dashboard .dokan-dashboard-wrap {
@@ -1981,34 +2401,6 @@ window.addEventListener('click', function(event) {
     
     .dokan-dashboard-content {
         padding: 15px;
-    }
-    
-    /* Stack table columns on mobile */
-    .monitors-table {
-        table-layout: auto;
-    }
-    
-    .monitor-url-cell .url-display {
-        flex-direction: column;
-        gap: 4px;
-        align-items: flex-start;
-    }
-    
-    .monitor-url-code {
-        max-width: none;
-        width: 100%;
-        font-size: 9px;
-    }
-    
-    .copy-url-btn.compact {
-        height: 18px;
-        width: 18px;
-        align-self: flex-start;
-    }
-    
-    .layout-selector {
-        min-width: 120px;
-        font-size: 12px;
     }
     
     /* Modal responsive adjustments */

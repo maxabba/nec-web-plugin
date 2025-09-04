@@ -105,32 +105,68 @@ $vendor_data = $monitor_data['vendor_data'];
 </div>
 
 <style>
+/* CSS Variables per Consistenza */
+:root {
+    /* Colors */
+    --monitor-bg-primary: rgb(55, 55, 55);
+    --monitor-text-primary: #ffffff;
+    --monitor-text-secondary: rgba(255, 255, 255, 0.85);
+    --monitor-text-muted: rgba(255, 255, 255, 0.7);
+    --monitor-status-active: #4CAF50;
+    
+    /* Typography */
+    --monitor-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --monitor-font-manifesti: "PlayFair Display Mine", serif;
+    
+    /* Spacing */
+    --monitor-padding-small: 20px;
+    --monitor-padding-medium: 40px;
+    --monitor-gap-small: 10px;
+    --monitor-gap-medium: 20px;
+    --monitor-gap-large: 30px;
+    
+    /* Layout Heights */
+    --monitor-header-height: 15vh; /* Solo annuncio - header ridotto */
+    --monitor-body-height: 75vh;
+    --monitor-footer-height: 10vh;
+    
+    /* Transitions */
+    --monitor-transition-fast: 0.3s ease;
+    --monitor-transition-slow: 0.5s ease;
+    
+    /* Shadows */
+    --monitor-shadow-light: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --monitor-shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
 /* Layout Solo Annuncio Styles */
 .monitor-solo-annuncio {
     height: 100vh;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--monitor-bg-primary) !important;
+    color: var(--monitor-text-primary);
+    font-family: var(--monitor-font-family);
+    overflow: hidden;
 }
 
 /* Header Styles */
 .solo-annuncio-header {
-    height: 25vh;
+    height: var(--monitor-header-height);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
+    padding: var(--monitor-padding-small);
+    background: var(--monitor-bg-primary) !important;
+    position: relative;
 }
 
 .defunto-header-info {
     display: flex;
     align-items: center;
-    gap: 40px;
+    gap: var(--monitor-gap-large);
     text-align: center;
+    max-width: 90%;
 }
 
 .defunto-foto-container {
@@ -138,72 +174,95 @@ $vendor_data = $monitor_data['vendor_data'];
 }
 
 .defunto-foto-solo {
-    width: 200px;
-    height: 200px;
-    object-fit: cover;
-    border-radius: 50%;
-    border: 6px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    object-fit: contain;
+    box-shadow: var(--monitor-shadow-medium);
+    transition: var(--monitor-transition-fast);
+    border-radius: 8px;
+}
+
+/* Orientamento Portrait - 25% altezza schermo */
+@media (orientation: portrait) {
+    .defunto-foto-solo {
+        height: 25vh;
+        width: auto;
+        max-width: 90%;
+    }
+}
+
+/* Orientamento Landscape - 30% larghezza schermo */
+@media (orientation: landscape) {
+    .defunto-foto-solo {
+        width: 30vw;
+        height: auto;
+        max-height: 350px;
+    }
 }
 
 .defunto-nome-principale h1 {
-    font-size: 3.5rem;
+    font-size: 2.5rem;
     font-weight: 300;
-    margin: 0 0 10px 0;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    letter-spacing: 1px;
+    margin: 0 0 var(--monitor-gap-small) 0;
+    text-shadow: var(--monitor-shadow-light);
+    color: var(--monitor-text-primary);
 }
 
 .defunto-eta {
-    font-size: 1.4rem;
-    opacity: 0.9;
+    font-size: 1.3rem;
+    color: var(--monitor-text-secondary);
     margin-bottom: 8px;
     font-weight: 300;
 }
 
 .defunto-data-morte {
-    font-size: 1.6rem;
+    font-size: 1.3rem;
     font-weight: 400;
-    color: #f0f0f0;
+    color: var(--monitor-text-secondary);
 }
 
 /* Main Content */
 .solo-annuncio-main {
-    flex: 1;
+    height: var(--monitor-body-height);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 40px;
+    padding: var(--monitor-padding-medium);
     text-align: center;
+    background: var(--monitor-bg-primary) !important;
 }
 
 .annuncio-immagine-container {
     max-width: 80%;
     max-height: 50vh;
-    margin: 0 auto 30px;
-    border-radius: 12px;
+    margin: 0 auto var(--monitor-gap-large);
+    border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--monitor-shadow-medium);
 }
 
 .annuncio-immagine {
     width: 100%;
     height: auto;
     display: block;
-    border-radius: 12px;
+    border-radius: 8px;
+    object-fit: contain;
+    opacity: 0.9;
 }
 
 .defunto-info-text {
     max-width: 800px;
     font-size: 1.3rem;
     line-height: 1.8;
-    margin: 20px 0;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 30px;
-    border-radius: 12px;
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin: var(--monitor-gap-medium) 0;
+    background: var(--monitor-bg-primary);
+    padding: var(--monitor-gap-large);
+    border-radius: 8px;
+    color: var(--monitor-text-secondary);
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .defunto-info-text p {
@@ -216,14 +275,14 @@ $vendor_data = $monitor_data['vendor_data'];
 
 /* Memorial Elements */
 .memorial-separator {
-    margin: 40px 0;
+    margin: var(--monitor-padding-medium) 0;
     text-align: center;
 }
 
 .separator-ornament {
     font-size: 3rem;
-    opacity: 0.7;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    color: var(--monitor-text-muted);
+    text-shadow: var(--monitor-shadow-light);
 }
 
 .memorial-message {
@@ -235,103 +294,131 @@ $vendor_data = $monitor_data['vendor_data'];
     font-style: italic;
     font-size: 1.2rem;
     line-height: 1.6;
-    opacity: 0.9;
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--monitor-text-secondary);
+    background: var(--monitor-bg-primary);
     padding: 25px;
     border-radius: 8px;
-    border-left: 4px solid rgba(255, 255, 255, 0.3);
+    border-left: 4px solid var(--monitor-text-muted);
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 /* Footer */
 .solo-annuncio-footer {
-    height: 10vh;
+    height: var(--monitor-footer-height);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 40px;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(10px);
+    padding: 0 var(--monitor-padding-medium);
+    background: var(--monitor-bg-primary) !important;
 }
 
 .vendor-info {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: var(--monitor-gap-medium);
 }
 
 .vendor-logo-solo {
-    height: 50px;
+    height: 30px;
     width: auto;
-    border-radius: 4px;
+    border-radius: 8px;
+    transition: var(--monitor-transition-fast);
+}
+
+.vendor-logo-solo:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
 }
 
 .vendor-name {
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     font-weight: 400;
+    color: var(--monitor-text-muted);
 }
 
 .update-time {
     font-size: 0.9rem;
-    opacity: 0.8;
+    color: var(--monitor-text-muted);
 }
 
-/* Responsive Design */
-@media (max-width: 1200px) {
+/* Responsive Design - Standard Breakpoints */
+/* Desktop Standard */
+@media (max-width: 1366px) {
     .defunto-nome-principale h1 {
-        font-size: 2.8rem;
-    }
-    
-    .defunto-foto-solo {
-        width: 150px;
-        height: 150px;
+        font-size: 1.9rem;
     }
 }
 
-@media (max-width: 768px) {
-    .defunto-header-info {
-        flex-direction: column;
-        gap: 20px;
-    }
-    
+/* Desktop Large */
+@media (min-width: 1920px) and (max-width: 3839px) {
     .defunto-nome-principale h1 {
         font-size: 2.2rem;
     }
+}
+
+/* Tablet / Small Desktop */
+@media (max-width: 768px) {
+    .defunto-header-info {
+        flex-direction: column;
+        gap: var(--monitor-gap-medium);
+    }
     
-    .defunto-foto-solo {
-        width: 120px;
-        height: 120px;
+    .defunto-nome-principale h1 {
+        font-size: 1.7rem;
     }
     
     .defunto-info-text {
         font-size: 1.1rem;
-        padding: 20px;
+        padding: var(--monitor-padding-small);
     }
     
     .solo-annuncio-main {
-        padding: 20px;
+        padding: var(--monitor-padding-small);
     }
     
     .solo-annuncio-footer {
-        padding: 0 20px;
+        padding: 0 var(--monitor-padding-small);
         flex-direction: column;
-        gap: 10px;
+        gap: var(--monitor-gap-small);
         text-align: center;
     }
 }
 
-/* Portrait Orientation (Totem Mode) */
+/* Mobile */
+@media (max-width: 480px) {
+    .defunto-nome-principale h1 {
+        font-size: 1.5rem;
+    }
+}
+
+/* 4K Ultra HD */
+@media (min-width: 3840px) {
+    .defunto-nome-principale h1 {
+        font-size: 4rem;
+    }
+}
+
+/* Orientamento Portrait (Totem Mode) */
 @media (orientation: portrait) {
     .solo-annuncio-header {
-        height: 30vh;
+        height: var(--monitor-header-height);
+    }
+    
+    .solo-annuncio-main {
+        height: var(--monitor-body-height);
+    }
+    
+    .solo-annuncio-footer {
+        height: var(--monitor-footer-height);
     }
     
     .defunto-header-info {
         flex-direction: column;
-        gap: 25px;
-    }
-    
-    .defunto-nome-principale h1 {
-        font-size: 2.5rem;
+        gap: var(--monitor-gap-small);
     }
     
     .annuncio-immagine-container {
@@ -339,42 +426,64 @@ $vendor_data = $monitor_data['vendor_data'];
     }
 }
 
-/* Animation Effects */
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
+/* Orientamento Landscape */
+@media (orientation: landscape) {
+    .defunto-header-info {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--monitor-gap-large);
     }
 }
 
-.defunto-header-info,
-.defunto-info-text,
-.memorial-message {
-    animation: fadeInUp 1s ease-out;
+/* Animazioni Standard */
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
 }
 
-.defunto-info-text {
-    animation-delay: 0.3s;
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--monitor-status-active);
+    animation: blink 1.5s infinite;
 }
 
-.memorial-message {
-    animation-delay: 0.6s;
+/* Transizioni hover uniformi */
+.defunto-foto-solo:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
 }
 
-/* High contrast mode for better visibility */
-@media (prefers-contrast: high) {
-    .monitor-solo-annuncio {
-        background: #000;
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+    .defunto-foto-solo:hover,
+    .vendor-logo-solo:hover {
+        transform: none;
     }
     
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+}
+
+/* Accessibilità Standard */
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
     .defunto-info-text,
     .memorial-quote {
-        background: rgba(255, 255, 255, 0.2);
-        border: 2px solid rgba(255, 255, 255, 0.5);
+        border: 3px solid #fff;
+        background: var(--monitor-bg-primary) !important;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .defunto-info-text,
+    .memorial-quote {
+        background: var(--monitor-bg-primary) !important;
+        color: #e0e0e0;
     }
 }
 </style>
