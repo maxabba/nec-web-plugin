@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const aspectRatio = img.width / img.height;
                 backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
                 if (aspectRatio > 1) {
-                    backgroundDiv.style.width = '100%';
+                    backgroundDiv.style.width = '400px';
                     backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
                 } else {
                     backgroundDiv.style.height = '400px';

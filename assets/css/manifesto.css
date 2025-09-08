@@ -110,12 +110,10 @@
 }
 
 .flex-item {
-    /* 20% per 5 colonne, sottraendo lo spazio per i gap */
-    flex: 0 0 18%;
-    /* impedisce la sovrapposizione */
+    flex: 0 1 auto; /* Cambia da fisso a flessibile per permettere shrink */
     min-width: 250px;
-    /* assicura che gli elementi vadano a capo quando necessario */
-    max-width: 100%;
+    max-width: calc(20% - 1.6rem); /* Limita la larghezza massima per 5 colonne */
+    margin: 0;
 }
 
 
@@ -124,10 +122,32 @@
     /* justify-content sarà modificato dinamicamente con JavaScript in base al numero di manifesti */
 }
 
+/* Media queries responsive per evitare sovrapposizioni */
+@media screen and (max-width: 1800px) {
+    .flex-item {
+        max-width: calc(25% - 1.5rem); /* 4 per riga */
+    }
+}
+
+@media screen and (max-width: 1400px) {
+    .flex-item {
+        max-width: calc(33.333% - 1.3rem); /* 3 per riga */
+    }
+}
+
+@media screen and (max-width: 1000px) {
+    .flex-item {
+        max-width: calc(50% - 1rem); /* 2 per riga */
+    }
+}
+
 /* responsive per mobile manifesto-container justify-content: center; */
 @media screen and (max-width: 768px) {
     .manifesto-container {
         justify-content: center !important; /* usa !important per sovrascirvere lo stile inline che imposta JS */
+    }
+    .flex-item {
+        max-width: 100%; /* 1 per riga su mobile */
     }
 }
 

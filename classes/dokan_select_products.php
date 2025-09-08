@@ -40,7 +40,7 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
             add_action('admin_post_nopriv_customize_poster', array($this, 'handle_customize_poster_form_submission'));
 
             // Aggiungi menu admin per batch manifesto-online
-            add_action('admin_menu', array($this, 'add_admin_menu_manifesto_batch'));
+            //add_action('admin_menu', array($this, 'add_admin_menu_manifesto_batch'));
             // Gestisci l'azione batch
             add_action('admin_post_batch_create_manifesto_online', array($this, 'handle_batch_create_manifesto_online'));
         }
