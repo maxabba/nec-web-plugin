@@ -348,7 +348,7 @@ if (!class_exists(__NAMESPACE__ . 'FiltersClass')) {
                         'taxonomy' => 'product_cat',
                         'field' => 'slug',
                         'operator' => 'NOT IN',
-                        'terms' => array('editable-price'), // Products with 'editable-price' category
+                        'terms' => array('editable-price', 'dont-show'), // Exclude editable-price and dont-show categories
                     ),
 
                 ),

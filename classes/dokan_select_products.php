@@ -38,6 +38,11 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
 
             add_action('admin_post_customize_poster', array($this, 'handle_customize_poster_form_submission'));
             add_action('admin_post_nopriv_customize_poster', array($this, 'handle_customize_poster_form_submission'));
+
+            // Aggiungi menu admin per batch manifesto-online
+            add_action('admin_menu', array($this, 'add_admin_menu_manifesto_batch'));
+            // Gestisci l'azione batch
+            add_action('admin_post_batch_create_manifesto_online', array($this, 'handle_batch_create_manifesto_online'));
         }
 
 
@@ -391,6 +396,221 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                 wp_redirect(add_query_arg('operation_result', 'success', wp_get_referer()));
                 exit;
             }
+        }
+
+        /**
+         * Aggiungi menu admin per batch manifesto-online
+         */
+        public function add_admin_menu_manifesto_batch()
+        {
+            add_submenu_page(
+                'dokan-mod',
+                'Crea Manifesto Online Batch',
+                'Manifesto Online Batch',
+                'manage_options',
+                'dokan-manifesto-online-batch',
+                array($this, 'admin_page_manifesto_batch')
+            );
+        }
+
+        /**
+         * Pagina admin per il batch manifesto-online
+         */
+        public function admin_page_manifesto_batch()
+        {
+            ?>
+            <div class="wrap">
+                <h1>Crea Prodotti Manifesto Online per Tutti i Seller</h1>
+                
+                <?php
+                if (isset($_GET['batch_result'])) {
+                    $result = json_decode(base64_decode($_GET['batch_result']), true);
+                    if ($result) {
+                        ?>
+                        <div class="notice notice-success">
+                            <p>
+                                <strong>Processo completato!</strong><br>
+                                Prodotti creati: <?php echo $result['created']; ?><br>
+                                Vendor che avevano già il prodotto: <?php echo $result['skipped']; ?><br>
+                                Totale vendor processati: <?php echo $result['total']; ?>
+                            </p>
+                        </div>
+                        <?php
+                    }
+                }
+                ?>
+                
+                <p>Questa funzione creerà automaticamente un prodotto "Manifesto Online" per tutti i vendor con ruolo seller che non ce l'hanno ancora.</p>
+                
+                <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                    <?php wp_nonce_field('batch_create_manifesto_online_nonce'); ?>
+                    <input type="hidden" name="action" value="batch_create_manifesto_online">
+                    
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Informazioni</th>
+                            <td>
+                                <ul>
+                                    <li>• Il prodotto template deve avere categoria_finale = "Manifesto Online"</li>
+                                    <li>• I nuovi prodotti saranno pubblicati automaticamente</li>
+                                    <li>• Ogni prodotto avrà il titolo: "Manifesto Online - [Nome Negozio]"</li>
+                                    <li>• SKU: manifesto-online-[vendor_id]</li>
+                                </ul>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <p class="submit">
+                        <input type="submit" name="submit" id="submit" class="button button-primary" value="Avvia Creazione Batch">
+                    </p>
+                </form>
+            </div>
+            <?php
+        }
+
+        /**
+         * Gestisci l'azione batch per creare manifesto-online
+         */
+        public function handle_batch_create_manifesto_online()
+        {
+            // Verifica nonce e permessi
+            if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'batch_create_manifesto_online_nonce')) {
+                wp_die('Nonce verification failed');
+            }
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Permission denied');
+            }
+
+            // Cerca il prodotto template
+            $template_args = array(
+                'post_type' => 'product',
+                'posts_per_page' => 1,
+                'post_status' => 'publish',
+                'meta_query' => array(
+                    array(
+                        'key' => '_vendor_id',
+                        'compare' => 'NOT EXISTS'
+                    ),
+                    array(
+                        'key' => 'categoria_finale',
+                        'value' => 'Manifesto Online',
+                        'compare' => '='
+                    )
+                ),
+                'tax_query' => array(
+                    array(
+                        'taxonomy' => 'product_cat',
+                        'field' => 'slug',
+                        'terms' => 'default-products',
+                    ),
+                ),
+            );
+
+            $template_products = get_posts($template_args);
+            
+            if (empty($template_products)) {
+                wp_die('Errore: Prodotto template manifesto-online non trovato. Assicurati che esista un prodotto con categoria_finale = "Manifesto Online" nella categoria default-products.');
+            }
+
+            $template_id = $template_products[0]->ID;
+
+            // Ottieni tutti i seller
+            $sellers = get_users(array(
+                'role' => 'seller',
+                'fields' => 'all'
+            ));
+
+            $created_count = 0;
+            $skipped_count = 0;
+
+            foreach ($sellers as $seller) {
+                // Verifica se il vendor ha già un prodotto manifesto-online
+                $existing_args = array(
+                    'post_type' => 'product',
+                    'posts_per_page' => 1,
+                    'author' => $seller->ID,
+                    'meta_query' => array(
+                        array(
+                            'key' => 'categoria_finale',
+                            'value' => 'Manifesto Online',
+                            'compare' => '='
+                        )
+                    ),
+                );
+
+                $existing_products = get_posts($existing_args);
+                if (!empty($existing_products)) {
+                    $skipped_count++;
+                    continue;
+                }
+
+                // Crea il prodotto per questo vendor
+                $vendor_store_name = get_user_meta($seller->ID, 'dokan_store_name', true);
+                if (empty($vendor_store_name)) {
+                    $vendor_store_name = $seller->display_name;
+                }
+
+                // Duplica il prodotto template
+                $wo_dup = new WC_Admin_Duplicate_Product();
+                $template_product = wc_get_product($template_id);
+                
+                if (!$template_product) {
+                    continue;
+                }
+
+                $clone_product = $wo_dup->product_duplicate($template_product);
+                
+                if (!$clone_product) {
+                    continue;
+                }
+
+                $clone_product_id = $clone_product->get_id();
+                
+                // Configura il prodotto clonato
+                $new_product_title = 'Manifesto Online - ' . $vendor_store_name;
+                
+                // Aggiorna il prodotto
+                wp_update_post(array(
+                    'ID' => $clone_product_id,
+                    'post_status' => 'publish',
+                    'post_title' => $new_product_title,
+                    'post_author' => $seller->ID
+                ));
+                
+                // Aggiorna i meta del prodotto
+                update_post_meta($clone_product_id, '_sku', 'manifesto-online-' . $seller->ID);
+                update_post_meta($clone_product_id, '_vendor_id', $seller->ID);
+                
+                // Imposta la categoria_finale dal template
+                $categoria_finale = get_field('categoria_finale', $template_id);
+                if ($categoria_finale) {
+                    update_field('categoria_finale', $categoria_finale, $clone_product_id);
+                    
+                    // Imposta SOLO la categoria basata su categoria_finale (rimuove tutte le altre)
+                    wp_set_object_terms($clone_product_id, $categoria_finale, 'product_cat', false);
+                    
+                    // Assicurati di rimuovere esplicitamente default-products e dont-show se ancora presenti
+                    wp_remove_object_terms($clone_product_id, array('default-products', 'dont-show'), 'product_cat');
+                }
+                
+                $created_count++;
+            }
+
+            // Prepara il risultato
+            $result = array(
+                'created' => $created_count,
+                'skipped' => $skipped_count,
+                'total' => count($sellers)
+            );
+
+            // Redirect con risultato
+            wp_redirect(add_query_arg(
+                'batch_result', 
+                base64_encode(json_encode($result)),
+                admin_url('admin.php?page=dokan-manifesto-online-batch')
+            ));
+            exit;
         }
 
 

@@ -2,6 +2,8 @@
 
 namespace Dokan_Mods;
 
+use WC_Admin_Duplicate_Product;
+
 class RegistrationForm
 {
 
@@ -28,6 +30,9 @@ class RegistrationForm
         add_action('edit_user_profile', array($this, 'add_custom_user_profile_fields'));
         add_action('personal_options_update', array($this, 'save_custom_user_profile_fields'));
         add_action('edit_user_profile_update', array($this, 'save_custom_user_profile_fields'));
+
+        // Automazione creazione prodotto manifesto-online per nuovi seller
+        add_action('dokan_new_seller_created', array($this, 'create_manifesto_online_for_new_seller'), 30, 2);
 
     }
 
@@ -363,6 +368,125 @@ class RegistrationForm
         wp_cache_delete('store_info_' . $user_id, 'dokan_additional_info');
 
         return true;
+    }
+
+    /**
+     * Crea automaticamente il prodotto manifesto-online per un nuovo seller
+     */
+    public function create_manifesto_online_for_new_seller($vendor_id, $dokan_settings)
+    {
+        // Verifica che l'utente sia effettivamente un seller
+        $user = get_user_by('id', $vendor_id);
+        if (!$user || !in_array('seller', $user->roles)) {
+            return;
+        }
+
+        // Cerca il prodotto template manifesto-online con categoria_finale = "Manifesto Online"
+        $args = array(
+            'post_type' => 'product',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_query' => array(
+                array(
+                    'key' => '_vendor_id',
+                    'compare' => 'NOT EXISTS'
+                ),
+                array(
+                    'key' => 'categoria_finale',
+                    'value' => 'Manifesto Online',
+                    'compare' => '='
+                )
+            ),
+            'tax_query' => array(
+                array(
+                    'taxonomy' => 'product_cat',
+                    'field' => 'slug',
+                    'terms' => 'default-products',
+                ),
+            ),
+        );
+
+        $template_products = get_posts($args);
+        
+        if (empty($template_products)) {
+            error_log('RegistrationForm: Template product not found for manifesto-online');
+            return;
+        }
+
+        $template_id = $template_products[0]->ID;
+
+        // Verifica se il vendor ha già un prodotto manifesto-online
+        $existing_args = array(
+            'post_type' => 'product',
+            'posts_per_page' => 1,
+            'author' => $vendor_id,
+            'meta_query' => array(
+                array(
+                    'key' => 'categoria_finale',
+                    'value' => 'Manifesto Online',
+                    'compare' => '='
+                )
+            ),
+        );
+
+        $existing_products = get_posts($existing_args);
+        if (!empty($existing_products)) {
+            error_log('RegistrationForm: Vendor ' . $vendor_id . ' already has manifesto-online product');
+            return;
+        }
+
+        // Ottieni informazioni del vendor
+        $vendor_store_name = get_user_meta($vendor_id, 'dokan_store_name', true);
+        if (empty($vendor_store_name)) {
+            $vendor_store_name = $user->display_name;
+        }
+
+        // Duplica il prodotto template
+        $wo_dup = new WC_Admin_Duplicate_Product();
+        $template_product = wc_get_product($template_id);
+        
+        if (!$template_product) {
+            error_log('RegistrationForm: Template product object not found');
+            return;
+        }
+
+        $clone_product = $wo_dup->product_duplicate($template_product);
+        
+        if (!$clone_product) {
+            error_log('RegistrationForm: Failed to duplicate product');
+            return;
+        }
+
+        $clone_product_id = $clone_product->get_id();
+        
+        // Configura il prodotto clonato
+        $new_product_title = 'Manifesto Online - ' . $vendor_store_name;
+        
+        // Aggiorna il prodotto
+        wp_update_post(array(
+            'ID' => $clone_product_id,
+            'post_status' => 'publish', // Pubblica automaticamente
+            'post_title' => $new_product_title,
+            'post_author' => $vendor_id // Assegna al vendor
+        ));
+        
+        // Aggiorna i meta del prodotto
+        update_post_meta($clone_product_id, '_sku', 'manifesto-online-' . $vendor_id);
+        update_post_meta($clone_product_id, '_vendor_id', $vendor_id);
+        
+        // Imposta la categoria_finale dal template
+        $categoria_finale = get_field('categoria_finale', $template_id);
+        if ($categoria_finale) {
+            update_field('categoria_finale', $categoria_finale, $clone_product_id);
+            
+            // Imposta SOLO la categoria basata su categoria_finale (rimuove tutte le altre)
+            wp_set_object_terms($clone_product_id, $categoria_finale, 'product_cat', false);
+            
+            // Assicurati di rimuovere esplicitamente default-products e dont-show se ancora presenti
+            wp_remove_object_terms($clone_product_id, array('default-products', 'dont-show'), 'product_cat');
+        }
+        
+        error_log('RegistrationForm: Successfully created manifesto-online product for vendor ' . $vendor_id);
     }
 
 }
