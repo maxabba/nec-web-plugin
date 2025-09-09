@@ -34,6 +34,9 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             add_action('wp_ajax_load_more_manifesti', array($this, 'load_more_manifesti'));
             add_action('wp_ajax_nopriv_load_more_manifesti', array($this, 'load_more_manifesti'));
 
+            // Add ACF save post hook for dashboard manifesto creation
+            add_action('acf/save_post', array($this, 'manifesto_save_post'), 20);
+
             //require the class 'ManifestiLoader' => 'classes/ManifestiLoader.php',
             require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/ManifestiLoader.php';
 
@@ -232,8 +235,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                         //tipo_manifesto
                         update_field('tipo_manifesto', $tipo_manifesto, $manifesto_id);
                         //provincia e citta
-                        update_field('provincia', $citta, $manifesto_id);
-                        update_field('citta', $provincia, $manifesto_id);
+                        update_field('citta', $citta, $manifesto_id);
+                        update_field('provincia', $provincia, $manifesto_id);
                         //add meta data to $manifesto_id with the id of the order
                         add_post_meta($manifesto_id, 'order_id', $order_id);
                         add_post_meta($manifesto_id, 'product_id', $product_id);
@@ -509,6 +512,62 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
         <?php endif; ?>
             <?php
             return ob_get_clean();
+        }
+
+        public function manifesto_save_post($post_id)
+        {
+            if (get_post_type($post_id) !== 'manifesto') {
+                return;
+            }
+
+            // Get vendor city from Dokan store info
+            $vendor_id = get_post_field('post_author', $post_id);
+            $store_info = dokan_get_store_info($vendor_id);
+            $vendor_city = $store_info['address']['city'] ?? '';
+            $vendor_state = $store_info['address']['state'] ?? '';
+
+            // Get the title from the linked annuncio
+            $post_id_annuncio = get_field('annuncio_di_morte_relativo', $post_id);
+            if ($post_id_annuncio) {
+                $post_title = get_the_title($post_id_annuncio);
+                
+                // Create post data array with both title and name (slug)
+                $post_data = array(
+                    'ID' => $post_id,
+                    'post_title' => 'Manifesto per ' . $post_title,
+                    'post_name' => sanitize_title('manifesto-per-' . $post_title)
+                );
+
+                // Remove the current hook to prevent infinite loop
+                remove_action('acf/save_post', array($this, 'manifesto_save_post'), 20);
+
+                // Update the post
+                wp_update_post($post_data);
+
+                // Re-add the hook
+                add_action('acf/save_post', array($this, 'manifesto_save_post'), 20);
+
+                // Copy city and province from annuncio if vendor data is empty
+                if (empty($vendor_city)) {
+                    $annuncio_city = get_field('citta', $post_id_annuncio);
+                    $annuncio_province = get_field('provincia', $post_id_annuncio);
+                    
+                    if (!empty($annuncio_city)) {
+                        $vendor_city = $annuncio_city;
+                    }
+                    if (!empty($annuncio_province)) {
+                        $vendor_state = $annuncio_province;
+                    }
+                }
+            }
+
+            // Update city and province meta fields
+            if (!empty($vendor_city)) {
+                update_field('citta', $vendor_city, $post_id);
+            }
+            if (!empty($vendor_state)) {
+                update_field('provincia', $vendor_state, $post_id);
+            }
         }
 
 
