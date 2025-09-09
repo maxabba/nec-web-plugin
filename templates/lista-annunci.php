@@ -3,9 +3,7 @@
  * Template per la selezione dei prodotti predefiniti in Dokan.
  */
 
-$template_helper = new \Dokan_Mods\Templates_MiscClass();
-$template_helper->check_dokan_can_and_message_login();
-$template_helper->enqueue_dashboard_common_styles();
+(new \Dokan_Mods\Templates_MiscClass())->check_dokan_can_and_message_login();
 
 $user_id = get_current_user_id();
 $store_info = dokan_get_store_info($user_id);
@@ -265,12 +263,177 @@ $active_menu = 'annunci/lista-annunci';
 
 
     </main>
-    
-    <?php
-    // Common dashboard JavaScript for alerts fade effect
-    echo $template_helper->get_dashboard_common_scripts();
-    ?>
+    <style>
+    /* Override theme CSS per omogeneizzare con layout standard Dokan */
+    body.dokan-dashboard.theme-hello-elementor .site-main,
+    body.dokan-dashboard .site-main {
+        max-width: none !important;
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
 
+    body.dokan-dashboard.theme-hello-elementor .page-content,
+    body.dokan-dashboard .page-content {
+        max-width: none !important;
+        width: 100% !important;
+    }
+    
+    body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+    body.dokan-dashboard .dokan-dashboard-wrap {
+        width: 100% !important;
+        max-width: 1140px !important;
+        margin: 0 auto !important;
+    }
+
+
+
+        .dokan-btn {
+            display: inline-block;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .dokan-btn-theme {
+            background-color: #f2f2f2;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .dokan-btn-theme:hover {
+            background-color: #e6e6e6;
+            color: #333;
+            text-decoration: none;
+        }
+
+        .dokan-form-group {
+            margin-bottom: 20px;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+        }
+
+        .alert {
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            box-shadow: 0 2px 1px -1px rgba(0, 0, 0, 0.2), 0 1px 1px 0 rgba(0, 0, 0, 0.14), 0 1px 3px 0 rgba(0, 0, 0, 0.12);
+        }
+
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .alert-danger {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .tablenav-pages {
+            display: flex;
+            align-items: center;
+        }
+
+        .displaying-num {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .pagination-links {
+            display: flex;
+        }
+
+        .tablenav-pages-navspan {
+            background-color: #f1f1f1;
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            margin-right: 5px;
+            cursor: not-allowed;
+        }
+
+        .paging-input {
+            display: flex;
+            align-items: center;
+        }
+
+        .paging-input input {
+            margin: 0 5px;
+        }
+
+        .paging-input .total-pages {
+            font-weight: bold;
+        }
+
+        .paging-input a {
+            background-color: #0073aa;
+            color: #fff;
+            padding: 5px 10px;
+            margin-right: 5px;
+            text-decoration: none;
+        }
+
+        .paging-input span {
+            padding: 5px 10px;
+            margin-right: 5px;
+            text-decoration: none;
+        }
+        .paging-input a:hover {
+            background-color: #009fd4;
+        }
+
+        form {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        form input[type="text"] {
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+    </style>
+
+    <script>
+        window.onload = function () {
+            var alerts = document.querySelectorAll('.alert');
+            setTimeout(function () {
+                for (var i = 0; i < alerts.length; i++) {
+                    fadeOut(alerts[i]);
+                }
+            }, 5000);
+        }
+
+        function fadeOut(element) {
+            var op = 1;  // initial opacity
+            var timer = setInterval(function () {
+                if (op <= 0.1) {
+                    clearInterval(timer);
+                    element.style.display = 'none';
+                }
+                element.style.opacity = op;
+                element.style.filter = 'alpha(opacity=' + op * 100 + ")";
+                op -= op * 0.1;
+            }, 50);
+        }
+    </script>
 <?php
 
 get_footer();

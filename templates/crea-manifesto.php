@@ -236,10 +236,93 @@ $active_menu = 'add-annuncio';
 
 
     </main>
-    <?php
-    // Common dashboard JavaScript for alerts fade effect
-    echo $template_helper->get_dashboard_common_scripts();
-    ?>
+    <style>
+    /* Override theme CSS per omogeneizzare con layout standard Dokan */
+    body.dokan-dashboard.theme-hello-elementor .site-main,
+    body.dokan-dashboard .site-main {
+        max-width: none !important;
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    
+    body.dokan-dashboard.theme-hello-elementor .page-content,
+    body.dokan-dashboard .page-content {
+        max-width: none !important;
+        width: 100% !important;
+    }
+    
+    body.dokan-dashboard.theme-hello-elementor .dokan-dashboard-wrap,
+    body.dokan-dashboard .dokan-dashboard-wrap {
+        width: 100% !important;
+        max-width: 1140px !important;
+        margin: 0 auto !important;
+    }
+
+
+        .dokan-form-group {
+            margin-bottom: 20px;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+        }
+
+        .alert {
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            box-shadow: 0 2px 1px -1px rgba(0, 0, 0, 0.2), 0 1px 1px 0 rgba(0, 0, 0, 0.14), 0 1px 3px 0 rgba(0, 0, 0, 0.12);
+        }
+
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .alert-danger {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+
+        .hidden-field {
+            display: none;
+        }
+
+        #image_container {
+            position: relative;
+            aspect-ratio: 16 / 9;
+            height: clamp(300px, 50vh, 600px);
+            width: 100%;
+            background-size: contain;
+            background-position: center;
+            margin-inline: auto;
+            overflow: hidden;
+        }
+
+        #inner_container {
+            --font-size: clamp(14px, 1.5vw, 16px);
+
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            color: #000;
+            resize: none;
+            box-sizing: border-box;
+            outline: none;
+            overflow: visible;
+            font-size: var(--font-size);
+            font-family: var(--e-global-typography-text-font-family), Sans-serif;
+            font-weight: var(--e-global-typography-text-font-weight);
+        }
+        }
+
+    </style>
 
     <script>
         jQuery(document).ready(function ($) {
