@@ -1,19 +1,17 @@
 <?php
 /**
- * Template per la selezione dei prodotti predefiniti in Dokan.
+ * Template per la creazione e modifica di ringraziamenti in Dokan.
  */
-
 
 $template_class = (new \Dokan_Mods\Templates_MiscClass());
 $template_class->check_dokan_can_and_message_login();
 
-
 $user_id = get_current_user_id();
 
 $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_annuncio']) : 'new_post';
-//check if exist a post type trigesimo that has the field post_object annuncio_di_morte
+//check if exist a post type ringraziamento that has the field post_object annuncio_di_morte
 $args = array(
-    'post_type' => 'trigesimo',
+    'post_type' => 'ringraziamento',
     'author' => $user_id,
     'posts_per_page' => 1,
     'meta_query' => array(
@@ -26,10 +24,10 @@ $args = array(
 );
 
 // Execute the query
-$trigesimo_query = new WP_Query($args);
-//if the post exist set the post_id to the post_id of the trigesimo
-if ($trigesimo_query->have_posts()) {
-    $trigesimo_query->the_post();
+$ringraziamento_query = new WP_Query($args);
+//if the post exist set the post_id to the post_id of the ringraziamento
+if ($ringraziamento_query->have_posts()) {
+    $ringraziamento_query->the_post();
     $post_id = get_the_ID();
 }
 
@@ -91,7 +89,7 @@ $active_menu = 'add-annuncio';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e($add_edit_text . ' Trigesimo per: ' . $post_title, 'dokan-mod'); ?> <span
+                            <?php _e($add_edit_text . ' Ringraziamento per: ' . $post_title, 'dokan-mod'); ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>
@@ -120,12 +118,12 @@ $active_menu = 'add-annuncio';
                             if (is_user_logged_in()) {
                                 // Parameters for the ACF form
                                 
-                                function set_annuncio_di_morte_field_trigesimo($field)
+                                function set_annuncio_di_morte_field_ringraziamento($field)
                                 {
                                     $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_annuncio']) : 'new_post';
 
                                     // Check if it's our post type
-                                    if ($field['key'] == 'field_66570739481f1') {
+                                    if ($field['key'] == 'field_666c0006827cd') {
                                         $field['value'] = $post_id_annuncio;
                                         $field['readonly'] = true;
                                         $field['wrapper']['style'] = 'display: none;';
@@ -135,15 +133,15 @@ $active_menu = 'add-annuncio';
                                 }
 
                                 // Apply to fields - always apply the filter
-                                add_filter('acf/prepare_field/key=field_66570739481f1', 'set_annuncio_di_morte_field_trigesimo');
+                                add_filter('acf/prepare_field/key=field_666c0006827cd', 'set_annuncio_di_morte_field_ringraziamento');
 
                                 $form_args = array(
                                     'post_id' => $post_id,
                                     'new_post' => array(
-                                        'post_type' => 'trigesimo',
+                                        'post_type' => 'ringraziamento',
                                         'post_status' => 'publish',
                                     ),
-                                    'field_groups' => array('group_6657073924698'),
+                                    'field_groups' => array('group_666c0006075a9'),
                                     'submit_value' => __($add_edit_text, 'Dokan-mod'),
                                     'return' => home_url('/dashboard/lista-annunci'),
                                 );

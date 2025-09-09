@@ -39,9 +39,10 @@ $args = array(
     's' => get_query_var('s'),
 );
 
-$filter_my_posts = isset($_GET['my_posts']) ? $_GET['my_posts'] : false;
+$filter_all_posts = isset($_GET['all_posts']) ? $_GET['all_posts'] : false;
 
-if ($filter_my_posts) {
+if (!$filter_all_posts) {
+    // Default: mostra solo i post dell'utente corrente
     $args['author'] = $user_id;
     // Rimuoviamo la meta_query per mostrare solo i post dell'utente corrente
     unset($args['meta_query']);
@@ -61,7 +62,7 @@ $active_menu = 'annunci/lista-annunci';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __('Lista Annunci di Morte', 'dokan-mod') ?></h1></header>
+        </header>
 
         <div class="page-content">
 
@@ -97,15 +98,15 @@ $active_menu = 'annunci/lista-annunci';
                                 <?php _e('Lista Annunci di Morte', 'dokan-mod'); ?>
                             </h1>
                             <div>
-                                <?php if ($filter_my_posts): ?>
+                                <?php if ($filter_all_posts): ?>
                                     <a href="<?php echo esc_url(home_url('/dashboard/lista-annunci')); ?>"
                                        class="dokan-btn dokan-btn-theme">
-                                        <?php _e('Tutti gli Annunci', 'dokan-mod'); ?>
+                                        <?php _e('I tuoi Annunci', 'dokan-mod'); ?>
                                     </a>
                                 <?php else: ?>
-                                    <a href="<?php echo esc_url(add_query_arg('my_posts', '1')); ?>"
+                                    <a href="<?php echo esc_url(add_query_arg('all_posts', '1')); ?>"
                                        class="dokan-btn dokan-btn-theme">
-                                        <?php _e('I tuoi Annunci', 'dokan-mod'); ?>
+                                        <?php _e('Tutti gli Annunci', 'dokan-mod'); ?>
                                     </a>
                                 <?php endif; ?>
                             </div>
@@ -144,6 +145,7 @@ $active_menu = 'annunci/lista-annunci';
                                     <th><?php _e('Azioni', 'dokan-mod'); ?></th>
                                     <th><?php _e('Partecipazioni', 'dokan-mod'); ?></th>
                                     <th><?php _e('Trigesimo', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Ringraziamento', 'dokan-mod'); ?></th>
                                     <th><?php _e('Anniversari', 'dokan-mod'); ?></th>
                                     <th><?php _e('Agenzia', 'dokan-mod'); ?></th>
                                 </tr>
@@ -184,6 +186,13 @@ $active_menu = 'annunci/lista-annunci';
                                             </td>
                                             <td>
                                                 <?php if ($modify_post_url_disabled): ?>
+                                                    <span style="color: #999; cursor: not-allowed;"><?php _e('Aggiungi/Modifica', 'dokan-mod'); ?></span>
+                                                <?php else: ?>
+                                                    <a href="<?php echo home_url('/dashboard/ringraziamento-add?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Aggiungi/Modifica', 'dokan-mod'); ?></a>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php if ($modify_post_url_disabled): ?>
                                                     <span style="color: #999; cursor: not-allowed;"><?php _e('Visualizza lista', 'dokan-mod'); ?></span>
                                                 <?php else: ?>
                                                     <a href="<?php echo home_url('/dashboard/lista-anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
@@ -198,7 +207,7 @@ $active_menu = 'annunci/lista-annunci';
                                 else :
                                     ?>
                                     <tr>
-                                        <td colspan="8"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
+                                        <td colspan="9"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
                                     </tr>
                                 <?php
                                 endif;

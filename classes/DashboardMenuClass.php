@@ -9,7 +9,7 @@ if (!class_exists(__NAMESPACE__ . 'DashboardMenuClass')) {
     {
         const PLUGIN_PATH = DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'templates/';
 
-        private array $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'lista-annunci', 'customize', 'trigesimo-add', 'lista-anniversari', 'crea-anniversario', 'lista-manifesti', 'crea-manifesto', 'monitor-digitale'];
+        private array $query_vars = ['seleziona-prodotti', 'crea-annuncio', 'lista-annunci', 'customize', 'trigesimo-add', 'ringraziamento-add', 'lista-anniversari', 'crea-anniversario', 'lista-manifesti', 'crea-manifesto', 'monitor-digitale'];
 
 
         public function __construct()

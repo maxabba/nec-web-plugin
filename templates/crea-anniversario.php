@@ -51,7 +51,6 @@ $active_menu = 'add-annuncio';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __($add_edit_text . ' Anniversario per: ' . $post_title, 'dokan-mod') ?></h1>
         </header>
 
         <div class="page-content">

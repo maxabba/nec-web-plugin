@@ -101,7 +101,7 @@ $active_menu = 'settings/customize';
     <main id="content" class="site-main post-58 page type-page status-publish hentry">
 
         <header class="page-header">
-            <h1 class="entry-title"><?php __('Personalizza', 'dokan-mod') ?></h1></header>
+        </header>
 
         <div class="page-content">
 
