@@ -188,6 +188,10 @@ $active_menu = 'settings/customize';
                                         che rispettino le dimensioni sopra indicate.</p>
                                     <br>
                                     <br>
+                                    <h2>L'orientamento della partecipazione verrà determinato automaticamente in base all'orientamento dell'immagine che carichi (verticale o orizzontale).</h2>
+                                    <br>
+                                    <br>
+
                                     <label class="dokan-w3 dokan-control-label"
                                            for="poster_image"><?php _e('Seleziona uno sfondo per le tue partecipazioni', 'dokan-mod'); ?></label>
                                     <div class="dokan-w5">
