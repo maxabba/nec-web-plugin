@@ -101,7 +101,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
                 'index.php?monitor_display=1&monitor_type=$matches[1]&legacy_vendor_id=$matches[2]&monitor_slug=$matches[3]',
                 'top'
             );
-            
+
             // Flush rewrite rules on activation
             if (get_option('monitor_rewrite_rules_flushed') !== '4') {
                 flush_rewrite_rules();
@@ -122,6 +122,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             // Legacy support
             $vars[] = 'monitor_type';
             $vars[] = 'legacy_vendor_id';
+            $vars[] = 'legacy_post_id';
             return $vars;
         }
 
@@ -859,6 +860,8 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
                         'cognome' => get_field('cognome', $post_id),
                         'eta' => get_field('eta', $post_id),
                         'fotografia' => get_field('fotografia', $post_id),
+                        'immagine_annuncio_di_morte' => get_field('immagine_annuncio_di_morte', $post_id),
+                        'testo_annuncio_di_morte' => get_field('testo_annuncio_di_morte', $post_id),
                         'data_di_morte' => get_field('data_di_morte', $post_id),
                         'data_pubblicazione' => get_the_date('Y-m-d H:i:s'),
                         'agenzia_nome' => $vendor->get_shop_name(),
@@ -886,22 +889,19 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
         public function ajax_get_manifesti()
         {
             $vendor_id = intval($_POST['vendor_id']);
-            $monitor_id = intval($_POST['monitor_id']);
+            $post_id = intval($_POST['post_id']);
 
-            if (!$vendor_id || !$monitor_id) {
+            if (!$vendor_id || !$post_id) {
                 wp_send_json_error('Parametri mancanti');
             }
 
-            // Verify monitor exists and is enabled
-            $monitor = $this->db_manager->get_monitor($monitor_id);
-            if (!$monitor || $monitor['vendor_id'] != $vendor_id || !$monitor['is_enabled']) {
-                wp_send_json_error('Monitor non valido o disabilitato');
+            // Verify post belongs to vendor and is valid
+            $post = get_post($post_id);
+            if (!$post || $post->post_author != $vendor_id || $post->post_type !== 'annuncio-di-morte') {
+                wp_send_json_error('Post non valido o accesso negato');
             }
 
-            $associated_post_id = $monitor['associated_post_id'];
-            if (!$associated_post_id) {
-                wp_send_json_error('Nessun defunto associato');
-            }
+            $associated_post_id = $post_id;
 
             // Load manifesti using ManifestiLoader
             $loader = new ManifestiLoader($associated_post_id, 0, 'top,silver,online');
@@ -920,47 +920,20 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
         public function ajax_check_association()
         {
             $vendor_id = intval($_POST['vendor_id']);
-            $monitor_id = intval($_POST['monitor_id']);
             $current_post_id = intval($_POST['current_post_id']);
 
-            if (!$vendor_id || !$monitor_id) {
+            if (!$vendor_id || !$current_post_id) {
                 wp_send_json_error('Parametri mancanti');
             }
 
-            // Verify monitor exists
-            $monitor = $this->db_manager->get_monitor($monitor_id);
-            if (!$monitor || $monitor['vendor_id'] != $vendor_id || !$monitor['is_enabled']) {
-                wp_send_json_error('Monitor non valido o disabilitato');
-            }
-
-            $associated_post = $monitor['associated_post_id'];
-            $has_changed = ($associated_post != $current_post_id);
-
-            if ($has_changed) {
-                if ($associated_post) {
-                    // New post associated
-                    $post = get_post($associated_post);
-                    $foto_defunto = get_field('fotografia', $associated_post);
-                    $data_di_morte = get_field('data_di_morte', $associated_post);
-                    $data_pubblicazione = get_the_date('d/m/Y', $associated_post);
-                    
-                    wp_send_json_success(array(
-                        'changed' => true,
-                        'new_post_id' => $associated_post,
-                        'new_post_data' => array(
-                            'title' => get_the_title($associated_post),
-                            'foto' => $foto_defunto ? (is_array($foto_defunto) ? $foto_defunto['sizes']['medium'] : $foto_defunto) : '',
-                            'data_morte' => $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $data_pubblicazione
-                        )
-                    ));
-                } else {
-                    // No post associated - redirect to waiting screen
-                    wp_send_json_success(array(
-                        'changed' => true,
-                        'new_post_id' => null,
-                        'redirect_to_waiting' => true
-                    ));
-                }
+            // For manifesti layout, the association doesn't change - just confirm the post still exists
+            $post = get_post($current_post_id);
+            if (!$post || $post->post_author != $vendor_id || $post->post_type !== 'annuncio-di-morte') {
+                wp_send_json_success(array(
+                    'changed' => true,
+                    'new_post_id' => null,
+                    'redirect_to_waiting' => true
+                ));
             } else {
                 wp_send_json_success(array(
                     'changed' => false,

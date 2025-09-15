@@ -8,6 +8,18 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Get variables from global scope or fallback
+$manifesti_data = $GLOBALS['manifesti_data'] ?? [];
+$defunto_title = $manifesti_data['defunto_title'] ?? '';
+$foto_defunto = $manifesti_data['foto_defunto'] ?? null;
+$display_date = $manifesti_data['display_date'] ?? '';
+$associated_post_id = $manifesti_data['associated_post_id'] ?? null;
+
+// Get vendor data from global scope
+$vendor_data = $GLOBALS['monitor_data']['vendor_data'] ?? [];
+$shop_name = $vendor_data['shop_name'] ?? '';
+$shop_banner = $vendor_data['banner'] ?? '';
+
 // Get logo image URL from plugin assets for no-manifesti state - no dependency on site media library
 $logo_url = plugin_dir_url(__FILE__) . '../assets/images/Necrologi-oro.png';
 

@@ -178,6 +178,40 @@ switch ($layout_type) {
     
     <!-- Base reset styles -->
     <style>
+        /* CSS Variables per Consistenza - Monitor Design Standards */
+        :root {
+            /* Colors */
+            --monitor-bg-primary: rgb(55, 55, 55);
+            --monitor-text-primary: #ffffff;
+            --monitor-text-secondary: rgba(255, 255, 255, 0.85);
+            --monitor-text-muted: rgba(255, 255, 255, 0.7);
+            --monitor-status-active: #4CAF50;
+            
+            /* Typography */
+            --monitor-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --monitor-font-manifesti: "PlayFair Display Mine", serif;
+            
+            /* Spacing */
+            --monitor-padding-small: 20px;
+            --monitor-padding-medium: 40px;
+            --monitor-gap-small: 10px;
+            --monitor-gap-medium: 20px;
+            --monitor-gap-large: 30px;
+            
+            /* Layout Heights - Standard per layout tradizionali */
+            --monitor-header-height: 20vh;
+            --monitor-body-height: 75vh;
+            --monitor-footer-height: 5vh;
+            
+            /* Transitions */
+            --monitor-transition-fast: 0.3s ease;
+            --monitor-transition-slow: 0.5s ease;
+            
+            /* Shadows */
+            --monitor-shadow-light: 0 2px 4px rgba(0, 0, 0, 0.3);
+            --monitor-shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.5);
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -187,21 +221,12 @@ switch ($layout_type) {
         html, body {
             height: 100%;
             overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: rgb(55, 55, 55);
-            color: #fff;
+            font-family: var(--monitor-font-family);
+            background: var(--monitor-bg-primary);
+            color: var(--monitor-text-primary);
         }
         
-        /* Hide any theme elements that might interfere */
-        #wpadminbar,
-        .admin-bar,
-        header:not(.solo-annuncio-header):not(.citta-multi-header),
-        footer:not(.solo-annuncio-footer):not(.citta-multi-footer),
-        nav,
-        .site-header,
-        .site-footer {
-            display: none !important;
-        }
+
     </style>
 </head>
 
