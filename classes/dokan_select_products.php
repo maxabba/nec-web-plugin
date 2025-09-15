@@ -46,6 +46,7 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
         }
 
 
+
         public function handle_form_submission()
         {
             // Check if the form is submitted

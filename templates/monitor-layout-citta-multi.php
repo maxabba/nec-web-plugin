@@ -15,100 +15,85 @@ $vendor_data = $monitor_data['vendor_data'];
 
 ?>
 
-<div class="monitor-citta-multi">
-    <!-- Header with city info -->
-    <header class="citta-multi-header">
-        <div class="city-info">
-            <div class="city-icon">🏛️</div>
-            <div class="city-details">
-                <h1>Necrologi - <span id="city-name">Caricamento...</span></h1>
-                <div class="date-range">
-                    <span id="date-info">Ultimi giorni</span> • 
-                    <span id="agency-info">Tutte le agenzie</span>
-                </div>
-            </div>
-        </div>
-        <div class="header-stats">
-            <div class="stat-item">
-                <div class="stat-number" id="total-count">0</div>
-                <div class="stat-label">Annunci</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="today-count">0</div>
-                <div class="stat-label">Oggi</div>
-            </div>
-        </div>
-    </header>
+<div class="monitor-citta-multi-slideshow">
+    <!-- Loading state -->
+    <div id="citta-loading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Caricamento annunci...</p>
+    </div>
 
-    <!-- Main scrolling area -->
-    <main class="citta-multi-main">
-        <!-- Loading state -->
-        <div id="citta-loading" class="loading-state">
-            <div class="loading-spinner"></div>
-            <p>Caricamento annunci...</p>
-        </div>
+    <!-- No data state -->
+    <div id="citta-no-data" class="no-data-state" style="display: none;">
+        <div class="no-data-icon">📋</div>
+        <h3>Nessun annuncio disponibile</h3>
+        <p>Non ci sono annunci di morte per il periodo selezionato</p>
+    </div>
 
-        <!-- No data state -->
-        <div id="citta-no-data" class="no-data-state" style="display: none;">
-            <div class="no-data-icon">📋</div>
-            <h3>Nessun annuncio disponibile</h3>
-            <p>Non ci sono annunci di morte per il periodo selezionato</p>
-        </div>
-
-        <!-- Annunci container -->
-        <div id="annunci-container" class="annunci-container" style="display: none;">
-            <!-- Populated via AJAX -->
-        </div>
-    </main>
-
-    <!-- Footer with vendor and update info -->
-    <footer class="citta-multi-footer">
-        <div class="vendor-info">
-            <?php if (!empty($vendor_data['banner'])): ?>
-                <img src="<?php echo esc_url($vendor_data['banner']); ?>" 
-                     alt="<?php echo esc_attr($vendor_data['shop_name']); ?>" 
-                     class="vendor-logo-citta">
-            <?php endif; ?>
-            <div class="vendor-details">
-                <div class="vendor-name"><?php echo esc_html($vendor_data['shop_name']); ?></div>
-                <div class="system-info">Sistema Monitor Digitale</div>
-            </div>
-        </div>
-        <div class="update-info">
-            <div class="auto-refresh">🔄 Auto-refresh attivo</div>
-            <div class="last-update">Ultimo aggiornamento: <span id="last-update"><?php echo current_time('H:i:s'); ?></span></div>
-        </div>
-    </footer>
+    <!-- Slideshow container -->
+    <div id="slideshow-container" class="slideshow-container" style="display: none;">
+        <!-- Slides populated via AJAX -->
+    </div>
 </div>
 
 <style>
 /* Layout Città Multi-Agenzia Styles */
+:root {
+    /* Colors */
+    --monitor-bg-primary: rgb(55, 55, 55);
+    --monitor-text-primary: #ffffff;
+    --monitor-text-secondary: rgba(255, 255, 255, 0.85);
+    --monitor-text-muted: rgba(255, 255, 255, 0.7);
+    --monitor-status-active: #4CAF50;
+    
+    /* Typography */
+    --monitor-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    
+    /* Spacing */
+    --monitor-padding-small: 20px;
+    --monitor-padding-medium: 40px;
+    --monitor-gap-small: 10px;
+    --monitor-gap-medium: 20px;
+    --monitor-gap-large: 30px;
+    
+    /* Layout Heights */
+    --monitor-header-height: 15vh;
+    --monitor-body-height: 75vh;
+    --monitor-footer-height: 10vh;
+    
+    /* Transitions */
+    --monitor-transition-fast: 0.3s ease;
+    --monitor-shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+html, body {
+    background: var(--monitor-bg-primary) !important;
+}
+
 .monitor-citta-multi {
     height: 100vh;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
-    color: #fff;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--monitor-bg-primary);
+    color: var(--monitor-text-primary);
+    font-family: var(--monitor-font-family);
     overflow: hidden;
 }
 
 /* Header Styles */
 .citta-multi-header {
-    height: 15vh;
+    height: var(--monitor-header-height);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 40px;
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
-    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    padding: 0 var(--monitor-padding-medium);
+    background: var(--monitor-bg-primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .city-info {
     display: flex;
     align-items: center;
-    gap: 25px;
+    gap: var(--monitor-gap-large);
 }
 
 .city-icon {
@@ -117,15 +102,16 @@ $vendor_data = $monitor_data['vendor_data'];
 }
 
 .city-details h1 {
-    font-size: 2.2rem;
+    font-size: 2.5rem;
     font-weight: 300;
     margin: 0;
+    color: var(--monitor-text-primary);
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .date-range {
-    font-size: 1rem;
-    opacity: 0.9;
+    font-size: 1.3rem;
+    color: var(--monitor-text-secondary);
     margin-top: 8px;
     font-weight: 300;
 }
@@ -143,21 +129,22 @@ $vendor_data = $monitor_data['vendor_data'];
     font-size: 2.5rem;
     font-weight: bold;
     line-height: 1;
-    color: #3498db;
+    color: var(--monitor-status-active);
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .stat-label {
     font-size: 0.9rem;
-    opacity: 0.8;
+    color: var(--monitor-text-muted);
     margin-top: 4px;
 }
 
 /* Main Content */
 .citta-multi-main {
-    flex: 1;
+    height: var(--monitor-body-height);
     position: relative;
     overflow: hidden;
+    background: var(--monitor-bg-primary);
 }
 
 .loading-state, .no-data-state {
@@ -173,10 +160,10 @@ $vendor_data = $monitor_data['vendor_data'];
     width: 50px;
     height: 50px;
     border: 4px solid rgba(255, 255, 255, 0.1);
-    border-top: 4px solid #3498db;
+    border-top: 4px solid var(--monitor-status-active);
     border-radius: 50%;
     animation: spin 1s linear infinite;
-    margin-bottom: 20px;
+    margin-bottom: var(--monitor-padding-small);
 }
 
 @keyframes spin {
@@ -205,7 +192,8 @@ $vendor_data = $monitor_data['vendor_data'];
 .annunci-container {
     height: 100%;
     overflow-y: auto;
-    padding: 20px 40px;
+    padding: var(--monitor-padding-small) var(--monitor-padding-medium);
+    background: var(--monitor-bg-primary);
     
     /* Custom scrollbar */
     scrollbar-width: thin;
@@ -233,21 +221,21 @@ $vendor_data = $monitor_data['vendor_data'];
 /* Individual Annuncio Card */
 .annuncio-card {
     background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 25px;
-    margin-bottom: 20px;
+    margin-bottom: var(--monitor-gap-medium);
     display: flex;
     align-items: center;
-    gap: 25px;
-    transition: all 0.3s ease;
+    gap: var(--monitor-gap-large);
+    transition: var(--monitor-transition-fast);
     animation: slideInFromLeft 0.6s ease-out;
 }
 
 .annuncio-card:hover {
     background: rgba(255, 255, 255, 0.15);
-    transform: translateX(5px);
+    transform: scale(1.02);
+    box-shadow: var(--monitor-shadow-medium);
 }
 
 .annuncio-card.own-vendor {
@@ -270,10 +258,11 @@ $vendor_data = $monitor_data['vendor_data'];
     flex-shrink: 0;
     width: 80px;
     height: 80px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    object-fit: contain;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    box-shadow: var(--monitor-shadow-medium);
+    transition: var(--monitor-transition-fast);
 }
 
 .annuncio-foto-placeholder {
@@ -299,14 +288,14 @@ $vendor_data = $monitor_data['vendor_data'];
     font-size: 1.5rem;
     font-weight: 400;
     margin: 0 0 8px 0;
-    color: #fff;
+    color: var(--monitor-text-primary);
 }
 
 .annuncio-meta {
     display: flex;
-    gap: 20px;
+    gap: var(--monitor-gap-medium);
     font-size: 0.95rem;
-    opacity: 0.9;
+    color: var(--monitor-text-secondary);
     margin-bottom: 8px;
 }
 
@@ -322,7 +311,7 @@ $vendor_data = $monitor_data['vendor_data'];
 
 .annuncio-agency {
     font-size: 0.9rem;
-    opacity: 0.8;
+    color: var(--monitor-text-muted);
     font-style: italic;
 }
 
@@ -342,26 +331,26 @@ $vendor_data = $monitor_data['vendor_data'];
 
 /* Footer */
 .citta-multi-footer {
-    height: 8vh;
+    height: var(--monitor-footer-height);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 40px;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(10px);
+    padding: 0 var(--monitor-padding-medium);
+    background: var(--monitor-bg-primary);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .vendor-info {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: var(--monitor-gap-medium);
 }
 
 .vendor-logo-citta {
-    height: 40px;
+    height: 30px;
     width: auto;
-    border-radius: 4px;
+    border-radius: 8px;
+    transition: var(--monitor-transition-fast);
 }
 
 .vendor-name {
@@ -371,7 +360,7 @@ $vendor_data = $monitor_data['vendor_data'];
 
 .system-info {
     font-size: 0.8rem;
-    opacity: 0.7;
+    color: var(--monitor-text-muted);
     margin-top: 2px;
 }
 
@@ -381,26 +370,29 @@ $vendor_data = $monitor_data['vendor_data'];
 }
 
 .auto-refresh {
-    color: #2ecc71;
+    color: var(--monitor-status-active);
     margin-bottom: 4px;
 }
 
 .last-update {
-    opacity: 0.8;
+    color: var(--monitor-text-muted);
 }
 
-/* Responsive Design */
-@media (max-width: 1200px) {
-    .city-details h1 {
-        font-size: 1.8rem;
-    }
+/* Responsive Design - Desktop Large */
+@media (min-width: 1920px) and (max-width: 3839px) {
+    .city-details h1 { font-size: 2.2rem; }
+}
+
+/* Desktop Standard */
+@media (max-width: 1366px) {
+    .city-details h1 { font-size: 1.9rem; }
     
     .annunci-container {
         padding: 15px 30px;
     }
     
     .annuncio-card {
-        padding: 20px;
+        padding: var(--monitor-padding-small);
     }
 }
 
@@ -459,11 +451,19 @@ $vendor_data = $monitor_data['vendor_data'];
 /* Portrait Orientation (Totem Mode) */
 @media (orientation: portrait) {
     .citta-multi-header {
-        height: 18vh;
+        height: var(--monitor-header-height);
+    }
+    
+    .citta-multi-main {
+        height: var(--monitor-body-height);
+    }
+    
+    .citta-multi-footer {
+        height: var(--monitor-footer-height);
     }
     
     .annuncio-card {
-        padding: 20px;
+        padding: var(--monitor-padding-small);
     }
     
     .annuncio-nome {
@@ -474,12 +474,12 @@ $vendor_data = $monitor_data['vendor_data'];
 /* High contrast mode */
 @media (prefers-contrast: high) {
     .monitor-citta-multi {
-        background: #000;
+        background: var(--monitor-bg-primary);
     }
     
     .annuncio-card {
         background: rgba(255, 255, 255, 0.2);
-        border: 2px solid rgba(255, 255, 255, 0.5);
+        border: 3px solid #fff;
     }
 }
 
@@ -497,32 +497,62 @@ $vendor_data = $monitor_data['vendor_data'];
     0% { scroll-behavior: auto; }
     100% { scroll-behavior: auto; }
 }
+
+/* Custom scrollbar styles (if needed for debugging) */
+::-webkit-scrollbar {
+    display: none;
+}
+
+html {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
 </style>
 
 <script>
-// Città Multi-Agenzia Layout JavaScript
-class CittaMultiLayout {
+// Città Multi-Agenzia Slideshow Layout JavaScript
+class CittaMultiSlideshowLayout {
     constructor() {
         this.annunci = [];
+        this.slides = [];
+        this.currentSlideIndex = 0;
         this.pollingInterval = null;
-        this.scrollInterval = null;
-        this.autoScrollEnabled = true;
+        this.slideshowInterval = null;
         this.config = window.MonitorData || {};
+        
+        // Touch/Drag properties
+        this.isDragging = false;
+        this.startX = 0;
+        this.startY = 0;
+        this.currentX = 0;
+        this.initialTransform = 0;
+        this.threshold = 50; // Minimum drag distance for slide
+        
+        // Timing properties
+        this.autoAdvanceTime = 10000; // 10s single, 15s double
+        this.manualInteractionTimeout = null;
+        this.isManualMode = false;
+        
+        // Monitor and image orientation
+        this.monitorIsLandscape = window.innerWidth > window.innerHeight;
         
         this.init();
     }
 
     init() {
-        console.log('Initializing Città Multi-Agenzia Layout');
+        console.log('Initializing Città Multi-Agenzia Slideshow Layout');
         
         // Load initial data
         this.loadAnnunci();
         
+        // Setup touch/drag events
+        this.setupTouchEvents();
+        
+        // Handle window resize for orientation changes
+        window.addEventListener('resize', this.handleResize.bind(this));
+        
         // Start polling for updates
         this.startPolling();
-        
-        // Start auto-scroll
-        this.startAutoScroll();
         
         // Handle visibility change
         document.addEventListener('visibilitychange', () => {
@@ -536,7 +566,7 @@ class CittaMultiLayout {
 
     async loadAnnunci() {
         try {
-            console.log('Loading annunci città multi...');
+            console.log('Loading annunci città multi slideshow...');
             
             this.showLoading(true);
             
@@ -551,20 +581,26 @@ class CittaMultiLayout {
             });
             
             const data = await response.json();
-            console.log('Città Multi Response:', data);
+            console.log('Città Multi Slideshow Response:', data);
             
             if (data.success) {
                 this.annunci = data.data.annunci || [];
-                this.updateHeader(data.data);
                 
                 if (this.annunci.length > 0) {
-                    this.renderAnnunci();
-                    this.showAnnunci();
+                    await this.processAnnunciForSlideshow();
+                    
+                    if (this.slides.length > 0) {
+                        this.renderSlideshow();
+                        this.showSlideshow();
+                        this.startSlideshow();
+                    } else {
+                        console.log('No valid slides created from annunci');
+                        this.showNoData();
+                    }
                 } else {
+                    console.log('No annunci received');
                     this.showNoData();
                 }
-                
-                this.updateLastUpdateTime();
             } else {
                 console.error('Error loading annunci:', data.data);
                 this.showNoData();
@@ -577,84 +613,166 @@ class CittaMultiLayout {
         }
     }
 
-    renderAnnunci() {
-        const container = document.getElementById('annunci-container');
-        if (!container) return;
+    async processAnnunciForSlideshow() {
+        this.slides = [];
+        const imageOrientations = [];
         
-        container.innerHTML = '';
+        console.log('Processing annunci for slideshow:', this.annunci);
+        console.log('Text fallback enabled:', this.shouldShowTextFallback());
         
-        this.annunci.forEach((annuncio, index) => {
-            const card = this.createAnnuncioCard(annuncio, index);
-            container.appendChild(card);
+        // First pass: determine image orientations
+        for (let annuncio of this.annunci) {
+            console.log('Processing annuncio:', {
+                id: annuncio.id || 'no-id',
+                nome: annuncio.nome || 'no-name',
+                immagine_annuncio_di_morte: annuncio.immagine_annuncio_di_morte,
+                testo_annuncio_di_morte: annuncio.testo_annuncio_di_morte ? 'HAS_TEXT' : 'NO_TEXT'
+            });
+            
+            if (annuncio.immagine_annuncio_di_morte && annuncio.immagine_annuncio_di_morte.url) {
+                console.log('Found image:', annuncio.immagine_annuncio_di_morte.url);
+                const orientation = await this.getImageOrientation(annuncio.immagine_annuncio_di_morte.url);
+                imageOrientations.push({
+                    annuncio: annuncio,
+                    type: 'image',
+                    orientation: orientation,
+                    url: annuncio.immagine_annuncio_di_morte.url
+                });
+            } else if (this.shouldShowTextFallback() && annuncio.testo_annuncio_di_morte) {
+                console.log('Using text fallback for:', annuncio.nome);
+                imageOrientations.push({
+                    annuncio: annuncio,
+                    type: 'text',
+                    text: annuncio.testo_annuncio_di_morte
+                });
+            } else {
+                console.log('Skipping annuncio (no image, no text):', annuncio.nome);
+            }
+        }
+        
+        console.log('Image orientations found:', imageOrientations);
+        
+        // Second pass: group images for optimal display
+        this.slides = this.groupImagesForSlides(imageOrientations);
+        
+        console.log(`Processed ${this.annunci.length} annunci into ${this.slides.length} slides`);
+        console.log('Final slides:', this.slides);
+    }
+
+    async getImageOrientation(imageUrl) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                const orientation = img.width > img.height ? 'landscape' : 'portrait';
+                resolve(orientation);
+            };
+            img.onerror = () => resolve('unknown');
+            img.src = imageUrl;
         });
     }
 
-    createAnnuncioCard(annuncio, index) {
-        const card = document.createElement('div');
-        card.className = `annuncio-card ${annuncio.is_own_vendor ? 'own-vendor' : ''}`;
-        card.style.animationDelay = `${index * 0.1}s`;
+    groupImagesForSlides(items) {
+        const slides = [];
+        let i = 0;
         
-        // Photo or placeholder
-        const fotoHtml = annuncio.fotografia && annuncio.fotografia.url
-            ? `<img src="${annuncio.fotografia.url}" alt="${annuncio.nome} ${annuncio.cognome}" class="annuncio-foto">`
-            : `<div class="annuncio-foto-placeholder">👤</div>`;
+        while (i < items.length) {
+            const currentItem = items[i];
+            
+            // Text slides are always single
+            if (currentItem.type === 'text') {
+                slides.push({
+                    type: 'single',
+                    content: [currentItem],
+                    duration: 10000 // 10s for text
+                });
+                i++;
+                continue;
+            }
+            
+            // Check if we can pair with next image
+            const nextItem = items[i + 1];
+            if (nextItem && nextItem.type === 'image' && this.canPairImages(currentItem, nextItem)) {
+                slides.push({
+                    type: 'double',
+                    content: [currentItem, nextItem],
+                    duration: 15000 // 15s for double
+                });
+                i += 2;
+            } else {
+                slides.push({
+                    type: 'single',
+                    content: [currentItem],
+                    duration: 10000 // 10s for single
+                });
+                i++;
+            }
+        }
         
-        // Format dates
-        const datamorte = annuncio.data_di_morte 
-            ? new Date(annuncio.data_di_morte).toLocaleDateString('it-IT')
-            : '';
-        
-        const dataPubblicazione = new Date(annuncio.data_pubblicazione).toLocaleDateString('it-IT');
-        
-        // Agency badge
-        const agencyBadge = annuncio.is_own_vendor 
-            ? `<span class="agency-badge own">La tua agenzia</span>`
-            : `<span class="agency-badge">${annuncio.agenzia_nome}</span>`;
-        
-        card.innerHTML = `
-            ${fotoHtml}
-            <div class="annuncio-details">
-                <div class="annuncio-nome">
-                    ${annuncio.nome} ${annuncio.cognome}
-                    ${annuncio.eta ? `<span style="opacity: 0.8; font-weight: 300;"> • ${annuncio.eta} anni</span>` : ''}
-                </div>
-                <div class="annuncio-meta">
-                    ${datamorte ? `<div class="meta-item"><span class="meta-icon">⚱️</span> ${datamorte}</div>` : ''}
-                    <div class="meta-item"><span class="meta-icon">📅</span> ${dataPubblicazione}</div>
-                </div>
-                <div class="annuncio-agency">
-                    ${annuncio.agenzia_nome}
-                    ${agencyBadge}
-                </div>
-            </div>
-        `;
-        
-        return card;
+        return slides;
     }
 
-    updateHeader(data) {
-        // Update city name
-        document.getElementById('city-name').textContent = data.city || 'Città';
+    canPairImages(item1, item2) {
+        // Don't pair if orientations are different
+        if (item1.orientation !== item2.orientation) {
+            return false;
+        }
         
-        // Update date info
-        const daysRange = data.days_range || 7;
-        const daysText = daysRange === 1 ? 'Oggi' : `Ultimi ${daysRange} giorni`;
-        document.getElementById('date-info').textContent = daysText;
+        // Check monitor vs image orientation compatibility
+        if (this.monitorIsLandscape && item1.orientation === 'portrait') {
+            return true; // Landscape monitor + vertical images = side by side
+        }
         
-        // Update agency info
-        const agencyText = data.show_all_agencies ? 'Tutte le agenzie' : 'Solo la tua agenzia';
-        document.getElementById('agency-info').textContent = agencyText;
+        if (!this.monitorIsLandscape && item1.orientation === 'landscape') {
+            return true; // Vertical monitor + horizontal images = stacked
+        }
         
-        // Update counts
-        document.getElementById('total-count').textContent = data.count || 0;
+        return false; // Don't pair same orientations
+    }
+
+    shouldShowTextFallback() {
+        // Check if PHP constant is defined and enabled
+        return window.MONITOR_CITTA_SHOW_TEXT_FALLBACK !== false;
+    }
+
+    renderSlideshow() {
+        const container = document.getElementById('slideshow-container');
+        if (!container || this.slides.length === 0) return;
         
-        // Calculate today count
-        const today = new Date().toDateString();
-        const todayCount = this.annunci.filter(annuncio => {
-            const pubDate = new Date(annuncio.data_pubblicazione).toDateString();
-            return pubDate === today;
-        }).length;
-        document.getElementById('today-count').textContent = todayCount;
+        container.innerHTML = `
+            <div class="slideshow-track" style="transform: translateX(0%)">
+                ${this.slides.map((slide, index) => this.createSlideHTML(slide, index)).join('')}
+            </div>
+        `;
+    }
+
+    createSlideHTML(slide, index) {
+        if (slide.type === 'single' && slide.content[0].type === 'text') {
+            return `
+                <div class="slide text-slide" data-index="${index}">
+                    <div class="text-content">${slide.content[0].text}</div>
+                </div>
+            `;
+        }
+        
+        if (slide.type === 'single') {
+            return `
+                <div class="slide single-image" data-index="${index}">
+                    <img src="${slide.content[0].url}" class="slide-image" alt="Annuncio di morte">
+                </div>
+            `;
+        }
+        
+        if (slide.type === 'double') {
+            const orientationClass = slide.content[0].orientation === 'portrait' ? 'vertical-images' : 'horizontal-images';
+            return `
+                <div class="slide double-images ${orientationClass}" data-index="${index}">
+                    <img src="${slide.content[0].url}" class="slide-image" alt="Annuncio di morte">
+                    <img src="${slide.content[1].url}" class="slide-image" alt="Annuncio di morte">
+                </div>
+            `;
+        }
+        
+        return '';
     }
 
     showLoading(show) {
@@ -664,8 +782,8 @@ class CittaMultiLayout {
         }
     }
 
-    showAnnunci() {
-        const container = document.getElementById('annunci-container');
+    showSlideshow() {
+        const container = document.getElementById('slideshow-container');
         const noData = document.getElementById('citta-no-data');
         
         if (container) container.style.display = 'block';
@@ -673,27 +791,191 @@ class CittaMultiLayout {
     }
 
     showNoData() {
-        const container = document.getElementById('annunci-container');
+        const container = document.getElementById('slideshow-container');
         const noData = document.getElementById('citta-no-data');
         
         if (container) container.style.display = 'none';
         if (noData) noData.style.display = 'flex';
     }
 
-    updateLastUpdateTime() {
-        const lastUpdateSpan = document.getElementById('last-update');
-        if (lastUpdateSpan) {
-            lastUpdateSpan.textContent = new Date().toLocaleTimeString('it-IT', {
-                hour: '2-digit',
-                minute: '2-digit'
+    startSlideshow() {
+        if (this.slides.length === 0) return;
+        
+        this.stopSlideshow();
+        this.scheduleNextSlide();
+    }
+
+    stopSlideshow() {
+        if (this.slideshowInterval) {
+            clearTimeout(this.slideshowInterval);
+            this.slideshowInterval = null;
+        }
+    }
+
+    scheduleNextSlide() {
+        if (this.slides.length === 0) return;
+        
+        const currentSlide = this.slides[this.currentSlideIndex];
+        const duration = this.isManualMode ? currentSlide.duration * 2 : currentSlide.duration;
+        
+        this.slideshowInterval = setTimeout(() => {
+            this.nextSlide();
+        }, duration);
+    }
+
+    nextSlide() {
+        if (this.slides.length === 0) return;
+        
+        this.currentSlideIndex = (this.currentSlideIndex + 1) % this.slides.length;
+        this.updateSlidePosition();
+        this.scheduleNextSlide();
+    }
+
+    previousSlide() {
+        if (this.slides.length === 0) return;
+        
+        this.currentSlideIndex = this.currentSlideIndex === 0 ? this.slides.length - 1 : this.currentSlideIndex - 1;
+        this.updateSlidePosition();
+        this.onManualInteraction();
+    }
+
+    updateSlidePosition() {
+        const track = document.querySelector('.slideshow-track');
+        if (!track) return;
+        
+        const translateX = -this.currentSlideIndex * 100;
+        track.style.transform = `translateX(${translateX}%)`;
+        
+        console.log(`Switched to slide ${this.currentSlideIndex + 1}/${this.slides.length}`);
+    }
+
+    setupTouchEvents() {
+        const container = document.getElementById('slideshow-container');
+        if (!container) return;
+        
+        // Mouse events
+        container.addEventListener('mousedown', this.handleStart.bind(this));
+        container.addEventListener('mousemove', this.handleMove.bind(this));
+        container.addEventListener('mouseup', this.handleEnd.bind(this));
+        container.addEventListener('mouseleave', this.handleEnd.bind(this));
+        
+        // Touch events
+        container.addEventListener('touchstart', this.handleStart.bind(this), { passive: false });
+        container.addEventListener('touchmove', this.handleMove.bind(this), { passive: false });
+        container.addEventListener('touchend', this.handleEnd.bind(this));
+        
+        // Click events
+        container.addEventListener('click', this.handleClick.bind(this));
+    }
+
+    handleStart(e) {
+        e.preventDefault();
+        this.isDragging = true;
+        
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        this.startX = clientX;
+        this.startY = clientY;
+        this.currentX = clientX;
+        
+        const track = document.querySelector('.slideshow-track');
+        if (track) {
+            const transform = window.getComputedStyle(track).transform;
+            const matrix = new DOMMatrix(transform);
+            this.initialTransform = matrix.m41;
+        }
+        
+        document.querySelector('.slideshow-container')?.classList.add('dragging');
+    }
+
+    handleMove(e) {
+        if (!this.isDragging) return;
+        e.preventDefault();
+        
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        this.currentX = clientX;
+        
+        const deltaX = this.currentX - this.startX;
+        const track = document.querySelector('.slideshow-track');
+        
+        if (track) {
+            const newTransform = this.initialTransform + deltaX;
+            track.style.transform = `translateX(${newTransform}px)`;
+        }
+    }
+
+    handleEnd(e) {
+        if (!this.isDragging) return;
+        
+        this.isDragging = false;
+        const deltaX = this.currentX - this.startX;
+        const container = document.querySelector('.slideshow-container');
+        
+        container?.classList.remove('dragging');
+        container?.classList.add('transitioning');
+        
+        // Determine if swipe threshold was met
+        if (Math.abs(deltaX) > this.threshold) {
+            if (deltaX > 0) {
+                this.previousSlide();
+            } else {
+                this.nextSlide();
+            }
+            this.onManualInteraction();
+        } else {
+            // Snap back to current slide
+            this.updateSlidePosition();
+        }
+        
+        setTimeout(() => {
+            container?.classList.remove('transitioning');
+        }, 300);
+    }
+
+    handleClick(e) {
+        // Click to advance (if not dragging)
+        if (Math.abs(this.currentX - this.startX) < 10) {
+            this.nextSlide();
+            this.onManualInteraction();
+        }
+    }
+
+    handleResize() {
+        this.monitorIsLandscape = window.innerWidth > window.innerHeight;
+        console.log(`Monitor orientation changed: ${this.monitorIsLandscape ? 'landscape' : 'portrait'}`);
+        
+        // Reprocess slides if needed
+        if (this.annunci.length > 0) {
+            this.processAnnunciForSlideshow().then(() => {
+                this.renderSlideshow();
+                this.currentSlideIndex = 0;
+                this.updateSlidePosition();
             });
         }
+    }
+
+    onManualInteraction() {
+        this.isManualMode = true;
+        
+        // Clear existing timeout
+        if (this.manualInteractionTimeout) {
+            clearTimeout(this.manualInteractionTimeout);
+        }
+        
+        // Reset to auto mode after 30 seconds of no interaction
+        this.manualInteractionTimeout = setTimeout(() => {
+            this.isManualMode = false;
+            console.log('Returning to auto-advance mode');
+        }, 30000);
+        
+        console.log('Manual interaction - timing doubled for next slides');
     }
 
     startPolling() {
         this.pollingInterval = setInterval(() => {
             this.loadAnnunci();
-        }, this.config.pollingInterval || 30000); // 30 seconds for città multi
+        }, this.config.pollingInterval || 60000); // 60 seconds for slideshow
     }
 
     stopPolling() {
@@ -703,62 +985,39 @@ class CittaMultiLayout {
         }
     }
 
-    startAutoScroll() {
-        if (!this.autoScrollEnabled || this.annunci.length <= 3) return;
-        
-        const container = document.getElementById('annunci-container');
-        if (!container) return;
-        
-        this.scrollInterval = setInterval(() => {
-            const scrollHeight = container.scrollHeight;
-            const clientHeight = container.clientHeight;
-            const scrollTop = container.scrollTop;
-            
-            if (scrollTop + clientHeight >= scrollHeight - 10) {
-                // Reached bottom, scroll back to top
-                container.scrollTo({ top: 0, behavior: 'smooth' });
-            } else {
-                // Scroll down by one card height
-                const cardHeight = container.querySelector('.annuncio-card')?.offsetHeight || 100;
-                container.scrollBy({ top: cardHeight + 20, behavior: 'smooth' });
-            }
-        }, 5000); // Scroll every 5 seconds
-    }
-
-    stopAutoScroll() {
-        if (this.scrollInterval) {
-            clearInterval(this.scrollInterval);
-            this.scrollInterval = null;
-        }
-    }
-
     pauseLayout() {
         this.stopPolling();
-        this.stopAutoScroll();
+        this.stopSlideshow();
     }
 
     resumeLayout() {
         this.startPolling();
-        this.startAutoScroll();
+        this.startSlideshow();
     }
 
     destroy() {
         this.stopPolling();
-        this.stopAutoScroll();
+        this.stopSlideshow();
+        if (this.manualInteractionTimeout) {
+            clearTimeout(this.manualInteractionTimeout);
+        }
     }
 }
+
+// Pass PHP constant to JavaScript
+window.MONITOR_CITTA_SHOW_TEXT_FALLBACK = <?php echo defined('MONITOR_CITTA_SHOW_TEXT_FALLBACK') ? (MONITOR_CITTA_SHOW_TEXT_FALLBACK ? 'true' : 'false') : 'true'; ?>;
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     if (window.MonitorData && window.MonitorData.layoutType === 'citta_multi') {
-        window.cittaMultiLayout = new CittaMultiLayout();
+        window.cittaMultiSlideshowLayout = new CittaMultiSlideshowLayout();
     }
 });
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', function() {
-    if (window.cittaMultiLayout) {
-        window.cittaMultiLayout.destroy();
+    if (window.cittaMultiSlideshowLayout) {
+        window.cittaMultiSlideshowLayout.destroy();
     }
 });
 </script>

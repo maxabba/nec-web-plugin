@@ -108,12 +108,14 @@ $active_menu = 'add-annuncio';
 
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
-                            <?php if ($post_id !== 'new_post' and !isset($_GET['redirect_to'])) {
-                                echo $form;
-                            } ?>
                             <?php
                             // Check if the user is logged in
                         if (is_user_logged_in()) {
+                            // Show inline post state control for existing posts (but not for redirect_to flow)
+                            if ($post_id !== 'new_post' and !isset($_GET['redirect_to'])) {
+                                echo $template_class->render_post_state_inline_control($post_id);
+                            }
+                            
                             // Parameters for the ACF form
 
                             function set_annuncio_di_morte_field($field)
@@ -193,6 +195,10 @@ $active_menu = 'add-annuncio';
                             add_filter('acf/prepare_field/key=field_6669ea01b516d', 'set_manifesto_field');
 
 
+                            // Generate hidden field for post status control
+                            $current_status = ($post_id !== 'new_post') ? get_post_status($post_id) : 'draft';
+                            $hidden_field_html = '<input type="hidden" id="acf_post_status_control" name="acf_post_status_control" value="' . esc_attr($current_status) . '" data-original="' . esc_attr($current_status) . '">';
+                            
                             $form_args = array(
                                 'post_id' => $post_id,
                                 'new_post' => array(
@@ -202,6 +208,7 @@ $active_menu = 'add-annuncio';
                                 'field_groups' => array('group_6666bf01a488b'),
                                 'submit_value' => __($add_edit_text, 'Dokan-mod'),
                                 'return' => $redirect_to,
+                                'html_after_fields' => $hidden_field_html,
                             );
 
                             acf_form($form_args);

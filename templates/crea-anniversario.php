@@ -105,40 +105,46 @@ $active_menu = 'add-annuncio';
 
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
-                            <?php if ($post_id !== 'new_post') {
-                                echo $form;
-                            } ?>
                             <?php
                             // Check if the user is logged in
                             if (is_user_logged_in()) {
+                                // Show inline post state control for existing posts
+                                if ($post_id !== 'new_post') {
+                                    echo $template_class->render_post_state_inline_control($post_id);
+                                }
+                                
                                 // Parameters for the ACF form
-                                if ($post_id === 'new_post') {
-                                    function set_annuncio_di_morte_field($field)
-                                    {
+                                function set_annuncio_di_morte_field($field)
+                                {
+                                    // Check if it's our post type
+                                    if ($field['key'] == 'field_665ec95bc65ad') {
+                                        $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_annuncio']) : 'new_post';
 
-                                        // Check if it's our post type
-                                        if ($field['key'] == 'field_665ec95bc65ad') {
-                                            $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_annuncio']) : 'new_post';
+                                        $field['value'] = $post_id_annuncio;
+                                        $field['readonly'] = true;
+                                        $field['wrapper']['style'] = 'display: none;';
 
-                                            $field['value'] = $post_id_annuncio;
-                                            $field['readonly'] = true;
-                                            $field['wrapper']['style'] = 'display: none;';
-
-                                        }
-                                        if ($field['key'] == 'field_665ec9c7037b2') {
+                                    }
+                                    if ($field['key'] == 'field_665ec9c7037b2') {
+                                        // Only set n_anniversario for new posts
+                                        $current_post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
+                                        if ($current_post_id === 'new_post') {
                                             $n_anniversario = isset($_GET['n_anniversario']) ? intval($_GET['n_anniversario']) : 1;
                                             $field['value'] = $n_anniversario;
                                         }
-
-                                        return $field;
                                     }
 
-
-                                    // Apply to fields named "annuncio_di_morte".
-                                    add_filter('acf/prepare_field/key=field_665ec95bc65ad', 'set_annuncio_di_morte_field');
-                                    add_filter('acf/prepare_field/key=field_665ec9c7037b2', 'set_annuncio_di_morte_field');
+                                    return $field;
                                 }
 
+                                // Apply to fields - always apply the filter
+                                add_filter('acf/prepare_field/key=field_665ec95bc65ad', 'set_annuncio_di_morte_field');
+                                add_filter('acf/prepare_field/key=field_665ec9c7037b2', 'set_annuncio_di_morte_field');
+
+                                // Generate hidden field for post status control
+                                $current_status = ($post_id !== 'new_post') ? get_post_status($post_id) : 'publish';
+                                $hidden_field_html = '<input type="hidden" id="acf_post_status_control" name="acf_post_status_control" value="' . esc_attr($current_status) . '" data-original="' . esc_attr($current_status) . '">';
+                                
                                 $form_args = array(
                                     'post_id' => $post_id,
                                     'new_post' => array(
@@ -148,6 +154,7 @@ $active_menu = 'add-annuncio';
                                     'field_groups' => array('group_665ec95bbe9ab'),
                                     'submit_value' => __($add_edit_text, 'Dokan-mod'),
                                     'return' => home_url('/dashboard/lista-anniversari/?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success'),
+                                    'html_after_fields' => $hidden_field_html,
                                 );
 
                                 acf_form($form_args);

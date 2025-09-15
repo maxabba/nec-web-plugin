@@ -319,10 +319,7 @@ $active_menu = 'settings/customize';
 
 
     </main>
-    <?php
-    // Common dashboard JavaScript for alerts fade effect
-    echo $template_helper->get_dashboard_common_scripts();
-    ?>
+
 
     <script>
         jQuery(document).ready(function ($) {

@@ -152,6 +152,25 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                     add_action('acf/save_post', 'annuncio_save_post', 20);
                     return;
                 }
+                
+                // Handle post status change from inline control
+                $inline_status = $_POST['acf_post_status_control'] ?? null;
+                if ($inline_status) {
+                    $new_status = sanitize_text_field($inline_status);
+                    
+                    if ($new_status === 'delete') {
+                        // Handle deletion with confirmation
+                        wp_delete_post($post_id, true);
+                        wp_redirect(add_query_arg('deleted', '1', home_url('/dashboard/lista-annunci')));
+                        exit;
+                    } elseif (in_array($new_status, ['draft', 'publish', 'pending'])) {
+                        // Update post status - this will override ACF field logic below
+                        wp_update_post([
+                            'ID' => $post_id, 
+                            'post_status' => $new_status
+                        ]);
+                    }
+                }
                 // Recupera i valori dei campi ACF
                 $nome = get_field('nome', $post_id);
                 $cognome = get_field('cognome', $post_id);

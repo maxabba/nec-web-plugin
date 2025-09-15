@@ -93,13 +93,19 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
 
                 $post_id = intval($_POST['post_id']);
 
-                // Update the post status
-                $post_data = array(
-                    'ID' => $post_id,
-                    'post_status' => $post_status,
-                );
-
-                wp_update_post($post_data);
+                // Fix: Handle delete properly
+                if ($post_status === 'delete') {
+                    wp_delete_post($post_id, true);
+                    wp_redirect(add_query_arg('deleted', '1', wp_get_referer()));
+                    exit;
+                } else {
+                    // Update the post status
+                    $post_data = array(
+                        'ID' => $post_id,
+                        'post_status' => $post_status,
+                    );
+                    wp_update_post($post_data);
+                }
             }
 
 
@@ -133,6 +139,119 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
             </div>
             <?php
             return ob_get_clean();
+        }
+
+        /**
+         * Renders an inline post status control for integration with ACF forms
+         * Provides a seamless user experience without duplicate forms
+         */
+        public function render_post_state_inline_control($post_id) {
+            if ($post_id === 'new_post') {
+                return '';
+            }
+            
+            $current_status = get_post_status($post_id);
+            $post_title = get_the_title($post_id);
+            
+            ob_start(); 
+            ?>
+            <div class="acf-field post-state-control" style="margin-bottom: 20px;">
+                <div class="acf-label">
+                    <label for="post_status_selector">Stato del Post:</label>
+                </div>
+                <div class="acf-input">
+                    <select id="post_status_selector" class="acf-input" style="width: 100%;">
+                        <option value="draft" <?php selected($current_status, 'draft'); ?>>📝 Bozza</option>
+                        <option value="publish" <?php selected($current_status, 'publish'); ?>>✅ Pubblicato</option>
+                        <option value="pending" <?php selected($current_status, 'pending'); ?>>⏳ In Revisione</option>
+                        <option value="delete" style="color: #d63384;">🗑️ Elimina</option>
+                    </select>
+                    <p class="description">Seleziona lo stato desiderato per questo post.</p>
+                </div>
+            </div>
+            
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const selector = document.getElementById('post_status_selector');
+                const hiddenField = document.getElementById('acf_post_status_control');
+                
+                if (selector && hiddenField) {
+                    selector.addEventListener('change', function() {
+                        const value = this.value;
+                        
+                        if (value === 'delete') {
+                            const postTitle = '<?php echo esc_js($post_title); ?>';
+                            if (!confirm('⚠️ Sei sicuro di voler eliminare "' + postTitle + '"?\n\nQuesta azione è irreversibile e potrebbe influenzare altri contenuti collegati.')) {
+                                this.value = hiddenField.getAttribute('data-original');
+                                return;
+                            }
+                        }
+                        
+                        hiddenField.value = value;
+                        
+                        // Visual feedback for different states
+                        selector.style.borderColor = value === 'delete' ? '#d63384' : 
+                                                   value === 'publish' ? '#28a745' : 
+                                                   value === 'pending' ? '#ffc107' : '#6c757d';
+                    });
+                    
+                    // Set initial border color
+                    const initialValue = selector.value;
+                    selector.style.borderColor = initialValue === 'publish' ? '#28a745' : 
+                                                initialValue === 'pending' ? '#ffc107' : '#6c757d';
+                }
+            });
+            </script>
+            
+            <style>
+            .post-state-control .acf-label {
+                margin-bottom: 5px;
+            }
+            .post-state-control .acf-input select {
+                padding: 8px 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                transition: border-color 0.3s ease;
+            }
+            .post-state-control .acf-input select:focus {
+                outline: none;
+                border-color: #007cba;
+                box-shadow: 0 0 0 1px #007cba;
+            }
+            .post-state-control .description {
+                margin-top: 5px;
+                font-size: 12px;
+                color: #666;
+                font-style: italic;
+            }
+            </style>
+            <?php 
+            return ob_get_clean();
+        }
+
+        /**
+         * Returns formatted post status with icon and color
+         * @param string $status The post status
+         * @return string HTML formatted status
+         */
+        public function get_formatted_post_status($status) {
+            $statuses = [
+                'publish' => ['icon' => '✅', 'label' => 'Pubblicato', 'color' => '#28a745'],
+                'draft' => ['icon' => '📝', 'label' => 'Bozza', 'color' => '#6c757d'],
+                'pending' => ['icon' => '⏳', 'label' => 'In Revisione', 'color' => '#ffc107'],
+                'future' => ['icon' => '🕐', 'label' => 'Programmato', 'color' => '#17a2b8'],
+                'private' => ['icon' => '🔒', 'label' => 'Privato', 'color' => '#6f42c1'],
+                'trash' => ['icon' => '🗑️', 'label' => 'Cestino', 'color' => '#dc3545']
+            ];
+            
+            $status_info = $statuses[$status] ?? ['icon' => '❓', 'label' => ucfirst($status), 'color' => '#6c757d'];
+            
+            return sprintf(
+                '<span style="color: %s; font-weight: 500;">%s %s</span>',
+                esc_attr($status_info['color']),
+                $status_info['icon'],
+                esc_html($status_info['label'])
+            );
         }
 
         /**

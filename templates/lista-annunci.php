@@ -120,6 +120,13 @@ $active_menu = 'annunci/lista-annunci';
                                 echo '<div class="alert alert-danger">Si è verificato un errore durante l\'operazione.</div>';
                             }
                         }
+                        
+                        // Show success message for deletion
+                        if (isset($_GET['deleted'])) {
+                            echo '<div class="alert alert-success">🗑️ Elemento eliminato con successo.</div>';
+                        }
+                        
+                        $template_class = new \Dokan_Mods\Templates_MiscClass();
                         ?>
                     </header>
 
@@ -136,11 +143,13 @@ $active_menu = 'annunci/lista-annunci';
                                        placeholder="Search..." style="margin-right: 10px;">
                                 <input type="submit" value="Search">
                             </form>
-                            <table>
+                            <div class="table-responsive">
+                                <table>
                                 <thead>
                                 <tr>
                                     <th><?php _e('Titolo', 'dokan-mod'); ?></th>
                                     <th><?php _e('Data publicazione', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Stato', 'dokan-mod'); ?></th>
                                     <th><?php _e('Città', 'dokan-mod'); ?></th>
                                     <th><?php _e('Azioni', 'dokan-mod'); ?></th>
                                     <th><?php _e('Partecipazioni', 'dokan-mod'); ?></th>
@@ -166,6 +175,7 @@ $active_menu = 'annunci/lista-annunci';
                                         <tr>
                                             <td><?php the_title(); ?></td>
                                             <td><?php the_date(); ?></td>
+                                            <td><?php echo $template_class->get_formatted_post_status(get_post_status()); ?></td>
                                             <td><?php echo get_post_meta(get_the_ID(), 'citta', true); ?></td>
                                             <td>
                                                 <?php if ($modify_post_url_disabled): ?>
@@ -207,7 +217,7 @@ $active_menu = 'annunci/lista-annunci';
                                 else :
                                     ?>
                                     <tr>
-                                        <td colspan="9"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
+                                        <td colspan="10"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
                                     </tr>
                                 <?php
                                 endif;
@@ -215,6 +225,7 @@ $active_menu = 'annunci/lista-annunci';
                                 ?>
                                 </tbody>
                             </table>
+                            </div>
 
                             <div class="pagination">
                                 <div class="tablenav-pages">
@@ -417,6 +428,27 @@ $active_menu = 'annunci/lista-annunci';
         form input[type="text"] {
             flex-grow: 1;
             margin-right: 10px;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table-responsive table {
+            min-width: 1200px;
+            white-space: nowrap;
+        }
+
+        .table-responsive th,
+        .table-responsive td {
+            padding: 8px 12px;
+            min-width: 100px;
+        }
+
+        .table-responsive th:first-child,
+        .table-responsive td:first-child {
+            min-width: 150px;
         }
     </style>
 

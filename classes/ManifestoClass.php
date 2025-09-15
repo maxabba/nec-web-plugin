@@ -520,6 +520,27 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 return;
             }
 
+            // Handle post status change from inline control (maintaining WooCommerce logic)
+            $inline_status = $_POST['acf_post_status_control'] ?? null;
+            
+            if ($inline_status) {
+                $new_status = sanitize_text_field($inline_status);
+                
+                if ($new_status === 'delete') {
+                    // Use existing delete logic which handles WooCommerce orders
+                    $this->delete_manifesto_post($post_id);
+                    wp_delete_post($post_id, true);
+                    wp_redirect(add_query_arg('deleted', '1', home_url('/dashboard/lista-manifesti')));
+                    exit;
+                } elseif (in_array($new_status, ['draft', 'publish', 'pending'])) {
+                    // Update post status - existing transition_post_status hook will handle WooCommerce logic
+                    wp_update_post([
+                        'ID' => $post_id, 
+                        'post_status' => $new_status
+                    ]);
+                }
+            }
+
             // Get vendor city from Dokan store info
             $vendor_id = get_post_field('post_author', $post_id);
             $store_info = dokan_get_store_info($vendor_id);

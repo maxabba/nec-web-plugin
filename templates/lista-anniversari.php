@@ -29,6 +29,7 @@ if (get_query_var('paged')) {
 
 $highest_anniversario_query = new WP_Query(array(
     'post_type' => 'anniversario',
+    'post_status' => array('publish', 'draft', 'pending', 'private'),
     'author' => $user_id,
     'posts_per_page' => 1,
     'meta_key' => 'anniversario_n_anniversario',
@@ -47,6 +48,7 @@ $url = home_url('dashboard/crea-anniversario?post_id_annuncio=' . $post_id_annun
 
 $args = array(
     'post_type' => 'anniversario',
+    'post_status' => array('publish', 'draft', 'pending', 'private'),
     'author' => $user_id,
     'posts_per_page' => 10, // Change this to the number of posts you want per page
     'paged' => $paged,
@@ -123,6 +125,13 @@ $active_menu = '';
                                 echo '<div class="alert alert-danger">Si è verificato un errore durante l\'operazione.</div>';
                             }
                         }
+                        
+                        // Show success message for deletion
+                        if (isset($_GET['deleted'])) {
+                            echo '<div class="alert alert-success">🗑️ Elemento eliminato con successo.</div>';
+                        }
+                        
+                        $template_class = new Templates_MiscClass();
                         ?>
                     </header>
 
@@ -139,12 +148,14 @@ $active_menu = '';
                                        placeholder="Search..." style="margin-right: 10px;">
                                 <input type="submit" value="Search">
                             </form>
-                            <table>
+                            <div class="table-responsive">
+                                <table>
                                 <thead>
                                 <tr>
                                     <th><?php _e('Anniversario', 'dokan-mod'); ?></th>
                                     <th><?php _e('Titolo', 'dokan-mod'); ?></th>
                                     <th><?php _e('Data publicazione', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Stato', 'dokan-mod'); ?></th>
                                     <th><?php _e('Città', 'dokan-mod'); ?></th>
                                     <th><?php _e('Azioni', 'dokan-mod'); ?></th>
                                 </tr>
@@ -160,6 +171,7 @@ $active_menu = '';
                                             <td><?php echo get_field('anniversario_n_anniversario'); ?></td>
                                             <td><?php the_title(); ?></td>
                                             <td><?php the_date(); ?></td>
+                                            <td><?php echo $template_class->get_formatted_post_status(get_post_status()); ?></td>
                                             <td><?php echo get_post_meta(get_the_ID(), 'citta', true); ?></td>
                                             <td>
                                                 <a href="<?php echo home_url('/dashboard/crea-anniversario?post_id=' . get_the_ID() . '&post_id_annuncio=' . $post_id_annuncio); ?>"><?php _e('Modifica', 'dokan-mod'); ?></a>
@@ -170,7 +182,7 @@ $active_menu = '';
                                 else :
                                     ?>
                                     <tr>
-                                        <td colspan="5"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
+                                        <td colspan="6"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
                                     </tr>
                                 <?php
                                 endif;
@@ -178,6 +190,7 @@ $active_menu = '';
                                 ?>
                                 </tbody>
                             </table>
+                            </div>
 
                             <div class="pagination">
                                 <div class="tablenav-pages">
@@ -357,6 +370,22 @@ $active_menu = '';
         form input[type="text"] {
             flex-grow: 1;
             margin-right: 10px;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table-responsive table {
+            min-width: 800px;
+            white-space: nowrap;
+        }
+
+        .table-responsive th,
+        .table-responsive td {
+            padding: 8px 12px;
+            min-width: 100px;
         }
     </style>
 

@@ -11,7 +11,6 @@ $user_id = get_current_user_id();
 $store_info = dokan_get_store_info($user_id);
 $user_city = $store_info['address']['city'] ?? '';
 $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
-$form = $template_class->schedule_post_and_update_status($post_id);
 
 //check if the current user is the autor of the post
 if ($post_id !== 'new_post') {
@@ -89,6 +88,11 @@ $active_menu = 'annunci/crea-annuncio';
                                 echo '<div class="alert alert-danger">Si è verificato un errore durante l\'operazione.</div>';
                             }
                         }
+                        
+                        // Show success message for deletion
+                        if (isset($_GET['deleted'])) {
+                            echo '<div class="alert alert-success">🗑️ Elemento eliminato con successo.</div>';
+                        }
                         ?>
                     </header>
 
@@ -100,7 +104,6 @@ $active_menu = 'annunci/crea-annuncio';
                             <?php
                             // Check if the user is logged in
                             if (is_user_logged_in()) {
-
 
                                 function acf_load_post_date_field($field)
                                 {

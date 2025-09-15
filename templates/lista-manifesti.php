@@ -105,6 +105,13 @@ $active_menu = '';
                                 echo '<div class="alert alert-danger">Si è verificato un errore durante l\'operazione.</div>';
                             }
                         }
+                        
+                        // Show success message for deletion
+                        if (isset($_GET['deleted'])) {
+                            echo '<div class="alert alert-success">🗑️ Elemento eliminato con successo.</div>';
+                        }
+                        
+                        $template_class = new Templates_MiscClass();
                         ?>
                     </header>
 
@@ -140,11 +147,13 @@ $active_menu = '';
                                        placeholder="Search..." style="margin-right: 10px;">
                                 <input type="submit" value="Search">
                             </form>
-                            <table>
+                            <div class="table-responsive">
+                                <table>
                                 <thead>
                                 <tr>
                                     <th><?php _e('Testo', 'dokan-mod'); ?></th>
                                     <th><?php _e('Data publicazione', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Stato', 'dokan-mod'); ?></th>
                                     <th><?php _e('Città', 'dokan-mod'); ?></th>
                                     <th><?php _e('Azioni', 'dokan-mod'); ?></th>
                                 </tr>
@@ -157,8 +166,18 @@ $active_menu = '';
                                     while ($query->have_posts()) : $query->the_post();
                                         ?>
                                         <tr>
-                                            <td><?php echo wp_strip_all_tags(get_field('testo_manifesto')); ?></td>
+                                            <td><?php 
+                                                $testo = wp_strip_all_tags(get_field('testo_manifesto'));
+                                                $words = explode(' ', $testo);
+                                                if (count($words) > 5) {
+                                                    $testo_troncato = implode(' ', array_slice($words, 0, 5)) . '...';
+                                                } else {
+                                                    $testo_troncato = $testo;
+                                                }
+                                                echo $testo_troncato;
+                                            ?></td>
                                             <td><?php the_date(); ?></td>
+                                            <td><?php echo $template_class->get_formatted_post_status(get_post_status()); ?></td>
                                             <td><?php echo get_post_meta(get_the_ID(), 'citta', true); ?></td>
                                             <td>
                                                 <a href="<?php echo home_url('/dashboard/crea-manifesto?post_id=' . get_the_ID() . '&post_id_annuncio=' . $post_id_annuncio); ?>"><?php _e('Modifica', 'dokan-mod'); ?></a>
@@ -169,7 +188,7 @@ $active_menu = '';
                                 else :
                                     ?>
                                     <tr>
-                                        <td colspan="4"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
+                                        <td colspan="5"><?php _e('Nessun post trovato.', 'dokan-mod'); ?></td>
                                     </tr>
                                 <?php
                                 endif;
@@ -177,6 +196,7 @@ $active_menu = '';
                                 ?>
                                 </tbody>
                             </table>
+                            </div>
 
                             <div class="pagination">
                                 <div class="tablenav-pages">
@@ -356,6 +376,22 @@ $active_menu = '';
         form input[type="text"] {
             flex-grow: 1;
             margin-right: 10px;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table-responsive table {
+            min-width: 700px;
+            white-space: nowrap;
+        }
+
+        .table-responsive th,
+        .table-responsive td {
+            padding: 8px 12px;
+            min-width: 100px;
         }
     </style>
 
