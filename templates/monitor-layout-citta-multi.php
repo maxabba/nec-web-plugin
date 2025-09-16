@@ -129,17 +129,40 @@ $vendor_data = $monitor_data['vendor_data'];
     left: 0;
     width: 100%;
     height: 100%;
-    opacity: 0;
-    transition: opacity 1s linear; /* Linear per transizione costante */
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--monitor-bg-primary, rgb(55, 55, 55));
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    perspective: 1000px;
+    -webkit-perspective: 1000px;
 }
 
 .citta-slide.active {
-    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    z-index: 2;
+}
+
+.citta-slide.prev {
+    transform: translate3d(-100%, 0, 0);
     z-index: 1;
+}
+
+.citta-slide.next {
+    transform: translate3d(100%, 0, 0);
+    z-index: 1;
+}
+
+.citta-slide.dragging {
+    transition: none !important;
+}
+
+.citta-slide.no-transition {
+    transition: none !important;
 }
 
 /* Image Layout Containers */
@@ -207,7 +230,6 @@ $vendor_data = $monitor_data['vendor_data'];
     /* Monitor orizzontale: immagini orizzontali usano min-height */
     .citta-image.horizontal-image {
         min-height: 85vh;
-        width: 100%;
     }
 }
 
@@ -263,7 +285,7 @@ $vendor_data = $monitor_data['vendor_data'];
     /* Monitor verticale: immagini orizzontali in coppia - limita la larghezza */  
     .double-image-layout .citta-image.horizontal-image {
         min-width: 45vw !important; /* Ridotto da 95vw per stare in 2 */
-        max-width: calc(50% - 10px) !important;
+        max-width: calc(90% - 10px) !important;
     }
     
     /* Monitor verticale: immagini verticali in coppia - mantieni altezza ridotta */
@@ -324,13 +346,15 @@ class CittaMultiSlideshow {
         this.resumeTimeout = null;
         this.config = window.MonitorData || {};
         
-        // Touch handling properties
+        // Touch/drag handling properties
         this.startX = 0;
         this.startY = 0;
+        this.currentX = 0;
         this.endX = 0;
         this.endY = 0;
+        this.startTime = 0;
         this.minSwipeDistance = 50;
-        this.isTouch = false;
+        this.isDragging = false;
         
         this.init();
     }
@@ -551,7 +575,14 @@ class CittaMultiSlideshow {
 
         this.slides.forEach((slide, index) => {
             const slideElement = document.createElement('div');
-            slideElement.className = `citta-slide ${index === 0 ? 'active' : ''}`;
+            // Set initial positions - current is active, others are next
+            if (index === 0) {
+                slideElement.className = 'citta-slide active';
+            } else if (index === this.slides.length - 1) {
+                slideElement.className = 'citta-slide prev';
+            } else {
+                slideElement.className = 'citta-slide next';
+            }
             
             if (slide.type === 'single') {
                 const imageClass = `citta-image ${slide.images[0].isHorizontal ? 'horizontal-image' : 'vertical-image'}`;
@@ -625,27 +656,48 @@ class CittaMultiSlideshow {
     nextSlide() {
         if (this.slides.length <= 1) return;
 
-        const currentSlide = this.container.children[this.currentSlideIndex];
-        currentSlide.classList.remove('active');
-
+        // Update index first
         this.currentSlideIndex = (this.currentSlideIndex + 1) % this.slides.length;
-
-        const nextSlide = this.container.children[this.currentSlideIndex];
-        nextSlide.classList.add('active');
+        this.updateSlideClasses();
     }
 
     previousSlide() {
         if (this.slides.length <= 1) return;
 
-        const currentSlide = this.container.children[this.currentSlideIndex];
-        currentSlide.classList.remove('active');
-
+        // Update index first
         this.currentSlideIndex = this.currentSlideIndex === 0 ? 
             this.slides.length - 1 : 
             this.currentSlideIndex - 1;
-
-        const prevSlide = this.container.children[this.currentSlideIndex];
-        prevSlide.classList.add('active');
+        this.updateSlideClasses();
+    }
+    
+    updateSlideClasses() {
+        const slides = Array.from(this.container.children);
+        const totalSlides = this.slides.length;
+        
+        slides.forEach((slide, index) => {
+            slide.classList.remove('active', 'prev', 'next');
+            
+            if (index === this.currentSlideIndex) {
+                // Current slide is active
+                slide.classList.add('active');
+            } else {
+                // Calculate relative position
+                const prevIndex = (this.currentSlideIndex - 1 + totalSlides) % totalSlides;
+                const nextIndex = (this.currentSlideIndex + 1) % totalSlides;
+                
+                if (index === prevIndex) {
+                    // Previous slide
+                    slide.classList.add('prev');
+                } else if (index === nextIndex || totalSlides === 2) {
+                    // Next slide (or opposite slide if only 2 slides)
+                    slide.classList.add('next');
+                } else {
+                    // All other slides go to the right
+                    slide.classList.add('next');
+                }
+            }
+        });
     }
 
     setupTouchControls() {
@@ -653,70 +705,213 @@ class CittaMultiSlideshow {
 
         // Touch events
         this.container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: true });
+        this.container.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
         this.container.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: true });
         
         // Mouse events for desktop testing
         this.container.addEventListener('mousedown', (e) => this.handleMouseStart(e));
+        this.container.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.container.addEventListener('mouseup', (e) => this.handleMouseEnd(e));
         
         // Prevent context menu on long press
         this.container.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        // Handle mouse leave
+        this.container.addEventListener('mouseleave', () => {
+            if (this.isDragging) {
+                this.isDragging = false;
+                // Remove dragging class from all slides
+                const slides = this.container.querySelectorAll('.citta-slide');
+                slides.forEach(slide => slide.classList.remove('dragging'));
+                // Snap back to current slide
+                this.snapToCurrentSlide();
+            }
+        });
     }
 
     handleTouchStart(e) {
-        this.isTouch = true;
+        this.isDragging = true;
         this.startX = e.touches[0].clientX;
         this.startY = e.touches[0].clientY;
+        this.currentX = this.startX;
+        this.startTime = Date.now();
+        
+        // Add dragging class to disable transitions
+        const slides = this.container.querySelectorAll('.citta-slide');
+        slides.forEach(slide => slide.classList.add('dragging'));
         
         // Pause auto slideshow during touch
         this.pauseSlideshow();
     }
 
-    handleTouchEnd(e) {
-        if (!this.isTouch) return;
+    handleTouchMove(e) {
+        if (!this.isDragging) return;
         
+        this.currentX = e.touches[0].clientX;
+        const currentY = e.touches[0].clientY;
+        const deltaX = this.currentX - this.startX;
+        const deltaY = Math.abs(currentY - this.startY);
+        
+        // Determine if this is primarily a horizontal swipe
+        if (Math.abs(deltaX) > 5) { // Lower threshold for more responsive detection
+            // Only prevent default if horizontal movement is dominant
+            if (Math.abs(deltaX) > deltaY * 1.5) {
+                e.preventDefault();
+            }
+            // Always update positions if there's horizontal movement
+            this.updateSlidePositions(deltaX);
+        }
+    }
+
+    handleTouchEnd(e) {
+        if (!this.isDragging) return;
+        
+        this.isDragging = false;
         this.endX = e.changedTouches[0].clientX;
         this.endY = e.changedTouches[0].clientY;
         
+        // Remove dragging class to enable transitions
+        const slides = this.container.querySelectorAll('.citta-slide');
+        slides.forEach(slide => slide.classList.remove('dragging'));
+        
         this.handleSwipe();
-        this.isTouch = false;
         
         // Resume auto slideshow after touch
         this.resumeSlideshow();
     }
 
     handleMouseStart(e) {
-        this.isTouch = true;
+        this.isDragging = true;
         this.startX = e.clientX;
         this.startY = e.clientY;
+        this.currentX = this.startX;
+        this.startTime = Date.now();
+        
+        // Add dragging class
+        const slides = this.container.querySelectorAll('.citta-slide');
+        slides.forEach(slide => slide.classList.add('dragging'));
+        
         this.pauseSlideshow();
     }
 
-    handleMouseEnd(e) {
-        if (!this.isTouch) return;
+    handleMouseMove(e) {
+        if (!this.isDragging) return;
         
+        this.currentX = e.clientX;
+        const currentY = e.clientY;
+        const deltaX = this.currentX - this.startX;
+        const deltaY = Math.abs(currentY - this.startY);
+        
+        // Lower threshold and more responsive detection
+        if (Math.abs(deltaX) > 5) {
+            if (Math.abs(deltaX) > deltaY * 1.5) {
+                e.preventDefault();
+            }
+            this.updateSlidePositions(deltaX);
+        }
+    }
+
+    handleMouseEnd(e) {
+        if (!this.isDragging) return;
+        
+        this.isDragging = false;
         this.endX = e.clientX;
         this.endY = e.clientY;
         
+        // Remove dragging class
+        const slides = this.container.querySelectorAll('.citta-slide');
+        slides.forEach(slide => slide.classList.remove('dragging'));
+        
         this.handleSwipe();
-        this.isTouch = false;
         this.resumeSlideshow();
+    }
+
+    updateSlidePositions(deltaX) {
+        const slides = this.container.querySelectorAll('.citta-slide');
+        const containerWidth = this.container.offsetWidth;
+        const isLandscape = window.innerWidth > window.innerHeight;
+        
+        // Different thresholds for landscape vs portrait
+        const swipeThreshold = isLandscape 
+            ? containerWidth * 0.25  // 25% for landscape
+            : containerWidth * 0.15; // 15% for portrait
+        
+        // Calculate drag percentage with resistance after threshold
+        let dragPercentage = (deltaX / containerWidth) * 100;
+        
+        // Add resistance when approaching/exceeding threshold for visual feedback
+        if (Math.abs(deltaX) > swipeThreshold) {
+            const excess = Math.abs(deltaX) - swipeThreshold;
+            const resistance = 1 - (excess / containerWidth) * 0.5; // Gradually increase resistance
+            const resistedExcess = excess * Math.max(0.3, resistance);
+            const sign = deltaX > 0 ? 1 : -1;
+            const thresholdPercentage = (swipeThreshold / containerWidth) * 100;
+            dragPercentage = sign * (thresholdPercentage + (resistedExcess / containerWidth) * 100);
+        }
+        
+        // Apply positions to slides
+        slides.forEach((slide) => {
+            let basePosition = 0;
+            if (slide.classList.contains('active')) {
+                basePosition = 0;
+            } else if (slide.classList.contains('prev')) {
+                basePosition = -100;
+            } else if (slide.classList.contains('next')) {
+                basePosition = 100;
+            }
+            
+            const newPosition = basePosition + dragPercentage;
+            // Use translate3d for hardware acceleration
+            slide.style.transform = `translate3d(${newPosition}%, 0, 0)`;
+        });
+    }
+
+    snapToCurrentSlide() {
+        const slides = this.container.querySelectorAll('.citta-slide');
+        slides.forEach(slide => {
+            // Remove inline transform to restore CSS class positions
+            slide.style.transform = '';
+        });
     }
 
     handleSwipe() {
         const deltaX = this.endX - this.startX;
-        const deltaY = this.endY - this.startY;
+        const deltaY = Math.abs(this.endY - this.startY);
+        const containerWidth = this.container.offsetWidth;
+        const isLandscape = window.innerWidth > window.innerHeight;
         
-        // Check if horizontal swipe is dominant
-        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > this.minSwipeDistance) {
-            if (deltaX > 0) {
-                // Swipe right - previous slide
-                this.previousSlide();
-            } else {
-                // Swipe left - next slide
-                this.nextSlide();
+        // Different thresholds for landscape vs portrait
+        const swipeThreshold = isLandscape 
+            ? containerWidth * 0.25  // 25% for landscape (wider screens need more movement)
+            : containerWidth * 0.15; // 15% for portrait (narrower screens need less)
+        
+        const timeDiff = Date.now() - this.startTime;
+        const velocity = Math.abs(deltaX) / timeDiff; // pixels per millisecond
+        
+        // First, remove inline transforms to enable smooth CSS transition
+        this.snapToCurrentSlide();
+        
+        // Check if horizontal swipe is significant enough
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            // Consider both distance and velocity for natural swipe
+            const isQuickSwipe = velocity > 0.5 && Math.abs(deltaX) > 50; // Quick flick gesture
+            const isLongSwipe = Math.abs(deltaX) > swipeThreshold; // Long deliberate swipe
+            
+            if (isQuickSwipe || isLongSwipe) {
+                // Threshold exceeded - move to next/prev slide with smooth transition
+                setTimeout(() => {
+                    if (deltaX > 0) {
+                        // Swipe right - previous slide
+                        this.previousSlide();
+                    } else {
+                        // Swipe left - next slide
+                        this.nextSlide();
+                    }
+                }, 10); // Small delay to ensure snap has taken effect
             }
+            // If threshold not exceeded, we already snapped back to current slide
         }
+        // If vertical swipe, we already snapped back to current slide
     }
 
     pauseSlideshow() {
