@@ -112,7 +112,7 @@ $active_menu = 'add-annuncio';
                             // Check if the user is logged in
                         if (is_user_logged_in()) {
                             // Show inline post state control for existing posts (but not for redirect_to flow)
-                            if ($post_id !== 'new_post' and !isset($_GET['redirect_to'])) {
+                            if ( !isset($_GET['redirect_to'])) {
                                 echo $template_class->render_post_state_inline_control($post_id);
                             }
                             
@@ -349,7 +349,7 @@ $active_menu = 'add-annuncio';
                         backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
 
                         if (aspectRatio > 1) {
-                            backgroundDiv.style.width = '100%';
+                            backgroundDiv.style.width = '350px';
                             backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
                         } else {
                             backgroundDiv.style.height = '350px';

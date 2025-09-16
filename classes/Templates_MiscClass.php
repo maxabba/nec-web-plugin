@@ -146,9 +146,7 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
          * Provides a seamless user experience without duplicate forms
          */
         public function render_post_state_inline_control($post_id) {
-            if ($post_id === 'new_post') {
-                return '';
-            }
+
             
             $current_status = get_post_status($post_id);
             $post_title = get_the_title($post_id);

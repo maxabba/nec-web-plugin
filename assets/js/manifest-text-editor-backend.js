@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     if (aspectRatio > 1) {
                         // Landscape
-                        backgroundDiv.style.width = '100%';
+                        backgroundDiv.style.width = '400px';
                         backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
                     } else {
                         // Portrait

@@ -126,7 +126,7 @@ $active_menu = '';
 
                             <div style="display: flex; flex-direction: column; width: 300px; margin-bottom: 15px">
                                 <label for="page-format" style="margin-bottom: 5px;">Seleziona formato pagina:</label>
-                                <div style="display: flex; align-items: center;">
+                                <div style="display: flex; align-items: center; width: 100px;">
                                     <select id="page-format" style="flex: 1; margin-right: 10px;">
                                         <option value="A3">A3</option>
                                         <option value="A4">A4</option>
