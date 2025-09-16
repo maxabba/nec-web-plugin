@@ -208,6 +208,7 @@ class MonitorDisplay {
         try {
             console.log('Loading manifesti...', {
                 vendorId: this.config.vendorId,
+                monitorId: this.config.monitorId,
                 postId: this.config.postId,
                 ajaxUrl: this.config.ajaxUrl
             });
@@ -232,11 +233,14 @@ class MonitorDisplay {
                 this.lastUpdateTime = data.data.last_update;
                 
                 console.log('Loaded manifesti:', this.manifesti.length);
+                console.log('Manifesti data:', this.manifesti);
                 
                 if (this.manifesti.length > 0) {
+                    this.hideNoManifesti();
                     this.renderSlideshow();
                     this.startSlideshow();
                 } else {
+                    console.log('No manifesti found, showing no-manifesti screen');
                     this.showNoManifesti();
                 }
                 
@@ -364,73 +368,52 @@ class MonitorDisplay {
                 const aspectRatio = img.width / img.height;
                 backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
                 
-                // Get actual container dimensions to ensure fit
-                const containerElement = containerElem.parentElement;
-                const containerRect = containerElement.getBoundingClientRect();
-                const availableHeight = containerRect.height - 20; // Leave 20px margin
-                const availableWidth = containerRect.width - 20;   // Leave 20px margin
+                // Use the same logic as manifesto.js for consistent sizing
+                // Get available space from container
+                const containerWidth = backgroundDiv.parentElement.clientWidth || window.innerWidth * 0.8;
+                const containerHeight = backgroundDiv.parentElement.clientHeight || window.innerHeight * 0.75;
                 
+                // Calculate optimal dimensions that fit in container while respecting aspect ratio
                 let optimalWidth, optimalHeight;
                 
-                // Calculate dimensions that fit within actual container
-                if (aspectRatio > (availableWidth / availableHeight)) {
-                    // Image is wider - constrain by width
-                    optimalWidth = Math.min(availableWidth, availableWidth);
+                if (aspectRatio > (containerWidth / containerHeight)) {
+                    // Image is wider relative to container - constrain by width
+                    optimalWidth = containerWidth * 0.9; // Max reasonable size for monitor
                     optimalHeight = optimalWidth / aspectRatio;
                 } else {
-                    // Image is taller - constrain by height  
-                    optimalHeight = Math.min(availableHeight, availableHeight);
+                    // Image is taller relative to container - constrain by height
+                    optimalHeight = containerHeight * 0.9; // Max reasonable size for monitor
                     optimalWidth = optimalHeight * aspectRatio;
                 }
                 
-                // Double check that dimensions don't exceed container
-                if (optimalWidth > availableWidth) {
-                    optimalWidth = availableWidth;
-                    optimalHeight = optimalWidth / aspectRatio;
-                }
-                if (optimalHeight > availableHeight) {
-                    optimalHeight = availableHeight;
-                    optimalWidth = optimalHeight * aspectRatio;
-                }
-                
-                // Apply the calculated dimensions
+                // Apply the calculated dimensions like manifesto.js
                 backgroundDiv.style.width = optimalWidth + 'px';
                 backgroundDiv.style.height = optimalHeight + 'px';
-                backgroundDiv.style.margin = 'auto';
-                backgroundDiv.style.maxWidth = '100%';
-                backgroundDiv.style.maxHeight = '100%';
-                
-                // Use the actual dimensions for margin calculations
-                const actualHeight = optimalHeight;
-                const actualWidth = optimalWidth;
 
-                // Calculate margins in pixels based on percentages with safety limits
-                const marginTopPx = Math.min((parseFloat(data.margin_top) / 100) * actualHeight, actualHeight * 0.4);
-                const marginRightPx = Math.min((parseFloat(data.margin_right) / 100) * actualWidth, actualWidth * 0.4);
-                const marginBottomPx = Math.min((parseFloat(data.margin_bottom) / 100) * actualHeight, actualHeight * 0.4);
-                const marginLeftPx = Math.min((parseFloat(data.margin_left) / 100) * actualWidth, actualWidth * 0.4);
+                // Calculate margins exactly like manifesto.js using clientWidth/Height AFTER setting dimensions
+                const marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
+                const marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
+                const marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
+                const marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
 
-                // Apply padding to text editor
+                // Apply padding to text editor exactly like manifesto.js
                 textEditor.style.paddingTop = `${marginTopPx}px`;
                 textEditor.style.paddingRight = `${marginRightPx}px`;
                 textEditor.style.paddingBottom = `${marginBottomPx}px`;
                 textEditor.style.paddingLeft = `${marginLeftPx}px`;
-                textEditor.style.textAlign = data.alignment || 'center';
+                textEditor.style.textAlign = data.alignment || 'left';
                 
-                // Calculate font-size proportional to manifesto dimensions with small screen optimization
-                const isSmallScreen = window.innerWidth < 768 || window.innerHeight < 600;
-                const isVerySmallScreen = window.innerWidth < 480 || window.innerHeight < 400;
-                
+                // Calculate font-size proportional to background dimensions (responsive to monitor size)
+                const baseSize = Math.min(optimalWidth, optimalHeight);
                 let baseFontSize;
-                if (isVerySmallScreen) {
-                    // Very small screens - more aggressive scaling
-                    baseFontSize = Math.max(8, Math.min(optimalWidth * 0.025, optimalWidth * 0.04));
-                } else if (isSmallScreen) {
-                    // Small screens - reduced scaling
-                    baseFontSize = Math.max(10, Math.min(optimalWidth * 0.03, optimalWidth * 0.06));
+                
+                // Scale font size based on manifesto dimensions
+                if (baseSize < 300) {
+                    baseFontSize = Math.max(12, baseSize * 0.06);
+                } else if (baseSize < 450) {
+                    baseFontSize = Math.max(16, baseSize * 0.05);
                 } else {
-                    // Normal screens - original scaling
-                    baseFontSize = Math.max(14, Math.min(optimalWidth * 0.055, optimalWidth * 0.1));
+                    baseFontSize = Math.max(20, baseSize * 0.04);
                 }
                 
                 textEditor.style.fontSize = `${baseFontSize}px`;
@@ -687,7 +670,7 @@ class MonitorDisplay {
         this.slideInterval = setInterval(() => {
             if (this.isPlaying) {
                 // Automatic slideshow goes from right to left (previous slide)
-                this.previousSlide();
+                this.nextSlide();
             }
         }, this.slideTimeout);
     }
@@ -756,6 +739,12 @@ class MonitorDisplay {
         if (this.container) {
             this.container.style.display = 'none';
         }
+        
+        // Hide the header when no manifesti are available
+        const monitorHeader = document.querySelector('.monitor-header');
+        if (monitorHeader) {
+            monitorHeader.style.display = 'none';
+        }
     }
 
     hideNoManifesti() {
@@ -765,6 +754,12 @@ class MonitorDisplay {
         
         if (this.container) {
             this.container.style.display = 'block';
+        }
+        
+        // Show the header when manifesti are available
+        const monitorHeader = document.querySelector('.monitor-header');
+        if (monitorHeader) {
+            monitorHeader.style.display = 'flex';
         }
     }
 

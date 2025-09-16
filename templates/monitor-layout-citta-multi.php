@@ -1,7 +1,7 @@
 <?php
 /**
- * Monitor Layout: Città Multi-Agenzia  
- * Template per visualizzare annunci di morte della città con filtri configurabili
+ * Monitor Layout: Città Multi-Agenzia
+ * Template per visualizzare slideshow di immagini annuncio di morte con logiche responsive
  */
 
 if (!defined('ABSPATH')) {
@@ -15,9 +15,9 @@ $vendor_data = $monitor_data['vendor_data'];
 
 ?>
 
-<div class="monitor-citta-multi-slideshow" style="height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; z-index: 1000;">
+<div class="citta-multi-container" id="citta-multi-container">
     <!-- Loading state -->
-    <div id="citta-loading" class="loading-state" style="display: none;">
+    <div id="citta-loading" class="loading-state">
         <div class="loading-spinner"></div>
         <p>Caricamento annunci...</p>
     </div>
@@ -26,234 +26,44 @@ $vendor_data = $monitor_data['vendor_data'];
     <div id="citta-no-data" class="no-data-state" style="display: none;">
         <div class="no-data-icon">📋</div>
         <h3>Nessun annuncio disponibile</h3>
-        <p>Non ci sono annunci di morte per il periodo selezionato</p>
+        <p>Non ci sono annunci con immagine per il periodo selezionato</p>
     </div>
 
     <!-- Slideshow container -->
-    <div id="slideshow-container" class="slideshow-container" style="display: none; height: 100vh; width: 100vw;">
-        <!-- Slides populated via AJAX -->
+    <div id="slideshow-container" class="slideshow-container" style="display: none;">
+        <!-- Slides will be populated via AJAX and JavaScript -->
     </div>
 </div>
 
 <style>
-/* Layout Città Multi-Agenzia Styles - Specific to this layout only */
-
-html, body {
-    background: rgb(55, 55, 55) !important;
-    margin: 0;
-    padding: 0;
-    height: 100vh;
-    overflow: hidden;
-}
-
-.monitor-citta-multi {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background: rgb(55, 55, 55);
-    color: #ffffff;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    overflow: hidden;
-}
-
-/* Header Styles */
-.citta-multi-header {
-    height: 15vh;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 40px;
-    background: rgb(55, 55, 55);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.city-info {
-    display: flex;
-    align-items: center;
-    gap: 30px;
-}
-
-.city-icon {
-    font-size: 4rem;
-    opacity: 0.8;
-}
-
-.city-details h1 {
-    font-size: 2.5rem;
-    font-weight: 300;
-    margin: 0;
-    color: #ffffff;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.date-range {
-    font-size: 1.3rem;
-    color: rgba(255, 255, 255, 0.85);
-    margin-top: 8px;
-    font-weight: 300;
-}
-
-.header-stats {
-    display: flex;
-    gap: 30px;
-}
-
-.stat-item {
-    text-align: center;
-}
-
-.stat-number {
-    font-size: 2.5rem;
-    font-weight: bold;
-    line-height: 1;
-    color: #4CAF50;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.stat-label {
-    font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.7);
-    margin-top: 4px;
-}
-
-/* Main Content */
-.citta-multi-main {
-    height: 75vh;
-    position: relative;
-    overflow: hidden;
-    background: rgb(55, 55, 55);
-}
-
-/* Slideshow Container - come nei manifesti */
-.slideshow-container {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    overflow: hidden;
-}
-
-.slide {
-    position: absolute;
+/* Città Multi Layout Styles */
+.citta-multi-container {
+    position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    box-sizing: border-box;
-    opacity: 0;
-    transition: opacity 1s ease-in-out;
+    width: 100vw;
+    height: 100vh;
+    background: var(--monitor-bg-primary, rgb(55, 55, 55));
+    color: var(--monitor-text-primary, #ffffff);
+    overflow: hidden;
+    z-index: 1000;
 }
 
-.slide.active {
-    opacity: 1;
-}
-
-/* Single Image Slide */
-.slide.single-image {
-    justify-content: center;
-}
-
-.slide.single-image .slide-image {
-    width: 80vw;
-    height: 80vh;
-    object-fit: contain;
-    object-position: center;
-    border-radius: 8px;
-}
-
-/* Double Image Slides */
-.slide.double-images {
-    gap: 20px;
-}
-
-/* Horizontal monitor + Vertical images = side by side */
-@media (orientation: landscape) {
-    .slide.double-images.vertical-images {
-        flex-direction: row;
-    }
-    
-    .slide.double-images.vertical-images .slide-image {
-        width: 40vw;
-        height: 80vh;
-        object-fit: contain;
-        object-position: center;
-    }
-}
-
-/* Vertical monitor + Horizontal images = stacked */
-@media (orientation: portrait) {
-    .slide.double-images.horizontal-images {
-        flex-direction: column;
-    }
-    
-    .slide.double-images.horizontal-images .slide-image {
-        width: 80vw;
-        height: 37vh;
-        object-fit: contain;
-        object-position: center;
-    }
-}
-
-.slide-image {
-    border-radius: 8px;
-    transition: 0.5s ease;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.slide-image.loaded {
-    opacity: 1;
-}
-
-/* Text Fallback Slide */
-.slide.text-slide {
-    flex-direction: column;
-    text-align: center;
-    justify-content: center;
-    padding: 40px;
-}
-
-.slide.text-slide .text-content {
-    font-family: "PlayFair Display Mine", serif;
-    font-size: 2rem;
-    line-height: 1.6;
-    color: #ffffff;
-    max-width: 80%;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-@media (max-width: 768px) {
-    .slide.text-slide .text-content {
-        font-size: 1.5rem;
-    }
-}
-
-/* Touch and Drag Support - disabilitato per transizioni opacity */
-.slideshow-container.dragging .slide {
-    transition: none;
-}
-
-.slideshow-container.transitioning .slide {
-    transition: opacity 1s ease-in-out;
-}
-
-.loading-state, .no-data-state {
-    height: 100%;
+/* Loading State */
+.loading-state {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    text-align: center;
+    height: 100vh;
+    background: var(--monitor-bg-primary, rgb(55, 55, 55));
 }
 
 .loading-spinner {
     width: 50px;
     height: 50px;
     border: 4px solid rgba(255, 255, 255, 0.1);
-    border-top: 4px solid #4CAF50;
+    border-top: 4px solid var(--monitor-status-active, #4CAF50);
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin-bottom: 20px;
@@ -264,406 +74,285 @@ html, body {
     100% { transform: rotate(360deg); }
 }
 
+.loading-state p {
+    font-size: 1.2rem;
+    color: var(--monitor-text-secondary, rgba(255, 255, 255, 0.85));
+}
+
+/* No Data State */
+.no-data-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    text-align: center;
+    padding: 40px;
+}
+
 .no-data-icon {
-    font-size: 5rem;
-    opacity: 0.5;
+    font-size: 4rem;
     margin-bottom: 20px;
+    opacity: 0.7;
 }
 
 .no-data-state h3 {
     font-size: 1.8rem;
-    margin: 0 0 10px 0;
+    margin-bottom: 15px;
     font-weight: 300;
 }
 
 .no-data-state p {
     font-size: 1.1rem;
+    color: var(--monitor-text-secondary, rgba(255, 255, 255, 0.85));
     opacity: 0.8;
 }
 
-/* Annunci Container */
-.annunci-container {
+/* Slideshow Container */
+.slideshow-container {
+    width: 100%;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-x; /* Enable horizontal touch gestures */
+    cursor: grab;
+}
+
+.slideshow-container:active {
+    cursor: grabbing;
+}
+
+/* Individual Slides */
+.citta-slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
     height: 100%;
-    overflow-y: auto;
-    padding: 20px 40px;
-    background: rgb(55, 55, 55);
-    
-    /* Custom scrollbar */
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
-}
-
-.annunci-container::-webkit-scrollbar {
-    width: 8px;
-}
-
-.annunci-container::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-}
-
-.annunci-container::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 4px;
-}
-
-.annunci-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.5);
-}
-
-/* Individual Annuncio Card */
-.annuncio-card {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
-    padding: 25px;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    gap: 30px;
-    transition: 0.3s ease;
-    animation: slideInFromLeft 0.6s ease-out;
-}
-
-.annuncio-card:hover {
-    background: rgba(255, 255, 255, 0.15);
-    transform: scale(1.02);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-}
-
-.annuncio-card.own-vendor {
-    border-left: 4px solid #f39c12;
-    background: rgba(243, 156, 18, 0.1);
-}
-
-@keyframes slideInFromLeft {
-    from {
-        opacity: 0;
-        transform: translateX(-30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.annuncio-foto {
-    flex-shrink: 0;
-    width: 80px;
-    height: 80px;
-    border-radius: 8px;
-    object-fit: contain;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    transition: 0.3s ease;
-}
-
-.annuncio-foto-placeholder {
-    flex-shrink: 0;
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
+    opacity: 0;
+    transition: opacity 1s linear; /* Linear per transizione costante */
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2rem;
-    color: rgba(255, 255, 255, 0.6);
-    border: 3px solid rgba(255, 255, 255, 0.3);
+    background: var(--monitor-bg-primary, rgb(55, 55, 55));
 }
 
-.annuncio-details {
-    flex: 1;
-    min-width: 0; /* Prevent flex overflow */
+.citta-slide.active {
+    opacity: 1;
+    z-index: 1;
 }
 
-.annuncio-nome {
-    font-size: 1.5rem;
-    font-weight: 400;
-    margin: 0 0 8px 0;
-    color: #ffffff;
+/* Image Layout Containers */
+.single-image-layout {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
 }
 
-.annuncio-meta {
+.double-image-layout {
+    width: 100%;
+    height: 100%;
     display: flex;
     gap: 20px;
-    font-size: 0.95rem;
-    color: rgba(255, 255, 255, 0.85);
-    margin-bottom: 8px;
+    padding: 20px;
 }
 
-.meta-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.meta-icon {
-    opacity: 0.7;
-}
-
-.annuncio-agency {
-    font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.7);
-    font-style: italic;
-}
-
-.agency-badge {
-    display: inline-block;
-    background: rgba(255, 255, 255, 0.2);
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.8rem;
-    margin-left: 10px;
-}
-
-.agency-badge.own {
-    background: rgba(243, 156, 18, 0.3);
-    color: #f39c12;
-}
-
-/* Footer */
-.citta-multi-footer {
-    height: 10vh;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 40px;
-    background: rgb(55, 55, 55);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.vendor-info {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-}
-
-.vendor-logo-citta {
-    height: 30px;
-    width: auto;
-    border-radius: 8px;
-    transition: 0.3s ease;
-}
-
-.vendor-name {
-    font-size: 1.1rem;
-    font-weight: 400;
-}
-
-.system-info {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.7);
-    margin-top: 2px;
-}
-
-.update-info {
-    text-align: right;
-    font-size: 0.85rem;
-}
-
-.auto-refresh {
-    color: #4CAF50;
-    margin-bottom: 4px;
-}
-
-.last-update {
-    color: rgba(255, 255, 255, 0.7);
-}
-
-/* Responsive Design - Desktop Large */
-@media (min-width: 1920px) and (max-width: 3839px) {
-    .city-details h1 { font-size: 2.2rem; }
-}
-
-/* Desktop Standard */
-@media (max-width: 1366px) {
-    .city-details h1 { font-size: 1.9rem; }
-    
-    .annunci-container {
-        padding: 15px 30px;
-    }
-    
-    .annuncio-card {
-        padding: 20px;
-    }
-}
-
-@media (max-width: 768px) {
-    .citta-multi-header {
-        flex-direction: column;
-        height: 20vh;
-        gap: 15px;
-        padding: 15px 20px;
-        text-align: center;
-    }
-    
-    .city-info {
-        flex-direction: column;
-        gap: 15px;
-    }
-    
-    .city-details h1 {
-        font-size: 1.5rem;
-    }
-    
-    .header-stats {
-        gap: 20px;
-    }
-    
-    .stat-number {
-        font-size: 2rem;
-    }
-    
-    .annunci-container {
-        padding: 15px 20px;
-    }
-    
-    .annuncio-card {
-        flex-direction: column;
-        text-align: center;
-        gap: 15px;
-        padding: 20px 15px;
-    }
-    
-    .annuncio-meta {
-        flex-direction: column;
-        gap: 8px;
+/* Horizontal monitor + vertical images: side by side */
+@media (orientation: landscape) {
+    .double-image-layout {
+        flex-direction: row;
         align-items: center;
-    }
-    
-    .citta-multi-footer {
-        flex-direction: column;
-        height: 12vh;
-        gap: 10px;
-        text-align: center;
-        padding: 10px 20px;
+        justify-content: center;
     }
 }
 
-/* Portrait Orientation (Totem Mode) */
+/* Vertical monitor + horizontal images: stacked */
 @media (orientation: portrait) {
-    .citta-multi-header {
-        height: 15vh;
+    .double-image-layout {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+/* Image Styling */
+.citta-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: cover; /* Cover invece di contain per riempire più spazio */
+    transition: transform 0.3s ease;
+    
+    /* Disable image dragging and selection */
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    user-drag: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    pointer-events: none;
+}
+
+/* For horizontal images, adjust size and prevent cropping */
+.citta-image.horizontal-image {
+    object-fit: contain !important; /* Contain per non tagliare le immagini orizzontali */
+}
+
+@media (orientation: landscape) {
+    /* Monitor orizzontale: immagini orizzontali usano min-height */
+    .citta-image.horizontal-image {
+        min-height: 85vh;
+        width: 100%;
+    }
+}
+
+@media (orientation: portrait) {
+    /* Monitor verticale: immagini orizzontali usano min-width */
+    .citta-image.horizontal-image {
+        min-width: 95vw;
+        height: 100%;
+    }
+}
+
+/* For vertical images, adjust size with inverse behavior and prevent cropping */
+.citta-image.vertical-image {
+    object-fit: contain !important; /* Contain per non tagliare le immagini verticali */
+}
+
+@media (orientation: landscape) {
+    /* Monitor orizzontale: immagini verticali usano min-width */
+    .citta-image.vertical-image {
+        min-width: 85vw;
+        height: 100%;
+    }
+}
+
+@media (orientation: portrait) {
+    /* Monitor verticale: immagini verticali usano min-height */
+    .citta-image.vertical-image {
+        min-height: 90vh;
+        width: 100%;
+    }
+}
+
+.double-image-layout .citta-image {
+    flex: 1;
+    max-width: calc(50% - 10px);
+}
+
+/* Override size limits for images in double layout */
+@media (orientation: landscape) {
+    /* Monitor orizzontale: immagini verticali in coppia - limita la larghezza */
+    .double-image-layout .citta-image.vertical-image {
+        min-width: 40vw !important; /* Ridotto da 85vw per stare in 2 */
+        max-width: calc(50% - 10px) !important;
     }
     
-    .citta-multi-main {
-        height: 75vh;
+    /* Monitor orizzontale: immagini orizzontali in coppia - mantieni altezza ridotta */
+    .double-image-layout .citta-image.horizontal-image {
+        min-height: 60vh !important; /* Ridotto da 85vh per layout doppio */
+    }
+}
+
+@media (orientation: portrait) {
+    /* Monitor verticale: immagini orizzontali in coppia - limita la larghezza */  
+    .double-image-layout .citta-image.horizontal-image {
+        min-width: 45vw !important; /* Ridotto da 95vw per stare in 2 */
+        max-width: calc(50% - 10px) !important;
     }
     
-    .citta-multi-footer {
-        height: 10vh;
+    /* Monitor verticale: immagini verticali in coppia - mantieni altezza ridotta */
+    .double-image-layout .citta-image.vertical-image {
+        min-height: 65vh !important; /* Ridotto da 90vh per layout doppio */
+    }
+}
+
+@media (orientation: portrait) {
+    .double-image-layout .citta-image {
+        max-width: 100%;
+        max-height: calc(50% - 10px);
+    }
+}
+
+/* Hover effects (for touch displays) */
+.citta-image:hover {
+    transform: scale(1.02);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .double-image-layout {
+        gap: 10px;
+        padding: 10px;
     }
     
-    .annuncio-card {
-        padding: 20px;
+    .single-image-layout {
+        padding: 10px;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .citta-slide {
+        transition: opacity 0.3s linear; /* Linear anche per reduced motion */
     }
     
-    .annuncio-nome {
-        font-size: 1.3rem;
-    }
-}
-
-/* High contrast mode */
-@media (prefers-contrast: high) {
-    .monitor-citta-multi {
-        background: rgb(55, 55, 55);
+    .citta-image {
+        transition: none;
     }
     
-    .annuncio-card {
-        background: rgba(255, 255, 255, 0.2);
-        border: 3px solid #fff;
+    .citta-image:hover {
+        transform: none;
     }
-}
-
-/* Smooth scrolling for better UX */
-.annunci-container {
-    scroll-behavior: smooth;
-}
-
-/* Auto-scroll animation class */
-.auto-scrolling {
-    animation: autoScroll 120s linear infinite;
-}
-
-@keyframes autoScroll {
-    0% { scroll-behavior: auto; }
-    100% { scroll-behavior: auto; }
-}
-
-/* Custom scrollbar styles (if needed for debugging) */
-::-webkit-scrollbar {
-    display: none;
-}
-
-html {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
 }
 </style>
 
 <script>
-// Città Multi-Agenzia Slideshow Layout JavaScript
-class CittaMultiSlideshowLayout {
+class CittaMultiSlideshow {
     constructor() {
-        this.annunci = [];
+        this.container = document.getElementById('slideshow-container');
+        this.loadingElement = document.getElementById('citta-loading');
+        this.noDataElement = document.getElementById('citta-no-data');
         this.slides = [];
         this.currentSlideIndex = 0;
-        this.pollingInterval = null;
-        this.slideshowInterval = null;
+        this.slideInterval = null;
+        this.resumeTimeout = null;
         this.config = window.MonitorData || {};
         
-        // Touch/Drag properties
-        this.isDragging = false;
+        // Touch handling properties
         this.startX = 0;
         this.startY = 0;
-        this.currentX = 0;
-        this.initialTransform = 0;
-        this.threshold = 50; // Minimum drag distance for slide
-        
-        // Timing properties
-        this.autoAdvanceTime = 10000; // 10s single, 15s double
-        this.manualInteractionTimeout = null;
-        this.isManualMode = false;
-        
-        // Monitor and image orientation
-        this.monitorIsLandscape = window.innerWidth > window.innerHeight;
+        this.endX = 0;
+        this.endY = 0;
+        this.minSwipeDistance = 50;
+        this.isTouch = false;
         
         this.init();
     }
 
-    init() {
-        console.log('Initializing Città Multi-Agenzia Slideshow Layout');
+    async init() {
+        console.log('Initializing Città Multi Slideshow', this.config);
         
-        // Load initial data
-        this.loadAnnunci();
+        // Load annunci data
+        await this.loadAnnunci();
         
-        // Setup touch/drag events
-        this.setupTouchEvents();
-        
-        // Handle window resize for orientation changes
-        window.addEventListener('resize', this.handleResize.bind(this));
-        
-        // Start polling for updates
-        this.startPolling();
-        
-        // Handle visibility change
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                this.pauseLayout();
-            } else {
-                this.resumeLayout();
-            }
-        });
+        // Start slideshow if we have data
+        if (this.slides.length > 0) {
+            this.showSlideshow();
+            this.startSlideshow();
+        } else {
+            this.showNoData();
+        }
     }
 
     async loadAnnunci() {
         try {
-            // Only show loading on first load
-            if (this.slides.length === 0) {
-                this.showLoading(true);
-                console.log('Initial loading annunci città multi slideshow...');
-            }
+            this.showLoading();
             
             const formData = new FormData();
             formData.append('action', 'monitor_get_citta_multi');
@@ -676,533 +365,417 @@ class CittaMultiSlideshowLayout {
             });
             
             const data = await response.json();
+            console.log('AJAX Response:', data);
             
-            if (data.success) {
-                const newAnnunci = data.data.annunci || [];
-                
-                // Check if data has changed (compare length and first few IDs)
-                const hasChanged = this.hasDataChanged(newAnnunci);
-                
-                if (hasChanged || this.slides.length === 0) {
-                    console.log('Data changed, processing', newAnnunci.length, 'annunci');
-                    this.annunci = newAnnunci;
-                    
-                    if (this.annunci.length > 0) {
-                        const currentSlideIndex = this.currentSlideIndex;
-                        const wasPlaying = this.slideshowInterval !== null;
-                        
-                        await this.processAnnunciForSlideshow();
-                        
-                        if (this.slides.length > 0) {
-                            this.renderSlideshow();
-                            this.showSlideshow();
-                            
-                            // Restore slide position
-                            this.currentSlideIndex = Math.min(currentSlideIndex, this.slides.length - 1);
-                            this.updateSlideVisibility();
-                            
-                            // Start progressive preloading
-                            this.startProgressivePreloading();
-                            
-                            if (wasPlaying || this.slides.length === 1) {
-                                this.startSlideshow();
-                            }
-                        } else {
-                            this.showNoData();
-                        }
-                    } else {
-                        this.showNoData();
-                    }
-                } else {
-                    console.log('No data changes detected, continuing slideshow');
-                }
+            if (data.success && data.data.annunci) {
+                await this.processAnnunci(data.data.annunci);
             } else {
                 console.error('Error loading annunci:', data.data);
-                if (this.slides.length === 0) this.showNoData();
+                this.slides = [];
             }
         } catch (error) {
             console.error('Network error loading annunci:', error);
-            if (this.slides.length === 0) this.showNoData();
-        } finally {
-            // Always hide loading after first load attempt
-            this.showLoading(false);
+            this.slides = [];
         }
     }
 
-    async processAnnunciForSlideshow() {
-        this.slides = [];
-        const imageOrientations = [];
-        
-        // First pass: determine image orientations
-        for (let annuncio of this.annunci) {
+    async processAnnunci(annunci) {
+        // Filter only annunci with immagine_annuncio (check both URL string and ACF object)
+        const validAnnunci = annunci.filter(annuncio => {
+            const hasImageUrl = annuncio.immagine_annuncio && (
+                typeof annuncio.immagine_annuncio === 'string' ||
+                (typeof annuncio.immagine_annuncio === 'object' && annuncio.immagine_annuncio.url)
+            );
             
-            // Handle immagine_annuncio_di_morte - single object or array
-            if (annuncio.immagine_annuncio_di_morte) {
-                let imageUrl = null;
-                const imageField = annuncio.immagine_annuncio_di_morte;
-                
-                // Handle different ACF image formats
-                if (Array.isArray(imageField) && imageField.length > 0) {
-                    // Array of images - process first one
-                    const firstImage = imageField[0];
-                    if (typeof firstImage === 'string') {
-                        imageUrl = firstImage; // Direct URL
-                    } else if (firstImage && firstImage.url) {
-                        imageUrl = firstImage.url; // ACF image object
-                    } else if (firstImage && firstImage.sizes && firstImage.sizes.large) {
-                        imageUrl = firstImage.sizes.large; // ACF with sizes
-                    }
-                } else if (typeof imageField === 'string') {
-                    imageUrl = imageField; // Direct URL string
-                } else if (imageField && imageField.url) {
-                    imageUrl = imageField.url; // Single ACF image object
-                } else if (imageField && imageField.sizes && imageField.sizes.large) {
-                    imageUrl = imageField.sizes.large; // Single ACF with sizes
-                }
-                
-                if (imageUrl) {
-                    const orientation = await this.getImageOrientation(imageUrl);
-                    imageOrientations.push({
-                        annuncio: annuncio,
-                        type: 'image',
-                        orientation: orientation,
-                        url: imageUrl
-                    });
-                    continue; // Skip text fallback for this annuncio
-                }
-            }
+            // Also check immagine_annuncio_di_morte field directly
+            const hasImageField = annuncio.immagine_annuncio_di_morte && (
+                typeof annuncio.immagine_annuncio_di_morte === 'string' ||
+                (typeof annuncio.immagine_annuncio_di_morte === 'object' && annuncio.immagine_annuncio_di_morte.url)
+            );
             
-            // Text fallback only if no image found
-            if (this.shouldShowTextFallback() && annuncio.testo_annuncio_di_morte) {
-                imageOrientations.push({
-                    annuncio: annuncio,
-                    type: 'text',
-                    text: annuncio.testo_annuncio_di_morte
-                });
-            }
-        }
-        
-        // Second pass: group images for optimal display
-        this.slides = this.groupImagesForSlides(imageOrientations);
-        
-        console.log(`Processed ${this.annunci.length} annunci into ${this.slides.length} slides`);
-    }
-
-    async getImageOrientation(imageUrl) {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-                const orientation = img.width > img.height ? 'landscape' : 'portrait';
-                resolve(orientation);
-            };
-            img.onerror = () => resolve('unknown');
-            img.src = imageUrl;
+            return hasImageUrl || hasImageField;
         });
-    }
-
-    groupImagesForSlides(items) {
-        const slides = [];
-        let i = 0;
         
-        while (i < items.length) {
-            const currentItem = items[i];
-            
-            // Text slides are always single
-            if (currentItem.type === 'text') {
-                slides.push({
-                    type: 'single',
-                    content: [currentItem],
-                    duration: 10000 // 10s for text
-                });
-                i++;
-                continue;
-            }
-            
-            // Check if we can pair with next image
-            const nextItem = items[i + 1];
-            if (nextItem && nextItem.type === 'image' && this.canPairImages(currentItem, nextItem)) {
-                slides.push({
-                    type: 'double',
-                    content: [currentItem, nextItem],
-                    duration: 15000 // 15s for double
-                });
-                i += 2;
-            } else {
-                slides.push({
-                    type: 'single',
-                    content: [currentItem],
-                    duration: 10000 // 10s for single
-                });
-                i++;
-            }
+        console.log(`Filtered ${validAnnunci.length} annunci with images from ${annunci.length} total`);
+        console.log('Valid annunci:', validAnnunci);
+        
+        if (validAnnunci.length === 0) {
+            this.slides = [];
+            return;
         }
+
+        // Load images and detect orientations
+        const imageData = await this.loadImageOrientations(validAnnunci);
         
-        return slides;
+        // Group images based on orientations and create slides
+        this.createSlidesFromImages(imageData);
     }
 
-    canPairImages(item1, item2) {
-        // Only pair images with same orientation
-        if (item1.orientation !== item2.orientation) {
+    async loadImageOrientations(annunci) {
+        const imagePromises = annunci.map(async (annuncio) => {
+            return new Promise((resolve) => {
+                // Get image URL from either field
+                let imageUrl = null;
+                if (annuncio.immagine_annuncio) {
+                    imageUrl = typeof annuncio.immagine_annuncio === 'string' ? 
+                        annuncio.immagine_annuncio : 
+                        annuncio.immagine_annuncio.url;
+                } else if (annuncio.immagine_annuncio_di_morte) {
+                    imageUrl = typeof annuncio.immagine_annuncio_di_morte === 'string' ? 
+                        annuncio.immagine_annuncio_di_morte : 
+                        annuncio.immagine_annuncio_di_morte.url;
+                }
+                
+                if (!imageUrl) {
+                    console.warn('No valid image URL found for annuncio:', annuncio);
+                    resolve(null);
+                    return;
+                }
+                
+                const img = new Image();
+                img.onload = () => {
+                    resolve({
+                        annuncio: annuncio,
+                        imageUrl: imageUrl,
+                        width: img.width,
+                        height: img.height,
+                        isHorizontal: img.width > img.height,
+                        aspectRatio: img.width / img.height
+                    });
+                };
+                img.onerror = () => {
+                    console.warn('Failed to load image:', imageUrl);
+                    resolve(null);
+                };
+                img.src = imageUrl;
+            });
+        });
+
+        const results = await Promise.all(imagePromises);
+        return results.filter(result => result !== null);
+    }
+
+    createSlidesFromImages(imageData) {
+        this.slides = [];
+        
+        if (imageData.length === 0) return;
+
+        const monitorIsHorizontal = window.innerWidth > window.innerHeight;
+        let i = 0;
+
+        console.log(`Monitor orientation: ${monitorIsHorizontal ? 'Horizontal' : 'Vertical'}`);
+
+        while (i < imageData.length) {
+            const currentImage = imageData[i];
+            console.log(`Processing image ${i}: ${currentImage.isHorizontal ? 'Horizontal' : 'Vertical'}`);
+            
+            // Check if we can pair this image with the next one
+            if (i < imageData.length - 1) {
+                const nextImage = imageData[i + 1];
+                console.log(`Next image ${i + 1}: ${nextImage.isHorizontal ? 'Horizontal' : 'Vertical'}`);
+                
+                const canPair = this.canPairImages(currentImage, nextImage, monitorIsHorizontal);
+                console.log(`Can pair images ${i} and ${i + 1}: ${canPair}`);
+                
+                if (canPair) {
+                    // Create double image slide
+                    this.slides.push({
+                        type: 'double',
+                        images: [currentImage, nextImage]
+                    });
+                    console.log(`Created double slide with images ${i} and ${i + 1}`);
+                    i += 2;
+                    continue;
+                }
+            }
+            
+            // Create single image slide
+            this.slides.push({
+                type: 'single',
+                images: [currentImage]
+            });
+            console.log(`Created single slide with image ${i}`);
+            i += 1;
+        }
+
+        console.log(`Created ${this.slides.length} slides from ${imageData.length} images`);
+        console.log('Slides breakdown:', this.slides.map((slide, idx) => ({
+            slide: idx,
+            type: slide.type,
+            images: slide.images.length
+        })));
+    }
+
+    canPairImages(img1, img2, monitorIsHorizontal) {
+        console.log(`canPairImages: img1=${img1.isHorizontal ? 'H' : 'V'}, img2=${img2.isHorizontal ? 'H' : 'V'}, monitor=${monitorIsHorizontal ? 'H' : 'V'}`);
+        
+        // RULE: Orientamenti misti → sempre 1 immagine
+        if (img1.isHorizontal !== img2.isHorizontal) {
+            console.log('  → Mixed orientations: NO PAIR');
             return false;
         }
-        
-        // Check monitor vs image orientation compatibility for pairing
-        if (this.monitorIsLandscape && item1.orientation === 'portrait') {
-            return true; // Landscape monitor + portrait images = side by side
-        }
-        
-        if (!this.monitorIsLandscape && item1.orientation === 'landscape') {
-            return true; // Portrait monitor + landscape images = stacked
-        }
-        
-        // Don't pair when monitor and image orientations are the same
-        return false; 
-    }
 
-    hasDataChanged(newAnnunci) {
-        if (!this.annunci || this.annunci.length !== newAnnunci.length) {
+        // RULE: Monitor orizzontale + immagini verticali → 2 immagini affiancate
+        if (monitorIsHorizontal && !img1.isHorizontal && !img2.isHorizontal) {
+            console.log('  → Horizontal monitor + vertical images: PAIR');
             return true;
         }
-        
-        // Compare first 3 IDs to detect changes
-        for (let i = 0; i < Math.min(3, newAnnunci.length); i++) {
-            if (this.annunci[i]?.id !== newAnnunci[i]?.id) {
-                return true;
-            }
+
+        // RULE: Monitor verticale + immagini orizzontali → 2 immagini in colonna
+        if (!monitorIsHorizontal && img1.isHorizontal && img2.isHorizontal) {
+            console.log('  → Vertical monitor + horizontal images: PAIR');
+            return true;
         }
-        
+
+        // RULE: Monitor orizzontale + immagini orizzontali → 1 immagine
+        if (monitorIsHorizontal && img1.isHorizontal && img2.isHorizontal) {
+            console.log('  → Horizontal monitor + horizontal images: NO PAIR');
+            return false;
+        }
+
+        // RULE: Monitor verticale + immagini verticali → 1 immagine
+        if (!monitorIsHorizontal && !img1.isHorizontal && !img2.isHorizontal) {
+            console.log('  → Vertical monitor + vertical images: NO PAIR');
+            return false;
+        }
+
+        // Fallback: don't pair
+        console.log('  → Fallback: NO PAIR');
         return false;
     }
 
-    startProgressivePreloading() {
-        console.log('🖼️ Starting progressive image preloading');
-        
-        // Preload next 5 images
-        const startIndex = Math.max(0, this.currentSlideIndex - 2);
-        const endIndex = Math.min(this.slides.length, this.currentSlideIndex + 8);
-        
-        for (let i = startIndex; i < endIndex; i++) {
-            if (i !== this.currentSlideIndex) {
-                this.preloadSlideImages(i);
-            }
-        }
-    }
+    renderSlides() {
+        if (!this.container || this.slides.length === 0) return;
 
-    preloadSlideImages(slideIndex) {
-        if (!this.slides[slideIndex]) return;
-        
-        const slide = this.slides[slideIndex];
-        slide.content.forEach(item => {
-            if (item.type === 'image' && item.url) {
-                const img = new Image();
-                img.onload = () => console.log(`📥 Preloaded image for slide ${slideIndex + 1}`);
-                img.onerror = () => console.warn(`❌ Failed to preload image for slide ${slideIndex + 1}`);
-                img.src = item.url;
+        this.container.innerHTML = '';
+
+        this.slides.forEach((slide, index) => {
+            const slideElement = document.createElement('div');
+            slideElement.className = `citta-slide ${index === 0 ? 'active' : ''}`;
+            
+            if (slide.type === 'single') {
+                const imageClass = `citta-image ${slide.images[0].isHorizontal ? 'horizontal-image' : 'vertical-image'}`;
+                slideElement.innerHTML = `
+                    <div class="single-image-layout">
+                        <img src="${slide.images[0].imageUrl}" 
+                             alt="Annuncio ${slide.images[0].annuncio.nome} ${slide.images[0].annuncio.cognome}"
+                             class="${imageClass}">
+                    </div>
+                `;
+            } else {
+                const imageClass1 = `citta-image ${slide.images[0].isHorizontal ? 'horizontal-image' : 'vertical-image'}`;
+                const imageClass2 = `citta-image ${slide.images[1].isHorizontal ? 'horizontal-image' : 'vertical-image'}`;
+                slideElement.innerHTML = `
+                    <div class="double-image-layout">
+                        <img src="${slide.images[0].imageUrl}" 
+                             alt="Annuncio ${slide.images[0].annuncio.nome} ${slide.images[0].annuncio.cognome}"
+                             class="${imageClass1}">
+                        <img src="${slide.images[1].imageUrl}" 
+                             alt="Annuncio ${slide.images[1].annuncio.nome} ${slide.images[1].annuncio.cognome}"
+                             class="${imageClass2}">
+                    </div>
+                `;
             }
+
+            this.container.appendChild(slideElement);
         });
-    }
-
-    shouldShowTextFallback() {
-        // Check if PHP constant is defined and enabled
-        return window.MONITOR_CITTA_SHOW_TEXT_FALLBACK !== false;
-    }
-
-    renderSlideshow() {
-        const container = document.getElementById('slideshow-container');
-        if (!container || this.slides.length === 0) return;
-        
-        container.innerHTML = this.slides.map((slide, index) => this.createSlideHTML(slide, index)).join('');
-        
-        // Set first slide as active
-        if (this.slides.length > 0) {
-            this.updateSlideVisibility();
-        }
-    }
-
-    createSlideHTML(slide, index) {
-        const activeClass = index === this.currentSlideIndex ? ' active' : '';
-        
-        if (slide.type === 'single' && slide.content[0].type === 'text') {
-            return `
-                <div class="slide text-slide${activeClass}" data-index="${index}">
-                    <div class="text-content">${slide.content[0].text}</div>
-                </div>
-            `;
-        }
-        
-        if (slide.type === 'single') {
-            return `
-                <div class="slide single-image${activeClass}" data-index="${index}">
-                    <img src="${slide.content[0].url}" class="slide-image" alt="Annuncio di morte" onload="this.classList.add('loaded')">
-                </div>
-            `;
-        }
-        
-        if (slide.type === 'double') {
-            const orientationClass = slide.content[0].orientation === 'portrait' ? 'vertical-images' : 'horizontal-images';
-            return `
-                <div class="slide double-images ${orientationClass}${activeClass}" data-index="${index}">
-                    <img src="${slide.content[0].url}" class="slide-image" alt="Annuncio di morte" onload="this.classList.add('loaded')">
-                    <img src="${slide.content[1].url}" class="slide-image" alt="Annuncio di morte" onload="this.classList.add('loaded')">
-                </div>
-            `;
-        }
-        
-        return '';
-    }
-
-    showLoading(show) {
-        const loading = document.getElementById('citta-loading');
-        if (loading) {
-            loading.style.display = show ? 'flex' : 'none';
-        }
     }
 
     showSlideshow() {
-        const container = document.getElementById('slideshow-container');
-        const noData = document.getElementById('citta-no-data');
-        
-        if (container) container.style.display = 'block';
-        if (noData) noData.style.display = 'none';
+        this.hideLoading();
+        this.hideNoData();
+        this.renderSlides();
+        this.setupTouchControls();
+        this.container.style.display = 'block';
+    }
+
+    showLoading() {
+        this.loadingElement.style.display = 'flex';
+        this.container.style.display = 'none';
+        this.noDataElement.style.display = 'none';
+    }
+
+    hideLoading() {
+        this.loadingElement.style.display = 'none';
     }
 
     showNoData() {
-        const container = document.getElementById('slideshow-container');
-        const noData = document.getElementById('citta-no-data');
-        
-        if (container) container.style.display = 'none';
-        if (noData) noData.style.display = 'flex';
+        this.hideLoading();
+        this.container.style.display = 'none';
+        this.noDataElement.style.display = 'flex';
+    }
+
+    hideNoData() {
+        this.noDataElement.style.display = 'none';
     }
 
     startSlideshow() {
-        if (this.slides.length === 0) return;
+        if (this.slides.length <= 1) return;
         
-        this.stopSlideshow();
-        this.scheduleNextSlide();
-    }
+        // Always clear any existing timer first
+        this.pauseSlideshow();
 
-    stopSlideshow() {
-        if (this.slideshowInterval) {
-            clearTimeout(this.slideshowInterval);
-            this.slideshowInterval = null;
-        }
-    }
-
-    scheduleNextSlide() {
-        if (this.slides.length === 0) return;
-        
-        // IMPORTANTE: Fermati prima di programmare il prossimo
-        this.stopSlideshow();
-        
-        const currentSlide = this.slides[this.currentSlideIndex];
-        const duration = this.isManualMode ? currentSlide.duration * 2 : currentSlide.duration;
-        
-        // Debug timing più dettagliato
-        console.log(`⏰ Scheduling slide ${this.currentSlideIndex + 1}/${this.slides.length} in ${duration}ms (${duration/1000}s)`);
-        console.log(`   Manual mode: ${this.isManualMode}, Slide type: ${currentSlide.type}, Base duration: ${currentSlide.duration}ms`);
-        
-        this.slideshowInterval = setTimeout(() => {
-            console.log(`🎬 Executing slide transition from ${this.currentSlideIndex} to ${(this.currentSlideIndex + 1) % this.slides.length}`);
+        this.slideInterval = setInterval(() => {
             this.nextSlide();
-        }, duration);
+        }, this.config.slideInterval || 5000);
+        
+        console.log('Slideshow started with interval:', this.config.slideInterval || 5000);
     }
 
     nextSlide() {
-        if (this.slides.length === 0) return;
-        
+        if (this.slides.length <= 1) return;
+
+        const currentSlide = this.container.children[this.currentSlideIndex];
+        currentSlide.classList.remove('active');
+
         this.currentSlideIndex = (this.currentSlideIndex + 1) % this.slides.length;
-        this.updateSlideVisibility();
-        
-        // Preload upcoming images
-        const nextIndex = (this.currentSlideIndex + 2) % this.slides.length;
-        const nextNextIndex = (this.currentSlideIndex + 3) % this.slides.length;
-        this.preloadSlideImages(nextIndex);
-        this.preloadSlideImages(nextNextIndex);
-        
-        this.scheduleNextSlide();
+
+        const nextSlide = this.container.children[this.currentSlideIndex];
+        nextSlide.classList.add('active');
     }
 
     previousSlide() {
-        if (this.slides.length === 0) return;
-        
-        this.currentSlideIndex = this.currentSlideIndex === 0 ? this.slides.length - 1 : this.currentSlideIndex - 1;
-        this.updateSlideVisibility();
-        this.onManualInteraction();
+        if (this.slides.length <= 1) return;
+
+        const currentSlide = this.container.children[this.currentSlideIndex];
+        currentSlide.classList.remove('active');
+
+        this.currentSlideIndex = this.currentSlideIndex === 0 ? 
+            this.slides.length - 1 : 
+            this.currentSlideIndex - 1;
+
+        const prevSlide = this.container.children[this.currentSlideIndex];
+        prevSlide.classList.add('active');
     }
 
-    updateSlideVisibility() {
-        const slides = document.querySelectorAll('.slide');
-        if (slides.length === 0) return;
-        
-        slides.forEach((slide, index) => {
-            if (index === this.currentSlideIndex) {
-                slide.classList.add('active');
-            } else {
-                slide.classList.remove('active');
-            }
-        });
-        
-        console.log(`🎬 Switched to slide ${this.currentSlideIndex + 1}/${this.slides.length}`);
-    }
+    setupTouchControls() {
+        if (!this.container) return;
 
-    setupTouchEvents() {
-        const container = document.getElementById('slideshow-container');
-        if (!container) return;
-        
-        // Mouse events
-        container.addEventListener('mousedown', this.handleStart.bind(this));
-        container.addEventListener('mousemove', this.handleMove.bind(this));
-        container.addEventListener('mouseup', this.handleEnd.bind(this));
-        container.addEventListener('mouseleave', this.handleEnd.bind(this));
-        
         // Touch events
-        container.addEventListener('touchstart', this.handleStart.bind(this), { passive: false });
-        container.addEventListener('touchmove', this.handleMove.bind(this), { passive: false });
-        container.addEventListener('touchend', this.handleEnd.bind(this));
+        this.container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: true });
+        this.container.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: true });
         
-        // Click events
-        container.addEventListener('click', this.handleClick.bind(this));
+        // Mouse events for desktop testing
+        this.container.addEventListener('mousedown', (e) => this.handleMouseStart(e));
+        this.container.addEventListener('mouseup', (e) => this.handleMouseEnd(e));
+        
+        // Prevent context menu on long press
+        this.container.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
-    handleStart(e) {
-        e.preventDefault();
-        this.isDragging = true;
+    handleTouchStart(e) {
+        this.isTouch = true;
+        this.startX = e.touches[0].clientX;
+        this.startY = e.touches[0].clientY;
         
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        
-        this.startX = clientX;
-        this.startY = clientY;
-        this.currentX = clientX;
-        
-        // Con sistema opacity non abbiamo track da trascinare
-        this.initialTransform = 0;
-        
-        document.querySelector('.slideshow-container')?.classList.add('dragging');
+        // Pause auto slideshow during touch
+        this.pauseSlideshow();
     }
 
-    handleMove(e) {
-        if (!this.isDragging) return;
-        e.preventDefault();
+    handleTouchEnd(e) {
+        if (!this.isTouch) return;
         
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        this.currentX = clientX;
+        this.endX = e.changedTouches[0].clientX;
+        this.endY = e.changedTouches[0].clientY;
         
-        // Con sistema opacity non implementiamo drag visuale live
-        // Solo registriamo il movimento per il threshold
+        this.handleSwipe();
+        this.isTouch = false;
+        
+        // Resume auto slideshow after touch
+        this.resumeSlideshow();
     }
 
-    handleEnd(e) {
-        if (!this.isDragging) return;
+    handleMouseStart(e) {
+        this.isTouch = true;
+        this.startX = e.clientX;
+        this.startY = e.clientY;
+        this.pauseSlideshow();
+    }
+
+    handleMouseEnd(e) {
+        if (!this.isTouch) return;
         
-        this.isDragging = false;
-        const deltaX = this.currentX - this.startX;
-        const container = document.querySelector('.slideshow-container');
+        this.endX = e.clientX;
+        this.endY = e.clientY;
         
-        container?.classList.remove('dragging');
-        container?.classList.add('transitioning');
+        this.handleSwipe();
+        this.isTouch = false;
+        this.resumeSlideshow();
+    }
+
+    handleSwipe() {
+        const deltaX = this.endX - this.startX;
+        const deltaY = this.endY - this.startY;
         
-        // Determine if swipe threshold was met
-        if (Math.abs(deltaX) > this.threshold) {
+        // Check if horizontal swipe is dominant
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > this.minSwipeDistance) {
             if (deltaX > 0) {
+                // Swipe right - previous slide
                 this.previousSlide();
             } else {
+                // Swipe left - next slide
                 this.nextSlide();
             }
-            this.onManualInteraction();
-        } else {
-            // Snap back to current slide
-            this.updateSlideVisibility();
+        }
+    }
+
+    pauseSlideshow() {
+        if (this.slideInterval) {
+            console.log('Slideshow paused');
+            clearInterval(this.slideInterval);
+            this.slideInterval = null;
+        }
+    }
+
+    resumeSlideshow() {
+        // Clear any existing resume timeout
+        if (this.resumeTimeout) {
+            clearTimeout(this.resumeTimeout);
+            this.resumeTimeout = null;
         }
         
-        setTimeout(() => {
-            container?.classList.remove('transitioning');
-        }, 300);
-    }
-
-    handleClick(e) {
-        // Click to advance (if not dragging)
-        if (Math.abs(this.currentX - this.startX) < 10) {
-            this.nextSlide();
-            this.onManualInteraction();
-        }
-    }
-
-    handleResize() {
-        this.monitorIsLandscape = window.innerWidth > window.innerHeight;
-        
-        // Reprocess slides if needed
-        if (this.annunci.length > 0) {
-            this.processAnnunciForSlideshow().then(() => {
-                this.renderSlideshow();
-                this.currentSlideIndex = 0;
-                this.updateSlideVisibility();
-            });
-        }
-    }
-
-    onManualInteraction() {
-        this.isManualMode = true;
-        
-        // Clear existing timeout
-        if (this.manualInteractionTimeout) {
-            clearTimeout(this.manualInteractionTimeout);
-        }
-        
-        // Reset to auto mode after 30 seconds of no interaction
-        this.manualInteractionTimeout = setTimeout(() => {
-            this.isManualMode = false;
-        }, 30000);
-    }
-
-    startPolling() {
-        // Less frequent polling - only check for data changes every 5 minutes
-        this.pollingInterval = setInterval(() => {
-            console.log('🔄 Checking for data updates...');
-            this.loadAnnunci();
-        }, this.config.pollingInterval || 300000); // 5 minutes for data change check
-    }
-
-    stopPolling() {
-        if (this.pollingInterval) {
-            clearInterval(this.pollingInterval);
-            this.pollingInterval = null;
-        }
-    }
-
-    pauseLayout() {
-        this.stopPolling();
-        this.stopSlideshow();
-    }
-
-    resumeLayout() {
-        this.startPolling();
-        this.startSlideshow();
+        // Resume after a delay to avoid immediate transition
+        this.resumeTimeout = setTimeout(() => {
+            console.log('Slideshow resuming after touch...');
+            this.startSlideshow();
+            this.resumeTimeout = null;
+        }, 2000);
     }
 
     destroy() {
-        this.stopPolling();
-        this.stopSlideshow();
-        if (this.manualInteractionTimeout) {
-            clearTimeout(this.manualInteractionTimeout);
+        // Clear all timers
+        if (this.slideInterval) {
+            clearInterval(this.slideInterval);
+            this.slideInterval = null;
+        }
+        
+        if (this.resumeTimeout) {
+            clearTimeout(this.resumeTimeout);
+            this.resumeTimeout = null;
+        }
+        
+        // Remove event listeners
+        if (this.container) {
+            this.container.removeEventListener('touchstart', this.handleTouchStart);
+            this.container.removeEventListener('touchend', this.handleTouchEnd);
+            this.container.removeEventListener('mousedown', this.handleMouseStart);
+            this.container.removeEventListener('mouseup', this.handleMouseEnd);
+            this.container.removeEventListener('contextmenu', (e) => e.preventDefault());
         }
     }
 }
 
-// Pass PHP constant to JavaScript
-window.MONITOR_CITTA_SHOW_TEXT_FALLBACK = <?php echo defined('MONITOR_CITTA_SHOW_TEXT_FALLBACK') ? (MONITOR_CITTA_SHOW_TEXT_FALLBACK ? 'true' : 'false') : 'true'; ?>;
-
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     if (window.MonitorData && window.MonitorData.layoutType === 'citta_multi') {
-        window.cittaMultiSlideshowLayout = new CittaMultiSlideshowLayout();
+        window.cittaMultiSlideshow = new CittaMultiSlideshow();
     }
 });
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', function() {
-    if (window.cittaMultiSlideshowLayout) {
-        window.cittaMultiSlideshowLayout.destroy();
+    if (window.cittaMultiSlideshow) {
+        window.cittaMultiSlideshow.destroy();
     }
 });
 </script>

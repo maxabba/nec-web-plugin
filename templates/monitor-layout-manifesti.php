@@ -220,48 +220,63 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     font-family: var(--monitor-font-family);
 }
 
-/* Layout Orizzontale - Restructure completo */
+/* Layout Orizzontale - Due colonne: Header a sinistra, Body a destra */
 @media (orientation: landscape) {
     .monitor-container {
-        flex-direction: column; /* Header/Body/Footer rimangono verticali */
+        flex-direction: row; /* Cambiato a row per layout orizzontale */
+        height: 100vh;
     }
     
-    /* Header compatto con foto e info affiancate */
+    /* Header diventa una colonna laterale a sinistra */
     .monitor-header {
-        height: auto;
-        padding: var(--monitor-padding-small) var(--monitor-padding-medium);
+        width: 30%; /* 30% della larghezza schermo per header */
+        height: 100vh; /* Altezza completa */
+        flex-direction: column; /* Contenuto dell'header in verticale */
+        justify-content: center;
+        padding: var(--monitor-padding-medium);
+        position: relative;
+        flex-shrink: 0; /* Non si restringe */
     }
     
     .defunto-info {
-        justify-content: flex-start;
+        flex-direction: column; /* Foto sopra, testo sotto */
+        justify-content: center;
+        align-items: center;
         width: 100%;
         gap: var(--monitor-gap-large);
+        text-align: center;
     }
     
-    /* Body occupa tutto lo spazio disponibile per manifesti */
+    /* Body occupa lo spazio rimanente a destra */
     .monitor-body {
+        width: 70%; /* 70% della larghezza schermo per manifesti */
+        height: 100vh; /* Altezza completa */
         flex: 1;
         display: flex;
         align-items: center;
         justify-content: center;
+        position: relative;
     }
     
     .manifesti-slideshow {
         width: 100%;
-        height: 100%;
+        height: 70vh; /* Manifesti più alti nel landscape */
+    }
+    
+    /* Footer va in basso dell'header */
+    .monitor-footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%; /* Stesso width dell'header */
+        height: auto;
+        padding: var(--monitor-padding-small) var(--monitor-padding-medium);
+        background: var(--monitor-bg-primary);
+        z-index: 10;
     }
 }
 
-/* Header Section - 20% */
-.monitor-header {
-    height: var(--monitor-header-height);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--monitor-bg-primary);
-    padding: var(--monitor-padding-small);
-    position: relative;
-}
+
 
 .defunto-info {
     display: flex;
@@ -272,7 +287,6 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
 
 .defunto-foto {
     object-fit: contain;
-    box-shadow: var(--monitor-shadow-medium);
     transition: var(--monitor-transition-fast);
 }
 
@@ -285,12 +299,13 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     }
 }
 
-/* Orientamento Landscape - 30% larghezza schermo */
+/* Orientamento Landscape - ottimizzato per sidebar */
 @media (orientation: landscape) {
     .defunto-foto {
-        width: 30vw;
+        width: 80%; /* 80% della larghezza del sidebar (che è 30% dello schermo) */
         height: auto;
-        max-height: 350px;
+        max-height: 300px; /* Ridotto per adattarsi al sidebar */
+        max-width: 250px; /* Limite massimo assoluto */
     }
 }
 
@@ -319,12 +334,14 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     }
 }
 
-/* Orientamento Landscape - 30% larghezza schermo */
+/* Orientamento Landscape - ottimizzato per sidebar */
 @media (orientation: landscape) {
     .defunto-foto-placeholder {
-        width: 30vw;
+        width: 80%; /* 80% della larghezza del sidebar (che è 30% dello schermo) */
         height: auto;
-        max-height: 350px;
+        max-height: 300px; /* Ridotto per adattarsi al sidebar */
+        max-width: 250px; /* Limite massimo assoluto */
+        aspect-ratio: 1; /* Mantiene forma quadrata per placeholder */
     }
 }
 
@@ -347,13 +364,7 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     font-weight: 300;
 }
 
-/* Body Section - 75% */
-.monitor-body {
-    height: var(--monitor-body-height);
-    position: relative;
-    overflow: hidden;
-    background: var(--monitor-bg-primary);
-}
+
 
 .manifesti-slideshow {
     height: 100%;
@@ -782,11 +793,19 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
 /* Portrait Orientation (Totem) */
 @media (orientation: portrait) {
     .monitor-header {
-        height: 15vh;
-    }
+        height: var(--monitor-header-height);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--monitor-bg-primary);
+        padding: var(--monitor-padding-small);
+        position: relative;    }
     
     .monitor-body {
-        height: 75vh;
+        height: var(--monitor-body-height);
+        position: relative;
+        overflow: hidden;
+        background: var(--monitor-bg-primary);
     }
     
     .monitor-footer {

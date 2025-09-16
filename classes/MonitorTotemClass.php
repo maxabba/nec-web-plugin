@@ -903,8 +903,13 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
 
             $associated_post_id = $post_id;
 
+            // Ensure ManifestiLoader class is loaded
+            if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
+                require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/ManifestiLoader.php';
+            }
+
             // Load manifesti using ManifestiLoader
-            $loader = new ManifestiLoader($associated_post_id, 0, 'top,silver,online');
+            $loader = new \Dokan_Mods\ManifestiLoader($associated_post_id, 0, 'top,silver,online');
             $manifesti = $loader->load_manifesti_for_monitor();
 
             wp_send_json_success(array(
@@ -1333,15 +1338,25 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
                     $author_id = get_the_author_meta('ID');
                     $vendor = dokan()->vendor->get($author_id);
                     
-                    $annunci[] = [
-                        'nome' => get_field('nome', $post_id) ?: 'Nome',
-                        'cognome' => get_field('cognome', $post_id) ?: 'Cognome',
-                        'eta' => get_field('eta', $post_id) ?: rand(60, 90),
-                        'foto' => $this->get_field_url('fotografia', $post_id),
-                        'data_morte' => date('d/m/Y', strtotime(get_field('data_di_morte', $post_id) ?: get_the_date())),
-                        'agenzia_nome' => $vendor->get_shop_name(),
-                        'is_own_vendor' => ($author_id == $vendor_id)
-                    ];
+                    $immagine_annuncio = $this->get_field_url('immagine_annuncio_di_morte', $post_id);
+                    
+                    // Debug: Log the field retrieval
+                    error_log("Post ID: $post_id, immagine_annuncio_di_morte: " . print_r(get_field('immagine_annuncio_di_morte', $post_id), true));
+                    error_log("Processed URL: " . ($immagine_annuncio ?: 'NULL'));
+                    
+                    // Only include posts with immagine_annuncio_di_morte
+                    if ($immagine_annuncio) {
+                        $annunci[] = [
+                            'nome' => get_field('nome', $post_id) ?: 'Nome',
+                            'cognome' => get_field('cognome', $post_id) ?: 'Cognome',
+                            'eta' => get_field('eta', $post_id) ?: rand(60, 90),
+                            'foto' => $this->get_field_url('fotografia', $post_id),
+                            'immagine_annuncio' => $immagine_annuncio,
+                            'data_morte' => date('d/m/Y', strtotime(get_field('data_di_morte', $post_id) ?: get_the_date())),
+                            'agenzia_nome' => $vendor->get_shop_name(),
+                            'is_own_vendor' => ($author_id == $vendor_id)
+                        ];
+                    }
                 }
             }
             wp_reset_postdata();

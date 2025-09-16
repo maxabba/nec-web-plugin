@@ -14,13 +14,13 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     --e-global-typography-text-font-weight: normal;
 }
 
-/* Load PlayFair Display Mine font */
-@font-face {
+/* Use fallback fonts - removed PlayFair Display Mine to avoid 404 errors */
+/* @font-face {
     font-family: "PlayFair Display Mine";
     src: url("../fonts/Playfair_Display/static/PlayfairDisplay-Regular.ttf") format("truetype");
     font-weight: 400;
     font-style: normal;
-}
+} */
 
 /* Global animations */
 
@@ -48,10 +48,11 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
 
 /* Enhanced manifesto content styles */
 .manifesto-content {
-    font-family: "PlayFair Display Mine", Sans-serif;
+    font-family: 'Georgia', 'Times New Roman', serif;
     font-weight: 400;
     position: relative;
     overflow: hidden;
+    color: #000 !important;
 }
 
 /* Container for infinite scroll */
@@ -72,6 +73,7 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     margin-bottom: 1.5em;
     line-height: 1.8;
     text-align: center;
+    color: #000 !important;
 }
 
 .manifesto-content p:last-child {
@@ -80,12 +82,12 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
 
 .manifesto-content strong {
     font-weight: 600;
-    color: #2c3e50;
+    color: #000 !important;
 }
 
 .manifesto-content em {
     font-style: italic;
-    color: #34495e;
+    color: #000 !important;
 }
 
 /* Enhanced slide transitions - infinite scroll with margins */
@@ -139,8 +141,13 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
 
 /* Font and styling for manifesto text editor */
 .custom-text-editor {
-    font-family: "PlayFair Display Mine", serif;
+    font-family: 'Georgia', 'Times New Roman', serif;
     font-weight: 400;
+    color: #000 !important;
+}
+
+.custom-text-editor * {
+    color: #000 !important;
 }
 
 /* Ensure manifesto elements never exceed container bounds */
@@ -162,6 +169,7 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
 /* Standard paragraph margins for manifesto text */
 .custom-text-editor p {
     margin-bottom: 1.0em;
+    color: #000 !important;
 }
 
 /* Small screen optimizations */
@@ -525,19 +533,24 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     }
 }
 
-/* Dark mode support - maintain uniform color scheme */
+/* Dark mode support - force black text regardless of theme */
 @media (prefers-color-scheme: dark) {
     .manifesto-content {
         background: rgb(55, 55, 55) !important; /* Maintain uniform color */
-        color: #e0e0e0;
+        color: #000 !important;
     }
     
     .manifesto-content strong {
-        color: #ffffff;
+        color: #000 !important;
     }
     
     .manifesto-content em {
-        color: #cccccc;
+        color: #000 !important;
+    }
+    
+    .custom-text-editor,
+    .custom-text-editor * {
+        color: #000 !important;
     }
 }
 

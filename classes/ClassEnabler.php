@@ -50,6 +50,7 @@ if (!class_exists(__NAMESPACE__ . '\ClassEnabler')) {
                 'DMClass' => 'classes/DMClass.php',
                 'MonitorDatabaseManager' => 'classes/MonitorDatabaseManager.php',
                 'MonitorTotemClass' => 'classes/MonitorTotemClass.php',
+                'ManifestiLoader' => 'classes/ManifestiLoader.php',
                 //'TrigesimoBulkUpdate' => 'classes/TrigesimoBulkUpdate.php',
                 //'AnniversarioBulkUpdate' => 'classes/AnniversarioBulkUpdate.php',
             ];

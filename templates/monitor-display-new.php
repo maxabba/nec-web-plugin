@@ -148,6 +148,18 @@ switch ($layout_type) {
         $data_pubblicazione = get_the_date('d/m/Y', $associated_post_id);
         $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $data_pubblicazione;
         
+        // Set global data for manifesti template
+        $GLOBALS['manifesti_data'] = [
+            'defunto_title' => $defunto_title,
+            'foto_defunto' => $foto_defunto,
+            'display_date' => $display_date,
+            'associated_post_id' => $associated_post_id
+        ];
+        
+        $GLOBALS['monitor_data'] = [
+            'vendor_data' => $vendor_data
+        ];
+        
         $js_monitor_data['defuntoTitle'] = $defunto_title;
         $js_monitor_data['postId'] = $associated_post_id;
         break;
@@ -178,40 +190,6 @@ switch ($layout_type) {
     
     <!-- Base reset styles -->
     <style>
-        /* CSS Variables per Consistenza - Monitor Design Standards */
-        :root {
-            /* Colors */
-            --monitor-bg-primary: rgb(55, 55, 55);
-            --monitor-text-primary: #ffffff;
-            --monitor-text-secondary: rgba(255, 255, 255, 0.85);
-            --monitor-text-muted: rgba(255, 255, 255, 0.7);
-            --monitor-status-active: #4CAF50;
-            
-            /* Typography */
-            --monitor-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            --monitor-font-manifesti: "PlayFair Display Mine", serif;
-            
-            /* Spacing */
-            --monitor-padding-small: 20px;
-            --monitor-padding-medium: 40px;
-            --monitor-gap-small: 10px;
-            --monitor-gap-medium: 20px;
-            --monitor-gap-large: 30px;
-            
-            /* Layout Heights - Standard per layout tradizionali */
-            --monitor-header-height: 20vh;
-            --monitor-body-height: 75vh;
-            --monitor-footer-height: 5vh;
-            
-            /* Transitions */
-            --monitor-transition-fast: 0.3s ease;
-            --monitor-transition-slow: 0.5s ease;
-            
-            /* Shadows */
-            --monitor-shadow-light: 0 2px 4px rgba(0, 0, 0, 0.3);
-            --monitor-shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.5);
-        }
-        
         * {
             margin: 0;
             padding: 0;
@@ -221,12 +199,21 @@ switch ($layout_type) {
         html, body {
             height: 100%;
             overflow: hidden;
-            font-family: var(--monitor-font-family);
-            background: var(--monitor-bg-primary);
-            color: var(--monitor-text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: rgb(55, 55, 55);
+            color: #fff;
         }
         
-
+        /* Hide any theme elements that might interfere */
+        #wpadminbar,
+        .admin-bar,
+        header:not(.solo-annuncio-header):not(.citta-multi-header):not(.monitor-header),
+        footer:not(.solo-annuncio-footer):not(.citta-multi-footer):not(.monitor-footer),
+        nav,
+        .site-header,
+        .site-footer {
+            display: none !important;
+        }
     </style>
 </head>
 
@@ -244,6 +231,13 @@ switch ($layout_type) {
             
         case 'manifesti':
         default:
+            // Re-define variables for manifesti layout since they were defined earlier in switch
+            $defunto_title = get_the_title($associated_post_id);
+            $foto_defunto = get_field('fotografia', $associated_post_id);
+            $data_di_morte = get_field('data_di_morte', $associated_post_id);
+            $data_pubblicazione = get_the_date('d/m/Y', $associated_post_id);
+            $display_date = $data_di_morte ? date('d/m/Y', strtotime($data_di_morte)) : $data_pubblicazione;
+            
             // Include traditional manifesti layout (existing functionality)
             include_once 'monitor-layout-manifesti.php';
             break;

@@ -227,9 +227,7 @@ $vendor_data = $monitor_data['vendor_data'];
 
 .annuncio-immagine-container {
     margin: 0 auto var(--monitor-gap-large);
-    border-radius: 8px;
     overflow: hidden;
-    box-shadow: var(--monitor-shadow-medium);
     display: flex;
     align-items: center;
     justify-content: center;
