@@ -127,7 +127,7 @@ $active_menu = '';
                             <div style="display: flex; flex-direction: column; width: 300px; margin-bottom: 15px">
                                 <label for="page-format" style="margin-bottom: 5px;">Seleziona formato pagina:</label>
                                 <div style="display: flex; align-items: center; width: 100px;">
-                                    <select id="page-format" style="flex: 1; margin-right: 10px;">
+                                    <select id="page-format" style="flex: 1; margin-right: 10px; width: 100px;">
                                         <option value="A3">A3</option>
                                         <option value="A4">A4</option>
                                         <option value="A5">A5</option>
@@ -135,7 +135,7 @@ $active_menu = '';
                                     <button id="start-button">Stampa tutte le partecipazioni</button>
                                 </div>
                             </div>
-                            <div id="hidden-container" data-postid="<?php echo $post_id_annuncio; ?>"></div>
+                            <div id="hidden-container" data-postid="<?php echo $post_id_annuncio; ?>" style="position: absolute; top: 100vh; left: -9999px; visibility: hidden;"></div>
                             <div id="progress-bar-container" style="display: none; width: 100%; margin-top: 10px;">
                                 <div id="progress-bar" style="width: 0; height: 20px; background: green;"></div>
                             </div>

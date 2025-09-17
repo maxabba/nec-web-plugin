@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function () {
+    //versione da uplodare
     var marginTopPx = 0;
     var marginRightPx = 0;
     var marginBottomPx = 0;
@@ -73,26 +74,76 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Handle Enter key to create new paragraphs
     textEditor.addEventListener('keypress', function (event) {
-        const editorMaxHeight = textEditor.clientHeight;
+        console.log('KEYPRESS EVENT:', event.key);
         if (event.key === 'Enter') {
+            const editorMaxHeight = textEditor.clientHeight;
+            console.log('ENTER - editorMaxHeight:', editorMaxHeight, 'scrollHeight before:', textEditor.scrollHeight);
             const p = document.createElement('p');
             p.id = 'p' + Math.floor(Math.random() * 1000000);
             p.innerHTML = '<br>';
             textEditor.appendChild(p);
 
             if (textEditor.scrollHeight > editorMaxHeight) {
+                console.log('ENTER - LIMIT EXCEEDED:', textEditor.scrollHeight, '>', editorMaxHeight);
                 event.preventDefault();
                 textEditor.removeChild(p);
             } else {
+                console.log('ENTER - OK:', textEditor.scrollHeight, '<=', editorMaxHeight);
                 textEditor.removeChild(p);
                 document.execCommand('formatBlock', false, 'p');
             }
-        } else {
-            if (textEditor.scrollHeight > editorMaxHeight) {
-                alert('Il testo è troppo lungo per l\'editor.');
-                textEditor.innerHTML = textEditor.innerHTML.substring(0, textEditor.innerHTML.length - 1);
-            }
         }
+    });
+
+    // Use debounced input event for height check
+    let heightCheckTimeout;
+    let isProcessingLimit = false;
+    
+    textEditor.addEventListener('input', function (event) {
+        console.log('INPUT EVENT:', event.inputType, 'isProcessingLimit:', isProcessingLimit);
+        if (isProcessingLimit) {
+            console.log('INPUT - BLOCKED by isProcessingLimit');
+            return;
+        }
+        
+        clearTimeout(heightCheckTimeout);
+        heightCheckTimeout = setTimeout(() => {
+            const editorMaxHeight = textEditor.clientHeight;
+            console.log('INPUT - HEIGHT CHECK:', 'scrollHeight:', textEditor.scrollHeight, 'clientHeight:', editorMaxHeight);
+            if (textEditor.scrollHeight > editorMaxHeight) {
+                console.log('INPUT - LIMIT EXCEEDED, setting isProcessingLimit = true');
+                isProcessingLimit = true;
+                
+                const selection = window.getSelection();
+                console.log('INPUT - Selection rangeCount:', selection.rangeCount);
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const container = range.startContainer;
+                    console.log('INPUT - Container type:', container.nodeType, 'TEXT_NODE:', Node.TEXT_NODE);
+                    
+                    if (container.nodeType === Node.TEXT_NODE) {
+                        const offset = range.startOffset;
+                        const textContent = container.textContent;
+                        console.log('INPUT - Before removal:', 'offset:', offset, 'textLength:', textContent.length, 'text:', textContent.substring(Math.max(0, offset-10), offset+10));
+                        if (offset > 0) {
+                            container.textContent = textContent.slice(0, offset - 1) + textContent.slice(offset);
+                            range.setStart(container, offset - 1);
+                            range.collapse(true);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            console.log('INPUT - After removal:', 'newOffset:', offset-1, 'newTextLength:', container.textContent.length);
+                        }
+                    }
+                }
+                
+                alert('Hai raggiunto il limite massimo di caratteri disponibili.');
+                
+                setTimeout(() => {
+                    console.log('INPUT - Resetting isProcessingLimit = false');
+                    isProcessingLimit = false;
+                }, 200);
+            }
+        }, 50);
     });
 
     document.getElementById('custom-text-editor-form').addEventListener('submit', function (event) {

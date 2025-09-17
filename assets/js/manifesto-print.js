@@ -88,7 +88,7 @@
             var printContents = container.html();
             var printWindow = window.open('', '', 'height=600,width=800');
             printWindow.document.write('<html><head><title>Print Manifesti</title>');
-            printWindow.document.write('<script>document.addEventListener("DOMContentLoaded", function() { window.print(); });<\/script>');
+            printWindow.document.write('<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function() { window.print(); }, 2000); });<\/script>');
             printWindow.document.write('<style>body{font-family: Arial, sans-serif;} .text-editor-background{background-size: contain; background-position: center;}</style>');
 
             //add the ttf font to the print window

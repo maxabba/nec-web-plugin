@@ -474,7 +474,7 @@ $active_menu = 'monitor-digitale';
 
 @media (min-width: 1400px) {
     .monitors-grid {
-        grid-template-columns: repeat(4, 1fr); /* Large screens: 4 columns */
+        grid-template-columns: repeat(2, 1fr); /* Large screens: 4 columns */
     }
 }
 

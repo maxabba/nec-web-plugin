@@ -16,7 +16,7 @@ $vendor_data = $monitor_data['vendor_data'];
 ?>
 
 <div class="monitor-solo-annuncio">
-    <!-- Header with defunto basic info -->
+    <!-- Header with defunto basic info
     <header class="solo-annuncio-header">
         <div class="defunto-header-info">
             <?php if (!empty($defunto_data['fotografia'])): ?>
@@ -47,7 +47,7 @@ $vendor_data = $monitor_data['vendor_data'];
             </div>
         </div>
     </header>
-
+    -->
     <!-- Main content area -->
     <main class="solo-annuncio-main">
         
@@ -86,10 +86,6 @@ $vendor_data = $monitor_data['vendor_data'];
                      alt="<?php echo esc_attr($vendor_data['shop_name']); ?>" 
                      class="vendor-logo-solo">
             <?php endif; ?>
-            <div class="vendor-name"><?php echo esc_html($vendor_data['shop_name']); ?></div>
-        </div>
-        <div class="update-time">
-            <small>Ultimo aggiornamento: <span id="last-update"><?php echo current_time('H:i'); ?></span></small>
         </div>
     </footer>
 </div>
@@ -215,7 +211,7 @@ $vendor_data = $monitor_data['vendor_data'];
 
 /* Main Content */
 .solo-annuncio-main {
-    height: var(--monitor-body-height);
+    /*height: var(--monitor-body-height);*/
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -237,14 +233,14 @@ $vendor_data = $monitor_data['vendor_data'];
 @media (orientation: portrait) {
     .annuncio-immagine-container {
         width: 85%; /* 85% della larghezza in verticale */
-        max-height: 50vh;
+        max-height: 85vh;
     }
 }
 
 @media (orientation: landscape) {
     .annuncio-immagine-container {
         max-width: 80%;
-        height: 60vh; /* 60% dell'altezza in orizzontale */
+        height: 85vh; /* 60% dell'altezza in orizzontale */
     }
 }
 
@@ -319,7 +315,7 @@ $vendor_data = $monitor_data['vendor_data'];
     height: var(--monitor-footer-height);
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     padding: 0 var(--monitor-padding-medium);
     background: var(--monitor-bg-primary) !important;
 }
@@ -331,7 +327,7 @@ $vendor_data = $monitor_data['vendor_data'];
 }
 
 .vendor-logo-solo {
-    height: 30px;
+    height: 200px;
     width: auto;
     border-radius: 8px;
     transition: var(--monitor-transition-fast);
@@ -419,11 +415,11 @@ $vendor_data = $monitor_data['vendor_data'];
     }
     
     .solo-annuncio-main {
-        height: var(--monitor-body-height);
+        height: 85vh;
     }
     
     .solo-annuncio-footer {
-        height: var(--monitor-footer-height);
+        height: 5vh;
     }
     
     .defunto-header-info {

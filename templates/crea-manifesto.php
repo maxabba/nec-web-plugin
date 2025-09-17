@@ -112,9 +112,9 @@ $active_menu = 'add-annuncio';
                             // Check if the user is logged in
                         if (is_user_logged_in()) {
                             // Show inline post state control for existing posts (but not for redirect_to flow)
-                            if ( !isset($_GET['redirect_to'])) {
+
                                 echo $template_class->render_post_state_inline_control($post_id);
-                            }
+
                             
                             // Parameters for the ACF form
 

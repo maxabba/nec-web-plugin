@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         } else {
             if (textEditor.scrollHeight > editorMaxHeight) {
-                alert('Il testo è troppo lungo per l\'editor.');
+                alert('Hai raggiunto il limite massimo di caratteri disponibili.');
                 textEditor.innerHTML = textEditor.innerHTML.substring(0, textEditor.innerHTML.length - 1);
             }
         }
