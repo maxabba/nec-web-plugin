@@ -262,10 +262,16 @@ class MonitorDisplay {
                 console.log('Loaded manifesti:', this.manifesti.length);
                 console.log('Manifesti data:', this.manifesti);
                 
-                if (this.manifesti.length > 0) {
+                // Check if we're in grid mode to force grid layout even with 0 manifesti
+                const isGridMode = window.ManifestiGridConfig && typeof window.createManifestiGrid === 'function';
+                
+                if (this.manifesti.length > 0 || isGridMode) {
                     this.renderSlideshow();
-
-                    this.startSlideshow();
+                    
+                    // Only start slideshow if we have manifesti
+                    if (this.manifesti.length > 0) {
+                        this.startSlideshow();
+                    }
                 } else {
                     console.log('No manifesti found, showing no-manifesti screen');
                     this.showNoManifesti();
@@ -285,11 +291,13 @@ class MonitorDisplay {
     }
 
     renderSlideshow() {
-        if (!this.container || this.manifesti.length === 0) return;
+        if (!this.container) return;
 
         console.log(window.ManifestiGridConfig);
         // Check if we have grid configuration (new grid mode)
         if (window.ManifestiGridConfig && typeof window.createManifestiGrid === 'function') {
+            // Force grid mode even with 0 manifesti to maintain grid layout
+            // If no manifesti, createManifestiGrid will create an empty grid
             // Use grid system from template
             window.createManifestiGrid(this.manifesti);
 
@@ -591,8 +599,6 @@ class MonitorDisplay {
         }
     }
 
-    // renderIndicators removed - no longer needed
-
     showSlide(index, direction = null) {
         if (!this.container || this.manifesti.length === 0) return;
         
@@ -651,44 +657,6 @@ class MonitorDisplay {
         this.updateAllSlidePositions();
     }
 
-    snapToNearestSlide() {
-        if (this.realSlidesCount <= 1) {
-            this.snapToCurrentSlide();
-            return;
-        }
-
-        // Find the slide closest to center (position 0)
-        const slides = this.container.querySelectorAll('.manifesto-slide');
-        let closestDistance = Infinity;
-        let closestSlideIndex = this.currentSlide;
-
-        slides.forEach((slide, index) => {
-            const slideIndex = parseInt(slide.dataset.slideIndex);
-            const position = this.getSlidePosition(index);
-            const distanceFromCenter = Math.abs(position);
-            
-            if (distanceFromCenter < closestDistance) {
-                closestDistance = distanceFromCenter;
-                closestSlideIndex = index;
-            }
-        });
-
-        // Snap to the closest slide
-        this.currentSlide = closestSlideIndex;
-        this.updateAllSlidePositions();
-        this.checkInfiniteLoop();
-    }
-
-    calculateNearestSlideFromDrag(deltaX, containerWidth) {
-        // Calculate how much the current position would change
-        const dragPercentage = (deltaX / containerWidth) * this.slideWidth;
-        
-        // Find which slide would be closest to center after this drag
-        const effectiveCurrentSlide = this.currentSlide - (dragPercentage / this.slideWidth);
-        
-        // Round to nearest integer (nearest slide)
-        return Math.round(effectiveCurrentSlide);
-    }
 
     ensureValidSlidePosition() {
         // Make sure currentSlide is always an integer and within bounds
@@ -942,8 +910,6 @@ class MonitorDisplay {
         }, 30000); // 30 seconds
     }
 
-    // showControls removed - no UI controls needed
-
     showLoading(show) {
         if (this.loadingOverlay) {
             this.loadingOverlay.classList.toggle('hidden', !show);
@@ -1025,6 +991,9 @@ class MonitorDisplay {
                         this.handleNewDefunto(data.data);
                     }
                 } else {
+                    // Check for new manifesti for the same defunto
+                    this.checkForNewManifesti();
+                    
                     // Update last check time
                     if (data.data.last_check && this.lastUpdateSpan) {
                         this.lastUpdateSpan.textContent = data.data.last_check;
@@ -1033,6 +1002,63 @@ class MonitorDisplay {
             }
         } catch (error) {
             console.error('Error checking for updates:', error);
+        }
+    }
+
+    async checkForNewManifesti() {
+        try {
+            const formData = new FormData();
+            formData.append('action', 'monitor_get_manifesti');
+            formData.append('vendor_id', this.config.vendorId);
+            formData.append('post_id', this.config.postId);
+            
+            const response = await fetch(this.config.ajaxUrl, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                const newManifesti = data.data.manifesti || [];
+                const currentCount = this.manifesti.length;
+                const newCount = newManifesti.length;
+                
+                // Check if there are new manifesti
+                if (newCount > currentCount) {
+                    console.log(`Found ${newCount - currentCount} new manifesti. Updating slideshow...`);
+                    
+                    // Update manifesti array
+                    this.manifesti = newManifesti;
+                    this.lastUpdateTime = data.data.last_update;
+                    
+                    // Re-render slideshow with new manifesti
+                    this.stopSlideshow();
+                    this.renderSlideshow();
+                    this.startSlideshow();
+                    
+                    this.updateLastUpdateTime();
+                } else if (newCount < currentCount) {
+                    // Some manifesti were removed
+                    console.log(`${currentCount - newCount} manifesti were removed. Updating slideshow...`);
+                    
+                    this.manifesti = newManifesti;
+                    this.lastUpdateTime = data.data.last_update;
+                    
+                    // Handle case where all manifesti were removed
+                    if (newManifesti.length === 0) {
+                        this.showNoManifesti();
+                    } else {
+                        this.stopSlideshow();
+                        this.renderSlideshow();
+                        this.startSlideshow();
+                    }
+                    
+                    this.updateLastUpdateTime();
+                }
+            }
+        } catch (error) {
+            console.error('Error checking for new manifesti:', error);
         }
     }
 

@@ -466,21 +466,21 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
 
 /* Empty cells styling */
 .manifesti-grid-cell.empty {
-    background: rgba(255, 255, 255, 0.05);
-    border: 2px dashed rgba(255, 255, 255, 0.2);
-    display: none;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
 }
 
-.manifesti-grid-cell.empty::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 30px;
-    height: 30px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 50%;
+.manifesti-grid-cell.empty .custom-text-editor {
+    color: rgba(255, 255, 255, 0.3);
+    font-style: italic;
+    font-size: calc(0.7rem + 0.3vw);
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Manifesto rendering from manifesto.css */
@@ -1008,7 +1008,8 @@ function createManifestiGrid(manifesti) {
     if (!container) return;
     
     const gridConfig = window.ManifestiGridConfig;
-    const totalSlides = Math.ceil(manifesti.length / gridConfig.totalCells);
+    // Ensure at least 1 slide even with 0 manifesti to maintain grid layout
+    const totalSlides = Math.max(1, Math.ceil(manifesti.length / gridConfig.totalCells));
     
     container.innerHTML = ''; // Clear existing content
     
@@ -1025,34 +1026,23 @@ function createManifestiGrid(manifesti) {
         const endIdx = Math.min(startIdx + gridConfig.totalCells, manifesti.length);
         const cellsInThisSlide = endIdx - startIdx;
         
-        // Only create cells that have content
-        for (let i = 0; i < cellsInThisSlide; i++) {
+        // Always create the full grid (totalCells) to maintain consistent layout
+        for (let i = 0; i < gridConfig.totalCells; i++) {
             const manifestoIndex = startIdx + i;
             const cell = document.createElement('div');
-            cell.className = 'manifesti-grid-cell';
             
-            // Cell has content
-            const manifesto = manifesti[manifestoIndex];
-            cell.innerHTML = generateManifestoHTML(manifesto);
+            if (manifestoIndex < manifesti.length) {
+                // Cell has content
+                cell.className = 'manifesti-grid-cell';
+                const manifesto = manifesti[manifestoIndex];
+                cell.innerHTML = generateManifestoHTML(manifesto);
+            } else {
+                // Empty cell to maintain grid structure
+                cell.className = 'manifesti-grid-cell empty';
+                cell.innerHTML = '<div class="manifesto-wrapper"><div class="text-editor-background"><div class="custom-text-editor"></div></div></div>';
+            }
             
             gridWrapper.appendChild(cell);
-        }
-        
-        // If this is the last slide and has fewer cells, adjust grid to center content
-        if (cellsInThisSlide < gridConfig.totalCells) {
-            // Adjust grid template for partial slides
-            if (cellsInThisSlide === 1) {
-                gridWrapper.style.gridTemplateColumns = '1fr';
-                gridWrapper.style.gridTemplateRows = '1fr';
-                gridWrapper.style.justifyContent = 'center';
-                gridWrapper.style.alignContent = 'center';
-            } else if (gridConfig.columns === 2 && cellsInThisSlide <= 2) {
-                gridWrapper.style.gridTemplateColumns = cellsInThisSlide === 1 ? '1fr' : 'repeat(2, 1fr)';
-                gridWrapper.style.gridTemplateRows = '1fr';
-            } else if (gridConfig.rows === 2 && cellsInThisSlide <= 2) {
-                gridWrapper.style.gridTemplateRows = cellsInThisSlide === 1 ? '1fr' : 'repeat(2, 1fr)';
-                gridWrapper.style.gridTemplateColumns = '1fr';
-            }
         }
         
         slide.appendChild(gridWrapper);
