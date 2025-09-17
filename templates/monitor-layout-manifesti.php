@@ -15,10 +15,17 @@ $foto_defunto = $manifesti_data['foto_defunto'] ?? null;
 $display_date = $manifesti_data['display_date'] ?? '';
 $associated_post_id = $manifesti_data['associated_post_id'] ?? null;
 
-// Get vendor data from global scope
-$vendor_data = $GLOBALS['monitor_data']['vendor_data'] ?? [];
+// Get monitor data from global scope
+$monitor_data = $GLOBALS['monitor_data'] ?? [];
+$vendor_data = $monitor_data['vendor_data'] ?? [];
 $shop_name = $vendor_data['shop_name'] ?? '';
 $shop_banner = $vendor_data['banner'] ?? '';
+
+// Get layout configuration for grid settings
+$layout_config = $monitor_data['layout_config'] ?? [];
+$grid_rows = intval($layout_config['grid_rows'] ?? 1);
+$grid_columns = intval($layout_config['grid_columns'] ?? 1);
+$total_cells = $grid_rows * $grid_columns;
 
 // Get logo image URL from plugin assets for no-manifesti state - no dependency on site media library
 $logo_url = plugin_dir_url(__FILE__) . '../assets/images/Necrologi-oro.png';
@@ -378,17 +385,27 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     left: 0;
     width: 100%;
     height: 100%;
-    opacity: 0;
-    transition: opacity 1s ease-in-out;
+    opacity: 1;
+    transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: var(--monitor-padding-small);
+    transform: translateX(100%);
 }
 
 .manifesto-slide.active {
     opacity: 1;
-    z-index: 1;
+    z-index: 2;
+    transform: translateX(0);
+}
+
+.manifesto-slide.dragging {
+    transition: none !important;
+}
+
+.manifesto-slide.no-transition {
+    transition: none !important;
 }
 
 .manifesto-content {
@@ -398,6 +415,72 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     align-items: center;
     justify-content: center;
     position: relative;
+}
+
+/* Grid Layout for Manifesti */
+.manifesti-grid {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    gap: var(--monitor-gap-small);
+    padding: var(--monitor-padding-small);
+}
+
+/* Dynamic grid template will be set via inline styles based on PHP config */
+.manifesti-grid-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+.manifesti-grid-cell .manifesto-wrapper {
+    width: 100%;
+    height: 100%;
+}
+
+.manifesti-grid-cell .text-editor-background {
+    width: 100%;
+    height: 100%;
+}
+
+.manifesti-grid-cell .custom-text-editor {
+    font-size: calc(1rem + 0.5vw); /* Responsive font size for grid cells */
+    padding: 10px;
+}
+
+/* Responsive font scaling for grid layouts */
+@media (orientation: landscape) {
+    .manifesti-grid-cell .custom-text-editor {
+        font-size: calc(0.8rem + 0.3vw);
+    }
+}
+
+@media (orientation: portrait) {
+    .manifesti-grid-cell .custom-text-editor {
+        font-size: calc(0.9rem + 0.4vh);
+    }
+}
+
+/* Empty cells styling */
+.manifesti-grid-cell.empty {
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px dashed rgba(255, 255, 255, 0.2);
+    display: none;
+}
+
+.manifesti-grid-cell.empty::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 30px;
+    height: 30px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
 }
 
 /* Manifesto rendering from manifesto.css */
@@ -875,3 +958,115 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     }
 }
 </style>
+
+<script>
+// Grid configuration passed from PHP
+window.ManifestiGridConfig = {
+    rows: <?php echo $grid_rows; ?>,
+    columns: <?php echo $grid_columns; ?>,
+    totalCells: <?php echo $total_cells; ?>
+};
+
+// Monitor data for JavaScript
+if (!window.MonitorData) {
+    window.MonitorData = {};
+}
+
+// Extend MonitorData with grid configuration
+Object.assign(window.MonitorData, {
+    gridRows: <?php echo $grid_rows; ?>,
+    gridColumns: <?php echo $grid_columns; ?>,
+    totalCells: <?php echo $total_cells; ?>,
+    layoutType: 'manifesti'
+});
+
+// Initialize grid layout when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Apply dynamic grid template to CSS
+    const gridContainer = document.getElementById('manifesti-container');
+    if (gridContainer) {
+        // Create a style element for dynamic grid
+        const dynamicStyle = document.createElement('style');
+        dynamicStyle.id = 'manifesti-grid-dynamic-style';
+        
+        // Build CSS for the specific grid configuration
+        const gridCSS = `
+            .manifesti-grid {
+                grid-template-rows: repeat(${window.ManifestiGridConfig.rows}, 1fr);
+                grid-template-columns: repeat(${window.ManifestiGridConfig.columns}, 1fr);
+            }
+        `;
+        
+        dynamicStyle.textContent = gridCSS;
+        document.head.appendChild(dynamicStyle);
+    }
+});
+
+// Function to create grid structure for manifesti slides
+function createManifestiGrid(manifesti) {
+    const container = document.getElementById('manifesti-container');
+    if (!container) return;
+    
+    const gridConfig = window.ManifestiGridConfig;
+    const totalSlides = Math.ceil(manifesti.length / gridConfig.totalCells);
+    
+    container.innerHTML = ''; // Clear existing content
+    
+    for (let slideIndex = 0; slideIndex < totalSlides; slideIndex++) {
+        const slide = document.createElement('div');
+        slide.className = 'manifesto-slide';
+        if (slideIndex === 0) slide.classList.add('active');
+        
+        const gridWrapper = document.createElement('div');
+        gridWrapper.className = 'manifesti-grid';
+        
+        // Calculate how many cells to create for this slide
+        const startIdx = slideIndex * gridConfig.totalCells;
+        const endIdx = Math.min(startIdx + gridConfig.totalCells, manifesti.length);
+        const cellsInThisSlide = endIdx - startIdx;
+        
+        // Only create cells that have content
+        for (let i = 0; i < cellsInThisSlide; i++) {
+            const manifestoIndex = startIdx + i;
+            const cell = document.createElement('div');
+            cell.className = 'manifesti-grid-cell';
+            
+            // Cell has content
+            const manifesto = manifesti[manifestoIndex];
+            cell.innerHTML = generateManifestoHTML(manifesto);
+            
+            gridWrapper.appendChild(cell);
+        }
+        
+        // If this is the last slide and has fewer cells, adjust grid to center content
+        if (cellsInThisSlide < gridConfig.totalCells) {
+            // Adjust grid template for partial slides
+            if (cellsInThisSlide === 1) {
+                gridWrapper.style.gridTemplateColumns = '1fr';
+                gridWrapper.style.gridTemplateRows = '1fr';
+                gridWrapper.style.justifyContent = 'center';
+                gridWrapper.style.alignContent = 'center';
+            } else if (gridConfig.columns === 2 && cellsInThisSlide <= 2) {
+                gridWrapper.style.gridTemplateColumns = cellsInThisSlide === 1 ? '1fr' : 'repeat(2, 1fr)';
+                gridWrapper.style.gridTemplateRows = '1fr';
+            } else if (gridConfig.rows === 2 && cellsInThisSlide <= 2) {
+                gridWrapper.style.gridTemplateRows = cellsInThisSlide === 1 ? '1fr' : 'repeat(2, 1fr)';
+                gridWrapper.style.gridTemplateColumns = '1fr';
+            }
+        }
+        
+        slide.appendChild(gridWrapper);
+        container.appendChild(slide);
+    }
+}
+
+// Function to generate manifesto HTML (to be used by the JavaScript loader)
+function generateManifestoHTML(manifesto) {
+    // The AJAX response already contains the complete HTML structure 
+    // including manifesto-wrapper, text-editor-background, and custom-text-editor
+    // So we just return the HTML as-is without wrapping it again
+    return manifesto.html || '<div class="manifesto-wrapper"><div class="text-editor-background"><div class="custom-text-editor">Contenuto non disponibile</div></div></div>';
+}
+
+console.log('Manifesti Grid Configuration:', window.ManifestiGridConfig);
+</script>

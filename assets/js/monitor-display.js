@@ -96,9 +96,12 @@ class MonitorDisplay {
         let isDragging = false;
         let startTime = 0;
         let containerWidth = 0;
-        const snapThreshold = 0.3; // 30% of container width
+        const snapThreshold = 0.15; // 15% of container width for triggering slide change
         
         if (!this.container) return;
+        
+        // Check if we're in grid mode
+        const isGridMode = window.ManifestiGridConfig && typeof window.createManifestiGrid === 'function';
         
         // Unified start handler for both touch and mouse
         const handleStart = (e) => {
@@ -118,12 +121,14 @@ class MonitorDisplay {
             currentX = startX;
             currentY = startY;
             
-            // Add dragging class to disable transitions
-            const slides = this.container.querySelectorAll('.manifesto-slide');
-            slides.forEach(slide => slide.classList.add('dragging'));
+            // Add dragging class to disable transitions (not needed for grid mode)
+            if (!isGridMode) {
+                const slides = this.container.querySelectorAll('.manifesto-slide');
+                slides.forEach(slide => slide.classList.add('dragging'));
+            }
         };
         
-        // Unified move handler - continuous drag
+        // Unified move handler - continuous drag (disabled for grid mode)
         const handleMove = (e) => {
             if (!isDragging) return;
             
@@ -142,8 +147,11 @@ class MonitorDisplay {
             if (Math.abs(deltaX) > deltaY && Math.abs(deltaX) > 10) {
                 e.preventDefault();
                 
-                // Update slide positions in real time
-                this.updateSlidePositions(deltaX, containerWidth);
+                // Only update slide positions in non-grid mode (grid uses fade transition)
+                if (!isGridMode) {
+                    // Update slide positions in real time
+                    this.updateSlidePositions(deltaX, containerWidth);
+                }
             }
         };
         
@@ -155,31 +163,50 @@ class MonitorDisplay {
             const deltaX = currentX - startX;
             const deltaY = Math.abs(currentY - startY);
             const timeDiff = Date.now() - startTime;
+            const swipePercentage = Math.abs(deltaX) / containerWidth;
             
-            // Remove dragging class to enable transitions
-            const slides = this.container.querySelectorAll('.manifesto-slide');
-            slides.forEach(slide => slide.classList.remove('dragging'));
+            // Remove dragging class to enable transitions (not needed for grid mode)
+            if (!isGridMode) {
+                const slides = this.container.querySelectorAll('.manifesto-slide');
+                slides.forEach(slide => slide.classList.remove('dragging'));
+            }
             
             // Check for tap/click (minimal movement and quick timing)
             if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && timeDiff < 300) {
-                this.snapToCurrentSlide();
+                if (!isGridMode) {
+                    this.snapToCurrentSlide();
+                }
                 this.pauseOnInteraction();
                 return;
             }
             
-            // Always snap to the nearest complete slide
-            if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
-                // Calculate which slide should be centered after this drag
-                const targetSlide = this.calculateNearestSlideFromDrag(deltaX, containerWidth);
-                
-                // Snap to the calculated target slide
-                this.currentSlide = targetSlide;
-                this.updateAllSlidePositions();
-                this.checkInfiniteLoop();
-                this.pauseOnInteraction();
+            // Check if horizontal swipe is significant
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                // If swipe is more than 15% of screen width, change slide
+                if (swipePercentage > snapThreshold) {
+                    if (deltaX < 0) {
+                        // Swipe left - next slide
+                        this.nextSlide();
+                    } else {
+                        // Swipe right - previous slide
+                        this.previousSlide();
+                    }
+                    this.pauseOnInteraction();
+                } else {
+                    // Swipe not enough, snap back to current slide
+                    if (isGridMode) {
+                        // Grid mode doesn't need snap back
+                        this.showGridSlide(this.currentSlide);
+                    } else {
+                        // Snap back to current position
+                        this.snapToCurrentSlide();
+                    }
+                }
             } else {
-                // For small movements, snap to nearest slide
-                this.snapToNearestSlide();
+                // Vertical swipe or small movement, snap back
+                if (!isGridMode) {
+                    this.snapToCurrentSlide();
+                }
             }
         };
         
@@ -236,8 +263,8 @@ class MonitorDisplay {
                 console.log('Manifesti data:', this.manifesti);
                 
                 if (this.manifesti.length > 0) {
-                    this.hideNoManifesti();
                     this.renderSlideshow();
+
                     this.startSlideshow();
                 } else {
                     console.log('No manifesti found, showing no-manifesti screen');
@@ -259,7 +286,64 @@ class MonitorDisplay {
 
     renderSlideshow() {
         if (!this.container || this.manifesti.length === 0) return;
+
+        console.log(window.ManifestiGridConfig);
+        // Check if we have grid configuration (new grid mode)
+        if (window.ManifestiGridConfig && typeof window.createManifestiGrid === 'function') {
+            // Use grid system from template
+            window.createManifestiGrid(this.manifesti);
+
+            // Wait for DOM to be ready, then apply backgrounds to all cells across all slides
+            setTimeout(() => {
+                const gridConfig = window.ManifestiGridConfig;
+                const slides = this.container.querySelectorAll('.manifesto-slide');
+                
+                // Process each slide
+                slides.forEach((slide, slideIndex) => {
+                    const cells = slide.querySelectorAll('.manifesti-grid-cell:not(.empty)');
+                    
+                    // Apply background to each cell in the slide
+                    cells.forEach((cell, cellIndex) => {
+                        const manifestoIndex = slideIndex * gridConfig.totalCells + cellIndex;
+                        
+                        if (manifestoIndex < this.manifesti.length) {
+                            const manifesto = this.manifesti[manifestoIndex];
+                            if (manifesto.vendor_data) {
+                                const wrapper = cell.querySelector('.manifesto-wrapper');
+                                if (wrapper) {
+                                    this.updateEditorBackground(manifesto.vendor_data, wrapper);
+                                } else {
+                                    this.updateEditorBackground(manifesto.vendor_data, cell);
+                                }
+                            }
+                        }
+                    });
+                });
+            }, 150);
+
+            // For grid mode, we need different slide counting logic
+            const gridConfig = window.ManifestiGridConfig;
+            this.realSlidesCount = Math.ceil(this.manifesti.length / gridConfig.totalCells);
+            
+            // In grid mode, we don't use clones - just cycle through slides
+            this.totalSlides = this.realSlidesCount;
+            
+            // Always start at first slide in grid mode
+            this.currentSlide = 0;
+            
+            // Make first slide visible immediately
+            setTimeout(() => {
+                const firstSlide = this.container.querySelector('.manifesto-slide');
+                if (firstSlide) {
+                    firstSlide.classList.add('active');
+                }
+            }, 50);
+            
+            this.hideNoManifesti();
+            return;
+        }
         
+        // Original single manifesto per slide mode (fallback)
         // Clear existing slides
         this.container.innerHTML = '';
         
@@ -330,6 +414,7 @@ class MonitorDisplay {
         // Position all slides and show first real slide
         this.currentSlide = this.realSlidesCount > 1 ? this.clonesCount : 0;
         this.updateAllSlidePositions();
+        this.hideNoManifesti();
     }
 
     createSlide(manifesto, index, isClone = false) {
@@ -361,28 +446,32 @@ class MonitorDisplay {
             return;
         }
 
+        console.log(data);
+
+        console.log('Data_manifesto_backgrund' + data.manifesto_background);
+
         if (data.manifesto_background) {
             const img = new Image();
             img.src = data.manifesto_background;
             img.onload = function () {
                 const aspectRatio = img.width / img.height;
                 backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
-                
+                console.log(data.manifesto_background);
                 // Use the same logic as manifesto.js for consistent sizing
                 // Get available space from container
-                const containerWidth = backgroundDiv.parentElement.clientWidth || window.innerWidth * 0.8;
-                const containerHeight = backgroundDiv.parentElement.clientHeight || window.innerHeight * 0.75;
+                const containerWidth = backgroundDiv.parentElement.clientWidth;
+                const containerHeight = backgroundDiv.parentElement.clientHeight;
                 
                 // Calculate optimal dimensions that fit in container while respecting aspect ratio
                 let optimalWidth, optimalHeight;
                 
                 if (aspectRatio > (containerWidth / containerHeight)) {
                     // Image is wider relative to container - constrain by width
-                    optimalWidth = containerWidth * 0.9; // Max reasonable size for monitor
+                    optimalWidth = containerWidth; // Max reasonable size for monitor
                     optimalHeight = optimalWidth / aspectRatio;
                 } else {
                     // Image is taller relative to container - constrain by height
-                    optimalHeight = containerHeight * 0.9; // Max reasonable size for monitor
+                    optimalHeight = containerHeight; // Max reasonable size for monitor
                     optimalWidth = optimalHeight * aspectRatio;
                 }
                 
@@ -404,16 +493,18 @@ class MonitorDisplay {
                 textEditor.style.textAlign = data.alignment || 'left';
                 
                 // Calculate font-size proportional to background dimensions (responsive to monitor size)
-                const baseSize = Math.min(optimalWidth, optimalHeight);
+                const currentWidth = parseInt(backgroundDiv.style.width);
+                const currentHeight = parseInt(backgroundDiv.style.height);
+                const actualBaseSize = Math.min(currentWidth, currentHeight);
                 let baseFontSize;
                 
-                // Scale font size based on manifesto dimensions
-                if (baseSize < 300) {
-                    baseFontSize = Math.max(12, baseSize * 0.06);
-                } else if (baseSize < 450) {
-                    baseFontSize = Math.max(16, baseSize * 0.05);
+                // Scale font size based on manifesto dimensions - adapted from manifesto.js
+                if (actualBaseSize < 300) {
+                    baseFontSize = Math.max(12, actualBaseSize * 0.06);
+                } else if (actualBaseSize < 450) {
+                    baseFontSize = Math.max(16, actualBaseSize * 0.05);
                 } else {
-                    baseFontSize = Math.max(20, baseSize * 0.04);
+                    baseFontSize = Math.max(20, actualBaseSize * 0.04);
                 }
                 
                 textEditor.style.fontSize = `${baseFontSize}px`;
@@ -619,30 +710,158 @@ class MonitorDisplay {
     nextSlide() {
         if (this.manifesti.length === 0) return;
         
-        this.currentSlide++;
-        this.ensureValidSlidePosition();
-        this.goToSlide(this.currentSlide);
-        this.checkInfiniteLoop();
+        // Check if we're in grid mode
+        const isGridMode = window.ManifestiGridConfig && typeof window.createManifestiGrid === 'function';
+        
+        if (isGridMode) {
+            // For grid mode, use simple modulo but with proper forward animation
+            const nextIndex = (this.currentSlide + 1) % this.realSlidesCount;
+            this.showGridSlideWithDirection(nextIndex, 'forward');
+            this.currentSlide = nextIndex;
+        } else {
+            // Original behavior for non-grid mode
+            this.currentSlide++;
+            this.ensureValidSlidePosition();
+            this.goToSlide(this.currentSlide);
+            this.checkInfiniteLoop();
+        }
     }
 
     previousSlide() {
         if (this.manifesti.length === 0) return;
         
-        this.currentSlide--;
-        this.ensureValidSlidePosition();
-        this.goToSlide(this.currentSlide);
-        this.checkInfiniteLoop();
+        // Check if we're in grid mode
+        const isGridMode = window.ManifestiGridConfig && typeof window.createManifestiGrid === 'function';
+        
+        if (isGridMode) {
+            // For grid mode, use simple modulo but with proper backward animation
+            const prevIndex = (this.currentSlide - 1 + this.realSlidesCount) % this.realSlidesCount;
+            this.showGridSlideWithDirection(prevIndex, 'backward');
+            this.currentSlide = prevIndex;
+        } else {
+            // Original behavior for non-grid mode
+            this.currentSlide--;
+            this.ensureValidSlidePosition();
+            this.goToSlide(this.currentSlide);
+            this.checkInfiniteLoop();
+        }
+    }
+    
+    showGridSlide(index) {
+        // Use translation for grid mode similar to normal mode with clone support
+        const slides = this.container.querySelectorAll('.manifesto-slide');
+        const totalSlides = slides.length;
+        
+        slides.forEach((slide, i) => {
+            const position = (i - index) * this.slideWidth;
+            slide.style.transform = `translateX(${position}%)`;
+            slide.style.transition = 'transform 0.5s ease-in-out';
+            
+            // Keep active class for z-index management
+            if (i === index) {
+                slide.classList.add('active');
+            } else {
+                slide.classList.remove('active');
+            }
+        });
+    }
+    
+    showGridSlideWithDirection(targetIndex, direction) {
+        const slides = this.container.querySelectorAll('.manifesto-slide');
+        const currentIndex = this.currentSlide;
+        
+        if (direction === 'forward') {
+            // Check if we're going from last to first (wrap around)
+            if (currentIndex === this.realSlidesCount - 1 && targetIndex === 0) {
+                // Create the illusion of continuous forward movement
+                // First, position target slide to the right
+                const targetSlide = slides[targetIndex];
+                targetSlide.style.transition = 'none';
+                targetSlide.style.transform = `translateX(${this.slideWidth}%)`;
+                
+                // Force reflow
+                targetSlide.offsetHeight;
+                
+                // Now animate all slides to the left
+                setTimeout(() => {
+                    slides.forEach((slide, i) => {
+                        slide.style.transition = 'transform 0.5s ease-in-out';
+                        if (i === targetIndex) {
+                            slide.style.transform = 'translateX(0%)';
+                            slide.classList.add('active');
+                        } else if (i === currentIndex) {
+                            slide.style.transform = `translateX(-${this.slideWidth}%)`;
+                            slide.classList.remove('active');
+                        } else {
+                            // Position other slides appropriately
+                            const position = (i - targetIndex) * this.slideWidth;
+                            slide.style.transform = `translateX(${position}%)`;
+                            slide.classList.remove('active');
+                        }
+                    });
+                }, 10);
+            } else {
+                // Normal forward animation
+                this.showGridSlide(targetIndex);
+            }
+        } else if (direction === 'backward') {
+            // Check if we're going from first to last (wrap around)
+            if (currentIndex === 0 && targetIndex === this.realSlidesCount - 1) {
+                // Create the illusion of continuous backward movement
+                // First, position target slide to the left
+                const targetSlide = slides[targetIndex];
+                targetSlide.style.transition = 'none';
+                targetSlide.style.transform = `translateX(-${this.slideWidth}%)`;
+                
+                // Force reflow
+                targetSlide.offsetHeight;
+                
+                // Now animate all slides to the right
+                setTimeout(() => {
+                    slides.forEach((slide, i) => {
+                        slide.style.transition = 'transform 0.5s ease-in-out';
+                        if (i === targetIndex) {
+                            slide.style.transform = 'translateX(0%)';
+                            slide.classList.add('active');
+                        } else if (i === currentIndex) {
+                            slide.style.transform = `translateX(${this.slideWidth}%)`;
+                            slide.classList.remove('active');
+                        } else {
+                            // Position other slides appropriately
+                            const position = (i - targetIndex) * this.slideWidth;
+                            slide.style.transform = `translateX(${position}%)`;
+                            slide.classList.remove('active');
+                        }
+                    });
+                }, 10);
+            } else {
+                // Normal backward animation
+                this.showGridSlide(targetIndex);
+            }
+        }
     }
 
     goToSlide(index) {
-        this.currentSlide = index;
-        this.ensureValidSlidePosition();
-        this.showSlide(this.currentSlide);
+        // Check if we're in grid mode
+        const isGridMode = window.ManifestiGridConfig && typeof window.createManifestiGrid === 'function';
+        
+        if (isGridMode) {
+            this.currentSlide = index % this.realSlidesCount;
+            this.showGridSlide(this.currentSlide);
+        } else {
+            this.currentSlide = index;
+            this.ensureValidSlidePosition();
+            this.showSlide(this.currentSlide);
+        }
         this.restartSlideshow(); // Reset auto-advance timer
     }
 
     checkInfiniteLoop() {
         if (this.realSlidesCount <= 1) return;
+        
+        // Skip infinite loop logic for grid mode
+        const isGridMode = window.ManifestiGridConfig && typeof window.createManifestiGrid === 'function';
+        if (isGridMode) return;
         
         // If we're at or beyond the end clones, jump to beginning
         if (this.currentSlide >= this.realSlidesCount + this.clonesCount) {

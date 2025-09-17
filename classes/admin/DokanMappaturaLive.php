@@ -83,10 +83,29 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
             <div class="wrap">
                 <h1>Mappatura Live.it</h1>
                 <p>Questa pagina ti permette di mappare i portal ID con i comuni per ottenere i necrologi.</p>
-                <p>L'url da interrogare è https://necrologiweb.it/wp-json/mappatura-live/v1/necrologi?portalid=< identificativo del portale mappato ></p>
-                <p>Es: https://necrologiweb.it/wp-json/mappatura-live/v1/necrologi?portalid=1234</p>
-                <p>Finche l'applicativo è in fase di sviluppo il link per effettuare le prove è il seguente:</p>
-                <p>https://necrologi.abbattista.cc/wp-json/mappatura-live/v1/necrologi?portalid=1234</p>
+                <p>Ricorda di sostituire l'id portale di esempio "1234" con l'id corretto</p>
+                <?php
+                    $current_domain = home_url();
+                    $example_portalid = 1234;
+                    $necrologi_url = $current_domain . "/wp-json/mappatura-live/v1/necrologi?portalid=" . $example_portalid;
+                    $ricorrenze_url = $current_domain . "/wp-json/mappatura-live/v1/ricorrenze?portalid=" . $example_portalid;
+                    $ringraziamenti_url = $current_domain . "/wp-json/mappatura-live/v1/ringraziamenti?portalid=" . $example_portalid;
+                ?>
+                <p>
+                    <label for="necrologi-url">URL Necrologi API:</label>
+                    <input id="necrologi-url" type="text" value="<?php echo esc_attr($necrologi_url); ?>" readonly style="width: 100%;" onclick="this.select();" />
+                </p>
+                <p>
+                    <label for="ricorrenze-url">URL Ricorrenze API:</label>
+                    <input id="ricorrenze-url" type="text" value="<?php echo esc_attr($ricorrenze_url); ?>" readonly style="width: 100%;" onclick="this.select();" />
+                </p>
+                <p>
+                    <label for="ricorrenze-url">URL Ringraziamenti API:</label>
+                    <input id="ricorrenze-url" type="text" value="<?php echo esc_attr($ringraziamenti_url); ?>" readonly
+                           style="width: 100%;" onclick="this.select();"/>
+                </p>
+
+                <p>Puoi copiare gli URL sopra per interrogare le API con il portal ID mappato.</p>
                 <table class="form-table" id="mappatura-live-table">
                     <thead>
                     <tr>
@@ -174,6 +193,36 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                     ]
                 ]
             ]);
+
+            register_rest_route('mappatura-live/v1', '/ricorrenze', [
+                'methods' => 'GET',
+                'callback' => [$this, 'get_ricorrenze_data'],
+                'permission_callback' => '__return_true',
+                'args' => [
+                    'portalid' => [
+                        'required' => true,
+                        'validate_callback' => function ($param) {
+                            return is_numeric($param);
+                        }
+                    ]
+                ]
+            ]);
+
+
+            register_rest_route('mappatura-live/v1', '/ringraziamenti', [
+                'methods' => 'GET',
+                'callback' => [$this, 'get_ringraziamenti_data'],
+                'permission_callback' => '__return_true',
+                'args' => [
+                    'portalid' => [
+                        'required' => true,
+                        'validate_callback' => function ($param) {
+                            return is_numeric($param);
+                        }
+                    ]
+                ]
+            ]);
+
         }
 
 
@@ -216,6 +265,99 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                 $necrologiDto->addChild('Manifesto', htmlspecialchars($necrologio['manifesto']));
                 $necrologiDto->addChild('NomeDefunto', htmlspecialchars($necrologio['nome_defunto']));
                 $necrologiDto->addChild('TotaleManifesti', htmlspecialchars($necrologio['totale_manifesti']));
+            }
+
+            // Imposta l'header XML e restituisci il contenuto XML
+            header('Content-Type: application/xml; charset=utf-8');
+            echo $xml->asXML();
+            exit; // Termina l'esecuzione per evitare output extra di WordPress
+        }
+
+
+        public function get_ricorrenze_data($request)
+        {
+            $portal_id = $request->get_param('portalid');
+
+            if (!$portal_id) {
+                return new WP_Error('missing_portalid', 'Il parametro portalid è richiesto', ['status' => 400]);
+            }
+
+            // Ottieni la mappatura del comune per il portal_id
+            $mappings = get_option($this->option_name, []);
+            $comune = null;
+            foreach ($mappings as $mapping) {
+                if ($mapping['portal_id'] == $portal_id) {
+                    $comune = $mapping['comune'];
+                    break;
+                }
+            }
+
+            if (!$comune) {
+                return new WP_Error('no_mapping', 'Nessuna mappatura trovata per questo portal ID', ['status' => 404]);
+            }
+
+            // Ottieni i necrologi per il comune (simulazione di dati qui)
+            $ricorrenze = $this->get_ricorrenze_by_comune($comune);
+            $xml = new SimpleXMLElement('<ArrayOfRicorrenzeDto xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/Necrologi.Api.Models"/>');
+
+            foreach ($ricorrenze as $ricorrenza) {
+                $necrologiDto = $xml->addChild('RicorrenzeDto');
+                $necrologiDto->addChild('Anni', htmlspecialchars(''));
+                $necrologiDto->addChild('Data', htmlspecialchars($ricorrenza['data']));
+                $necrologiDto->addChild('Foto', htmlspecialchars($ricorrenza['foto']));
+                $necrologiDto->addChild('Id', htmlspecialchars($ricorrenza['id']));
+                $necrologiDto->addChild('IdNecrologio', htmlspecialchars($ricorrenza['id_necrologio']));
+                $necrologiDto->addChild('Link', htmlspecialchars($ricorrenza['link']));
+                $necrologiDto->addChild('LogoAgenzia', htmlspecialchars($ricorrenza['logo_agenzia']));
+                $necrologiDto->addChild('LogoAgenziaWeb', htmlspecialchars($ricorrenza['logo_agenzia_web']));
+                $necrologiDto->addChild('NomeDefunto', htmlspecialchars($ricorrenza['nome_defunto']));
+                $necrologiDto->addChild('TipoRicorrenze', htmlspecialchars($ricorrenza['tipo_ricorrenze']));
+            }
+
+
+            // Imposta l'header XML e restituisci il contenuto XML
+            header('Content-Type: application/xml; charset=utf-8');
+            echo $xml->asXML();
+            exit; // Termina l'esecuzione per evitare output extra di WordPress
+        }
+
+
+        public function get_ringraziamenti_data($request)
+        {
+            $portal_id = $request->get_param('portalid');
+
+            if (!$portal_id) {
+                return new WP_Error('missing_portalid', 'Il parametro portalid è richiesto', ['status' => 400]);
+            }
+
+            // Ottieni la mappatura del comune per il portal_id
+            $mappings = get_option($this->option_name, []);
+            $comune = null;
+            foreach ($mappings as $mapping) {
+                if ($mapping['portal_id'] == $portal_id) {
+                    $comune = $mapping['comune'];
+                    break;
+                }
+            }
+
+            if (!$comune) {
+                return new WP_Error('no_mapping', 'Nessuna mappatura trovata per questo portal ID', ['status' => 404]);
+            }
+
+            // Ottieni i necrologi per il comune (simulazione di dati qui)
+            $ricorrenze = $this->get_ringraziamenti_by_comune($comune);
+            $xml = new SimpleXMLElement('<ArrayOfRingraziamentiDto xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/Necrologi.Api.Models"/>');
+
+            foreach ($ricorrenze as $ricorrenza) {
+                $necrologiDto = $xml->addChild('RingraziamentiDto');
+                $necrologiDto->addChild('Data', htmlspecialchars($ricorrenza['data']));
+                $necrologiDto->addChild('Foto', htmlspecialchars($ricorrenza['foto']));
+                $necrologiDto->addChild('Id', htmlspecialchars($ricorrenza['id']));
+                $necrologiDto->addChild('IdNecrologio', htmlspecialchars($ricorrenza['id_necrologio']));
+                $necrologiDto->addChild('Link', htmlspecialchars($ricorrenza['link']));
+                $necrologiDto->addChild('LogoAgenzia', htmlspecialchars($ricorrenza['logo_agenzia']));
+                $necrologiDto->addChild('LogoAgenziaWeb', htmlspecialchars($ricorrenza['logo_agenzia_web']));
+                $necrologiDto->addChild('NomeDefunto', htmlspecialchars($ricorrenza['nome_defunto']));
             }
 
             // Imposta l'header XML e restituisci il contenuto XML
@@ -302,5 +444,159 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
 
             return $necrologi_data;
         }
+
+
+        private function get_ricorrenze_by_comune($comune)
+        {
+
+
+            //get all annunctio-di-morte with metakey citta and value $comune publicated and limit 20
+
+            $args = array(
+                'post_type' => array('anniversario','trigesimo'),
+                'post_status' => 'publish',
+                'posts_per_page' => 20,
+                'orderby' => 'date',
+                'meta_query' => array(
+                    array(
+                        'key' => 'citta',
+                        'value' => $comune,
+                        'compare' => '='
+                    )
+                )
+            );
+
+
+            $ricorrenze = get_posts($args);
+
+            $ricorrenze_data = [];
+
+            foreach ($ricorrenze as $ricorrenza) {
+                //use the inverse of             update_user_meta($user_id, 'dokan_store_name', $store_data['shopname']); starting from the post author id
+                $agenzia = get_user_meta($ricorrenza->post_author, 'dokan_store_name', true);
+
+
+                $vendor = dokan()->vendor->get($ricorrenza->post_author);
+                $banner = $vendor->get_banner();
+                $banner_url = $banner ? $banner : 'https://via.placeholder.com/150';
+
+
+                $annuncio_relativo = get_field('annuncio_di_morte', $ricorrenza->ID);
+
+
+
+                //get_field('nome', $ricorrenza->ID) . ' ' . get_field('cognome', $ricorrenza->ID) . ' di anni ' . get_field('eta', $ricorrenza->ID)
+                //genera tutte le possibile varianti per mancanza di dati con if
+                if (get_field('nome', $annuncio_relativo) && get_field('cognome', $annuncio_relativo) && get_field('eta', $annuncio_relativo)) {
+                    $nome_defunto = get_field('nome', $annuncio_relativo) . ' ' . get_field('cognome', $annuncio_relativo) . ' di anni ' . get_field('eta', $annuncio_relativo);
+                } elseif (get_field('nome', $annuncio_relativo) && get_field('cognome', $annuncio_relativo)) {
+                    $nome_defunto = get_field('nome', $annuncio_relativo) . ' ' . get_field('cognome', $annuncio_relativo);
+                } elseif (get_field('nome', $annuncio_relativo)) {
+                    $nome_defunto = get_field('nome', $annuncio_relativo);
+                } elseif (get_field('cognome', $annuncio_relativo)) {
+                    $nome_defunto = get_field('cognome', $annuncio_relativo);
+                } else {
+                    $nome_defunto = 'Defunto';
+                }
+
+
+                if ($ricorrenza->post_type == 'anniversario') {
+
+                    $anno_anniversario = get_field('anniversario_n_anniversario', $ricorrenza->ID);
+
+                    $tipo_ricorrenza = $anno_anniversario .'° ANNIVERSARIO';
+                }else
+                {
+                    $tipo_ricorrenza = 'TRIGESIMO';
+                }
+
+
+                $ricorrenze_data[] = [
+                    'agenzia' => $agenzia,
+                    'data' => get_the_date('l, d F Y', $ricorrenza->ID),
+                    'foto' => get_field('fotografia', $annuncio_relativo)['url'],
+                    'id' => $ricorrenza->ID,
+                    'id_necrologio' => $annuncio_relativo,
+                    'link' => get_permalink($ricorrenza->ID),
+                    'logo_agenzia' => $banner_url,
+                    'logo_agenzia_web' => $banner_url,
+                    'nome_defunto' => $nome_defunto,
+                    'tipo_ricorrenze' => $tipo_ricorrenza,
+                ];
+            }
+
+            return $ricorrenze_data;
+        }
+
+
+        private function get_ringraziamenti_by_comune($comune)
+        {
+
+
+            //get all annunctio-di-morte with metakey citta and value $comune publicated and limit 20
+
+            $args = array(
+                'post_type' => 'ringraziamento',
+                'post_status' => 'publish',
+                'posts_per_page' => 20,
+                'orderby' => 'date',
+                'meta_query' => array(
+                    array(
+                        'key' => 'citta',
+                        'value' => $comune,
+                        'compare' => '='
+                    )
+                )
+            );
+
+
+            $ringraziamenti = get_posts($args);
+
+            $ricorrenze_data = [];
+
+            foreach ($ringraziamenti as $ringraziamento) {
+                //use the inverse of             update_user_meta($user_id, 'dokan_store_name', $store_data['shopname']); starting from the post author id
+                $agenzia = get_user_meta($ringraziamento->post_author, 'dokan_store_name', true);
+
+
+                $vendor = dokan()->vendor->get($ringraziamento->post_author);
+                $banner = $vendor->get_banner();
+                $banner_url = $banner ? $banner : 'https://via.placeholder.com/150';
+
+
+                $annuncio_relativo = get_field('annuncio_di_morte', $ringraziamento->ID);
+
+
+                //get_field('nome', $ringraziamento->ID) . ' ' . get_field('cognome', $ringraziamento->ID) . ' di anni ' . get_field('eta', $ringraziamento->ID)
+                //genera tutte le possibile varianti per mancanza di dati con if
+                if (get_field('nome', $annuncio_relativo) && get_field('cognome', $annuncio_relativo) && get_field('eta', $annuncio_relativo)) {
+                    $nome_defunto = get_field('nome', $annuncio_relativo) . ' ' . get_field('cognome', $annuncio_relativo) . ' di anni ' . get_field('eta', $annuncio_relativo);
+                } elseif (get_field('nome', $annuncio_relativo) && get_field('cognome', $annuncio_relativo)) {
+                    $nome_defunto = get_field('nome', $annuncio_relativo) . ' ' . get_field('cognome', $annuncio_relativo);
+                } elseif (get_field('nome', $annuncio_relativo)) {
+                    $nome_defunto = get_field('nome', $annuncio_relativo);
+                } elseif (get_field('cognome', $annuncio_relativo)) {
+                    $nome_defunto = get_field('cognome', $annuncio_relativo);
+                } else {
+                    $nome_defunto = 'Defunto';
+                }
+
+
+                $ricorrenze_data[] = [
+                    'data' => get_the_date('l, d F Y', $ringraziamento->ID),
+                    'foto' => get_field('fotografia', $annuncio_relativo)['url'],
+                    'id' => $ringraziamento->ID,
+                    'id_necrologio' => $annuncio_relativo,
+                    'link' => get_permalink($ringraziamento->ID),
+                    'logo_agenzia' => $banner_url,
+                    'logo_agenzia_web' => $banner_url,
+                    'nome_defunto' => $nome_defunto,
+                ];
+            }
+
+            return $ricorrenze_data;
+        }
+
+
     }
 }

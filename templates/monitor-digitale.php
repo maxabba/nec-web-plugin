@@ -116,6 +116,11 @@ if ($_POST && isset($_POST['action'])) {
                     'days_range' => intval($_POST['days_range'] ?? 7),
                     'show_all_agencies' => (bool)($_POST['show_all_agencies'] ?? false)
                 ];
+            } elseif ($layout_type === 'manifesti') {
+                $layout_config = [
+                    'grid_rows' => intval($_POST['grid_rows'] ?? 1),
+                    'grid_columns' => intval($_POST['grid_columns'] ?? 1)
+                ];
             }
             
             $result = $db_manager->update_monitor($monitor_id, [
@@ -333,6 +338,13 @@ $active_menu = 'monitor-digitale';
                                                             echo '<div class="association-text">';
                                                             echo '<strong>' . esc_html($associated_post_title) . '</strong>';
                                                             
+                                                            // Show grid configuration for manifesti layout
+                                                            if ($monitor['layout_type'] === 'manifesti') {
+                                                                $grid_rows = intval($layout_config['grid_rows'] ?? 1);
+                                                                $grid_columns = intval($layout_config['grid_columns'] ?? 1);
+                                                                echo '<small class="grid-config-info">' . sprintf(__('Griglia: %dx%d', 'dokan-mod'), $grid_rows, $grid_columns) . '</small>';
+                                                            }
+                                                            
                                                             // Get post date for additional info
                                                             $post_date = get_the_date('d/m/Y', $monitor['associated_post_id']);
                                                             echo '<small>' . sprintf(__('Pubblicato: %s', 'dokan-mod'), $post_date) . '</small>';
@@ -417,6 +429,12 @@ $active_menu = 'monitor-digitale';
                                                         <button type="button" class="layout-config-btn" 
                                                                 onclick="openLayoutConfig('<?php echo $monitor['id']; ?>', '<?php echo $monitor['layout_type']; ?>')" 
                                                                 title="<?php _e('Configura Layout Città Multi-Agenzia', 'dokan-mod'); ?>">
+                                                            <i class="dashicons dashicons-admin-settings"></i>
+                                                        </button>
+                                                    <?php elseif ($monitor['layout_type'] === 'manifesti'): ?>
+                                                        <button type="button" class="layout-config-btn" 
+                                                                onclick="openLayoutConfig('<?php echo $monitor['id']; ?>', '<?php echo $monitor['layout_type']; ?>')" 
+                                                                title="<?php _e('Configura Grid Manifesti', 'dokan-mod'); ?>">
                                                             <i class="dashicons dashicons-admin-settings"></i>
                                                         </button>
                                                     <?php endif; ?>
@@ -690,6 +708,19 @@ $active_menu = 'monitor-digitale';
     color: #666;
     font-size: 0.85em;
     line-height: 1.4;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.association-text small.grid-config-info {
+    color: #0073aa;
+    font-weight: 600;
+    background: rgba(0, 115, 170, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    display: inline-block;
+    margin: 4px 0;
 }
 
 /* Edit icon (right side - matita) */
@@ -1862,26 +1893,110 @@ function generateCittaMultiConfig(config) {
 
 // Generate Manifesti configuration form
 function generateManifestiConfig(config) {
+    const gridRows = parseInt(config.grid_rows || 1);
+    const gridColumns = parseInt(config.grid_columns || 1);
+    const totalCells = gridRows * gridColumns;
+    
     return `
         <div class="config-section">
             <h3>
                 <i class="dashicons dashicons-format-gallery"></i>
-                Configurazione Layout Manifesti
+                Configurazione Grid Manifesti
             </h3>
             <p class="config-description">
                 <i class="dashicons dashicons-info"></i>
-                Il layout Manifesti mostra automaticamente i manifesti associati al defunto selezionato.
+                Configura la griglia per visualizzare più manifesti contemporaneamente.
+                <br><strong>Nota:</strong> I manifesti verranno disposti in una griglia e la slide successiva mostrerà i prossimi ${totalCells} manifesti.
             </p>
-            <div class="config-info">
-                <p><strong>Caratteristiche:</strong></p>
+            
+            <div class="config-row">
+                <label for="config-grid-rows">
+                    <strong><i class="dashicons dashicons-editor-table"></i> Numero di Righe:</strong>
+                </label>
+                <div class="grid-input-container">
+                    <input type="number" 
+                           name="grid_rows" 
+                           id="config-grid-rows" 
+                           class="small-text" 
+                           value="${gridRows}"
+                           min="1" 
+                           max="10"
+                           step="1"
+                           onchange="updateGridPreview()"
+                           oninput="updateGridPreview()"
+                           style="width: 80px;">
+                    <span style="margin-left: 8px;">righe</span>
+                </div>
+                <p class="description">
+                    Numero di righe nella griglia (minimo 1)
+                </p>
+            </div>
+            
+            <div class="config-row">
+                <label for="config-grid-columns">
+                    <strong><i class="dashicons dashicons-columns"></i> Numero di Colonne:</strong>
+                </label>
+                <div class="grid-input-container">
+                    <input type="number" 
+                           name="grid_columns" 
+                           id="config-grid-columns" 
+                           class="small-text" 
+                           value="${gridColumns}"
+                           min="1" 
+                           max="10"
+                           step="1"
+                           onchange="updateGridPreview()"
+                           oninput="updateGridPreview()"
+                           style="width: 80px;">
+                    <span style="margin-left: 8px;">colonne</span>
+                </div>
+                <p class="description">
+                    Numero di colonne nella griglia (minimo 1)
+                </p>
+            </div>
+            
+            <div class="grid-shortcuts" style="margin: 20px 0;">
+                <small style="color: #666; margin-right: 8px;"><strong>Layout rapidi:</strong></small>
+                <button type="button" class="button-small grid-shortcut-btn" onclick="setGridValues(1, 1)">1x1</button>
+                <button type="button" class="button-small grid-shortcut-btn" onclick="setGridValues(2, 2)">2x2</button>
+                <button type="button" class="button-small grid-shortcut-btn" onclick="setGridValues(2, 3)">2x3</button>
+                <button type="button" class="button-small grid-shortcut-btn" onclick="setGridValues(3, 3)">3x3</button>
+                <button type="button" class="button-small grid-shortcut-btn" onclick="setGridValues(3, 4)">3x4</button>
+            </div>
+            
+            <div class="config-preview">
+                <h4><i class="dashicons dashicons-visibility"></i> Anteprima Grid:</h4>
+                <div class="grid-preview-wrapper">
+                    <div id="grid-preview" class="grid-preview" style="display: grid; grid-template-rows: repeat(${gridRows}, 1fr); grid-template-columns: repeat(${gridColumns}, 1fr); gap: 10px; max-width: 400px; margin: 15px auto;">
+                        ${generateGridCells(gridRows, gridColumns)}
+                    </div>
+                    <p class="preview-info" style="text-align: center; margin-top: 10px;">
+                        <strong id="preview-total-cells">${totalCells}</strong> manifesti per slide
+                        <br><small style="color: #666;">(${gridRows} righe × ${gridColumns} colonne)</small>
+                    </p>
+                </div>
+            </div>
+            
+            <div class="config-info" style="margin-top: 20px;">
+                <p><strong>Note importanti:</strong></p>
                 <ul>
-                    <li>📰 Slideshow automatico dei manifesti</li>
-                    <li>🔄 Rotazione ogni 10 secondi</li>
-                    <li>📱 Layout completamente responsive</li>
+                    <li>📱 La griglia si adatterà automaticamente alle dimensioni del monitor</li>
+                    <li>🔄 Se ci sono più manifesti delle celle disponibili, verranno create più slide</li>
+                    <li>📐 Il testo dei manifesti verrà ridimensionato in base al numero di celle</li>
+                    <li>🖥️ Layout responsive: la disposizione rimane invariata sia in landscape che portrait</li>
                 </ul>
             </div>
         </div>
     `;
+}
+
+// Helper function to generate grid cells for preview
+function generateGridCells(rows, columns) {
+    let cells = '';
+    for (let i = 1; i <= rows * columns; i++) {
+        cells += `<div class="grid-cell" style="background: #f0f0f0; border: 1px solid #ccc; padding: 20px; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-weight: bold; color: #666;">${i}</div>`;
+    }
+    return cells;
 }
 
 // Generate Solo Annuncio configuration form
@@ -2009,6 +2124,76 @@ document.addEventListener('input', function(event) {
         updateEndDate(event.target.value);
     }
 });
+
+// Function to update grid preview when values change
+function updateGridPreview() {
+    try {
+        const rowsInput = document.getElementById('config-grid-rows');
+        const columnsInput = document.getElementById('config-grid-columns');
+        const gridPreview = document.getElementById('grid-preview');
+        const totalCellsSpan = document.getElementById('preview-total-cells');
+        
+        if (!rowsInput || !columnsInput || !gridPreview || !totalCellsSpan) {
+            return;
+        }
+        
+        const rows = Math.max(1, parseInt(rowsInput.value) || 1);
+        const columns = Math.max(1, parseInt(columnsInput.value) || 1);
+        const totalCells = rows * columns;
+        
+        // Validate and enforce limits
+        if (rows !== parseInt(rowsInput.value)) {
+            rowsInput.value = rows;
+        }
+        if (columns !== parseInt(columnsInput.value)) {
+            columnsInput.value = columns;
+        }
+        
+        // Update grid preview
+        gridPreview.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+        gridPreview.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+        gridPreview.innerHTML = generateGridCells(rows, columns);
+        
+        // Update text
+        totalCellsSpan.textContent = totalCells;
+        
+        // Update the description note
+        const noteElement = document.querySelector('.config-description');
+        if (noteElement) {
+            const noteText = `Configura la griglia per visualizzare più manifesti contemporaneamente.<br><strong>Nota:</strong> I manifesti verranno disposti in una griglia e la slide successiva mostrerà i prossimi ${totalCells} manifesti.`;
+            noteElement.innerHTML = `<i class="dashicons dashicons-info"></i>${noteText}`;
+        }
+        
+    } catch (error) {
+        console.error('Error updating grid preview:', error);
+    }
+}
+
+// Function to set grid values from shortcut buttons
+function setGridValues(rows, columns) {
+    try {
+        const rowsInput = document.getElementById('config-grid-rows');
+        const columnsInput = document.getElementById('config-grid-columns');
+        
+        if (rowsInput && columnsInput) {
+            rowsInput.value = rows;
+            columnsInput.value = columns;
+            updateGridPreview();
+            
+            // Visual feedback on the button
+            const buttons = document.querySelectorAll('.grid-shortcut-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            const activeButton = document.querySelector(`.grid-shortcut-btn[onclick="setGridValues(${rows}, ${columns})"]`);
+            if (activeButton) {
+                activeButton.classList.add('active');
+                setTimeout(() => activeButton.classList.remove('active'), 200);
+            }
+        }
+    } catch (error) {
+        console.error('Error setting grid values:', error);
+    }
+}
 
 // Close config modal when clicking outside
 window.addEventListener('click', function(event) {
@@ -2471,6 +2656,13 @@ window.addEventListener('click', function(event) {
     }
 }
 </style>
+
+<script>
+// Configuration forms use traditional POST submission
+
+// Configuration forms now use traditional POST submission only
+// No AJAX handling needed - forms submit directly to PHP
+</script>
 
 <?php
 get_footer();

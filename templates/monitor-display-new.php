@@ -157,7 +157,8 @@ switch ($layout_type) {
         ];
         
         $GLOBALS['monitor_data'] = [
-            'vendor_data' => $vendor_data
+            'vendor_data' => $vendor_data,
+            'layout_config' => $layout_config
         ];
         
         $js_monitor_data['defuntoTitle'] = $defunto_title;

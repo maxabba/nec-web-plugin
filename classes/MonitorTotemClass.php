@@ -961,8 +961,12 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
                     $sanitized['days_range'] = isset($config['days_range']) ? intval($config['days_range']) : 7;
                     $sanitized['show_all_agencies'] = isset($config['show_all_agencies']) ? (bool) $config['show_all_agencies'] : false;
                     break;
-                case 'solo_annuncio':
                 case 'manifesti':
+                    // Grid configuration for manifesti layout
+                    $sanitized['grid_rows'] = isset($config['grid_rows']) ? max(1, intval($config['grid_rows'])) : 1;
+                    $sanitized['grid_columns'] = isset($config['grid_columns']) ? max(1, intval($config['grid_columns'])) : 1;
+                    break;
+                case 'solo_annuncio':
                 default:
                     // No specific configuration needed
                     $sanitized = is_array($config) ? $config : [];
