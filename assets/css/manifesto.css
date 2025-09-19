@@ -15,6 +15,11 @@
     margin: clamp(10px, 2vh, 30px) auto;
 }
 
+
+.custom-text-editor p {
+    margin-block-end: .3rem;
+}
+
 @keyframes spin {
     to {
         transform: rotate(360deg);

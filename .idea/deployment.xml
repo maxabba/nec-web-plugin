@@ -8,6 +8,11 @@
           <mappings>
             <mapping deploy="/wp-content/plugins/dokan-mod" local="$PROJECT_DIR$" web="/" />
           </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/.playwright-mcp" />
+            <excludedPath local="true" path="$PROJECT_DIR$/.claude" />
+            <excludedPath local="true" path="$PROJECT_DIR$/docs" />
+          </excludedPaths>
         </serverdata>
       </paths>
       <paths name="Necrologi">
@@ -15,6 +20,11 @@
           <mappings>
             <mapping deploy="/wp-content/plugins/dokan-mod" local="$PROJECT_DIR$" web="/" />
           </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/.playwright-mcp" />
+            <excludedPath local="true" path="$PROJECT_DIR$/.claude" />
+            <excludedPath local="true" path="$PROJECT_DIR$/docs" />
+          </excludedPaths>
         </serverdata>
       </paths>
     </serverData>
