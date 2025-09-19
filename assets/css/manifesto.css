@@ -100,60 +100,30 @@
     background: #f0f0f0;
 }
 
-/* Grid system ridisegnato - fit-content con gaps garantiti */
+/* Grid system moderno */
 .flex-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px; /* Gap minimo fisso di 10px */
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: max(20px, 2vw); /* gap minimo con max() */
     width: 90%;
     margin: auto;
-    align-items: stretch; /* Mantiene altezza uniforme */
-    justify-content: center; /* Default: centrato per <5 elementi per riga */
+    max-width: calc(5 * 350px + 4 * max(20px, 2vw)); /* Limita a massimo 5 colonne */
 }
 
-
-
 .flex-item {
-    /* Flex item si adatta SEMPRE al contenuto, mai più piccolo */
-    flex: 0 0 fit-content; /* Non cresce, non si riduce, larghezza = contenuto */
-    width: fit-content; /* Forza la larghezza del contenuto */
-    min-width: 250px; /* Larghezza minima assoluta */
     margin: 0;
-    box-sizing: border-box;
-    
-    /* Assicura che il contenuto non fuoriesca mai */
-    overflow: visible; /* Non nascondere, ma elemento deve contenere tutto */
+    margin-bottom: 25px;
+}
+
+/* Divider che deve occupare tutta la larghezza del container */
+.flex-container .col-12 {
+    grid-column: 1 / -1; /* Occupa tutte le colonne disponibili */
+    width: 90%;
+    margin: 0 auto;
 }
 
 .manifesto-container{
-    /*justify-content: flex-start; /* Allineamento standard a sinistra */
+    justify-content: left;
     /* justify-content sarà modificato dinamicamente con JavaScript in base al numero di manifesti */
-}
-
-/* Sistema responsive basato su spazio disponibile invece che breakpoint fissi */
-@media screen and (max-width: 1200px) {
-    .flex-container {
-        gap: 8px; /* Riduci leggermente il gap su schermi più piccoli */
-    }
-}
-
-@media screen and (max-width: 900px) {
-    .flex-container {
-        gap: 6px; /* Gap ancora più piccolo ma sempre presente */
-    }
-}
-
-@media screen and (max-width: 768px) {
-    .manifesto-container {
-        justify-content: center !important; /* Centra su mobile */
-    }
-    .flex-container {
-        gap: 10px; /* Mantieni gap standard su mobile */
-        justify-content: center; /* Centra anche il flex container */
-    }
-    
-    .flex-item {
-        max-width: calc(100vw - 40px); /* Non superare mai la larghezza dello schermo meno padding */
-    }
 }
 

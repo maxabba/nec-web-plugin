@@ -154,12 +154,8 @@
                         loading = false;
                         $loader && $loader.hide();
 
-                        // Aggiusta justify-content in base al numero di manifesti
-                        if (totalManifesti < 5) {
-                            container.css('justify-content', 'center');
-                        } else {
-                            container.css('justify-content', 'left');
-                        }
+                        // Con grid layout non è più necessario modificare justify-content
+                        // Il grid gestisce automaticamente il layout
 
                         // Su mobile, ripristina la posizione precedente: l'ultimo del batch precedente resta visibile,
                         // mentre i nuovi 5 vengono caricati offscreen
