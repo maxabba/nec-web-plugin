@@ -76,6 +76,11 @@
     font-weight: var(--e-global-typography-text-font-weight);
 }
 
+/* Nasconde il testo durante il caricamento dell'immagine di sfondo */
+.custom-text-editor.loading {
+    visibility: hidden;
+}
+
 .editor-toolbar {
     --toolbar-padding: clamp(5px, 1vw, 10px);
 

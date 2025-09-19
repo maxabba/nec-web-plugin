@@ -1,4 +1,33 @@
 (function ($) {
+    // Cache globale per le immagini di sfondo
+    const imageCache = new Map();
+
+    // Funzione per caricare immagini con cache
+    function loadImageWithCache(url) {
+        return new Promise((resolve, reject) => {
+            if (imageCache.has(url)) {
+                // Immagine già in cache, restituisci immediatamente
+                console.log('🟢 CACHE HIT for:', url);
+                const cachedImg = imageCache.get(url);
+                resolve(cachedImg);
+            } else {
+                // Carica l'immagine e mettila in cache
+                console.log('🔴 CACHE MISS for:', url);
+                const img = new Image();
+                img.onload = function() {
+                    console.log('✅ Image loaded and cached:', url);
+                    imageCache.set(url, img);
+                    resolve(img);
+                };
+                img.onerror = function() {
+                    console.log('❌ Failed to load image:', url);
+                    reject(new Error('Failed to load image: ' + url));
+                };
+                img.src = url;
+            }
+        });
+    }
+
     $(document).ready(function () {
         $('.manifesto-container').each(function () {
             var container = $(this);
@@ -74,32 +103,47 @@
                 }
 
                 if (data.manifesto_background) {
-                    const img = new Image();
-                    img.src = data.manifesto_background;
-                    img.onload = function () {
-                        const aspectRatio = img.width / img.height;
-                        backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
-                        if (aspectRatio > 1) {
-                            backgroundDiv.style.width = '350px';
-                            backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
-                        } else {
-                            backgroundDiv.style.height = '350px';
-                            backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
-                        }
+                    // Nasconde il testo durante il caricamento
+                    textEditor.classList.add('loading');
 
-                        const marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
-                        const marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
-                        const marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
-                        const marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
+                    // Usa la cache per caricare l'immagine
+                    loadImageWithCache(data.manifesto_background)
+                        .then(function(img) {
+                            const aspectRatio = img.width / img.height;
+                            backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
+                            
+                            if (aspectRatio > 1) {
+                                backgroundDiv.style.width = '350px';
+                                backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
+                            } else {
+                                backgroundDiv.style.height = '350px';
+                                backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
+                            }
 
-                        textEditor.style.paddingTop = `${marginTopPx}px`;
-                        textEditor.style.paddingRight = `${marginRightPx}px`;
-                        textEditor.style.paddingBottom = `${marginBottomPx}px`;
-                        textEditor.style.paddingLeft = `${marginLeftPx}px`;
-                        textEditor.style.textAlign = data.alignment || 'left';
-                    }
+                            const marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
+                            const marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
+                            const marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
+                            const marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
+
+                            textEditor.style.paddingTop = `${marginTopPx}px`;
+                            textEditor.style.paddingRight = `${marginRightPx}px`;
+                            textEditor.style.paddingBottom = `${marginBottomPx}px`;
+                            textEditor.style.paddingLeft = `${marginLeftPx}px`;
+                            textEditor.style.textAlign = data.alignment || 'left';
+
+                            // Mostra il testo dopo che tutto è pronto
+                            textEditor.classList.remove('loading');
+                        })
+                        .catch(function(error) {
+                            console.warn('Failed to load background image:', error);
+                            backgroundDiv.style.backgroundImage = 'none';
+                            // Mostra il testo anche in caso di errore
+                            textEditor.classList.remove('loading');
+                        });
                 } else {
                     backgroundDiv.style.backgroundImage = 'none';
+                    // Assicurati che il testo sia visibile se non c'è sfondo
+                    textEditor.classList.remove('loading');
                 }
             }
 

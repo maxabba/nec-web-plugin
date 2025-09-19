@@ -13,6 +13,9 @@ class MonitorDisplay {
         this.isPlaying = true;
         this.lastUpdateTime = null;
         
+        // Cache locale per le immagini di sfondo
+        this.imageCache = new Map();
+        
         // Configuration from PHP
         this.config = window.MonitorData || {};
         this.slideTimeout = this.config.slideInterval || 5000;
@@ -25,6 +28,32 @@ class MonitorDisplay {
         this.realSlidesCount = 0; // Original number of slides
         
         this.init();
+    }
+
+    // Funzione per caricare immagini con cache
+    loadImageWithCache(url) {
+        return new Promise((resolve, reject) => {
+            if (this.imageCache.has(url)) {
+                // Immagine già in cache, restituisci immediatamente
+                console.log('🟢 MONITOR CACHE HIT for:', url);
+                const cachedImg = this.imageCache.get(url);
+                resolve(cachedImg);
+            } else {
+                // Carica l'immagine e mettila in cache
+                console.log('🔴 MONITOR CACHE MISS for:', url);
+                const img = new Image();
+                img.onload = () => {
+                    console.log('✅ Monitor image loaded and cached:', url);
+                    this.imageCache.set(url, img);
+                    resolve(img);
+                };
+                img.onerror = () => {
+                    console.log('❌ Failed to load monitor image:', url);
+                    reject(new Error('Failed to load image: ' + url));
+                };
+                img.src = url;
+            }
+        });
     }
 
     init() {
@@ -459,99 +488,113 @@ class MonitorDisplay {
         console.log('Data_manifesto_backgrund' + data.manifesto_background);
 
         if (data.manifesto_background) {
-            const img = new Image();
-            img.src = data.manifesto_background;
-            img.onload = function () {
-                const aspectRatio = img.width / img.height;
-                backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
-                console.log(data.manifesto_background);
-                // Use the same logic as manifesto.js for consistent sizing
-                // Get available space from container
-                const containerWidth = backgroundDiv.parentElement.clientWidth;
-                const containerHeight = backgroundDiv.parentElement.clientHeight;
-                
-                // Calculate optimal dimensions that fit in container while respecting aspect ratio
-                let optimalWidth, optimalHeight;
-                
-                if (aspectRatio > (containerWidth / containerHeight)) {
-                    // Image is wider relative to container - constrain by width
-                    optimalWidth = containerWidth; // Max reasonable size for monitor
-                    optimalHeight = optimalWidth / aspectRatio;
-                } else {
-                    // Image is taller relative to container - constrain by height
-                    optimalHeight = containerHeight; // Max reasonable size for monitor
-                    optimalWidth = optimalHeight * aspectRatio;
-                }
-                
-                // Apply the calculated dimensions like manifesto.js
-                backgroundDiv.style.width = optimalWidth + 'px';
-                backgroundDiv.style.height = optimalHeight + 'px';
+            // Nasconde il testo durante il caricamento
+            textEditor.classList.add('loading');
 
-                // Calculate margins exactly like manifesto.js using clientWidth/Height AFTER setting dimensions
-                const marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
-                const marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
-                const marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
-                const marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
-
-                // Apply padding to text editor exactly like manifesto.js
-                textEditor.style.paddingTop = `${marginTopPx}px`;
-                textEditor.style.paddingRight = `${marginRightPx}px`;
-                textEditor.style.paddingBottom = `${marginBottomPx}px`;
-                textEditor.style.paddingLeft = `${marginLeftPx}px`;
-                textEditor.style.textAlign = data.alignment || 'left';
-                
-                // Calculate font-size proportional to background dimensions (responsive to monitor size)
-                const currentWidth = parseInt(backgroundDiv.style.width);
-                const currentHeight = parseInt(backgroundDiv.style.height);
-                const actualBaseSize = Math.min(currentWidth, currentHeight);
-                let baseFontSize;
-                
-                // Scale font size based on manifesto dimensions - adapted from manifesto.js
-                if (actualBaseSize < 300) {
-                    baseFontSize = Math.max(12, actualBaseSize * 0.06);
-                } else if (actualBaseSize < 450) {
-                    baseFontSize = Math.max(16, actualBaseSize * 0.05);
-                } else {
-                    baseFontSize = Math.max(20, actualBaseSize * 0.04);
-                }
-                
-                textEditor.style.fontSize = `${baseFontSize}px`;
-                
-                // Paragraph margins are now handled by CSS
-                
-                // Ensure text is visible
-                textEditor.style.color = '#000';
-                textEditor.style.position = 'absolute';
-                textEditor.style.top = '0';
-                textEditor.style.left = '0';
-                textEditor.style.width = '100%';
-                textEditor.style.height = '100%';
-                
-                // Fallback: iteratively reduce font-size until content fits
-                setTimeout(() => {
-                    let iterations = 0;
-                    const maxIterations = 10;
+            // Usa la cache per caricare l'immagine
+            this.loadImageWithCache(data.manifesto_background)
+                .then((img) => {
+                    const aspectRatio = img.width / img.height;
+                    backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
+                    console.log(data.manifesto_background);
+                    // Use the same logic as manifesto.js for consistent sizing
+                    // Get available space from container
+                    const containerWidth = backgroundDiv.parentElement.clientWidth;
+                    const containerHeight = backgroundDiv.parentElement.clientHeight;
                     
-                    while (textEditor.scrollHeight > textEditor.clientHeight && iterations < maxIterations) {
-                        const currentFontSize = parseFloat(textEditor.style.fontSize);
-                        const reductionFactor = Math.max(0.8, textEditor.clientHeight / textEditor.scrollHeight);
-                        const newFontSize = Math.max(6, currentFontSize * reductionFactor);
-                        textEditor.style.fontSize = `${newFontSize}px`;
-                        iterations++;
+                    // Calculate optimal dimensions that fit in container while respecting aspect ratio
+                    let optimalWidth, optimalHeight;
+                    
+                    if (aspectRatio > (containerWidth / containerHeight)) {
+                        // Image is wider relative to container - constrain by width
+                        optimalWidth = containerWidth; // Max reasonable size for monitor
+                        optimalHeight = optimalWidth / aspectRatio;
+                    } else {
+                        // Image is taller relative to container - constrain by height
+                        optimalHeight = containerHeight; // Max reasonable size for monitor
+                        optimalWidth = optimalHeight * aspectRatio;
+                    }
+                    
+                    // Apply the calculated dimensions like manifesto.js
+                    backgroundDiv.style.width = optimalWidth + 'px';
+                    backgroundDiv.style.height = optimalHeight + 'px';
+
+                    // Calculate margins exactly like manifesto.js using clientWidth/Height AFTER setting dimensions
+                    const marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
+                    const marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
+                    const marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
+                    const marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
+
+                    // Apply padding to text editor exactly like manifesto.js
+                    textEditor.style.paddingTop = `${marginTopPx}px`;
+                    textEditor.style.paddingRight = `${marginRightPx}px`;
+                    textEditor.style.paddingBottom = `${marginBottomPx}px`;
+                    textEditor.style.paddingLeft = `${marginLeftPx}px`;
+                    textEditor.style.textAlign = data.alignment || 'left';
+                    
+                    // Calculate font-size proportional to background dimensions (responsive to monitor size)
+                    const currentWidth = parseInt(backgroundDiv.style.width);
+                    const currentHeight = parseInt(backgroundDiv.style.height);
+                    const actualBaseSize = Math.min(currentWidth, currentHeight);
+                    let baseFontSize;
+                    
+                    // Scale font size based on manifesto dimensions - adapted from manifesto.js
+                    if (actualBaseSize < 300) {
+                        baseFontSize = Math.max(12, actualBaseSize * 0.06);
+                    } else if (actualBaseSize < 450) {
+                        baseFontSize = Math.max(16, actualBaseSize * 0.05);
+                    } else {
+                        baseFontSize = Math.max(20, actualBaseSize * 0.04);
+                    }
+                    
+                    textEditor.style.fontSize = `${baseFontSize}px`;
+                    
+                    // Paragraph margins are now handled by CSS
+                    
+                    // Ensure text is visible
+                    textEditor.style.color = '#000';
+                    textEditor.style.position = 'absolute';
+                    textEditor.style.top = '0';
+                    textEditor.style.left = '0';
+                    textEditor.style.width = '100%';
+                    textEditor.style.height = '100%';
+
+                    // Mostra il testo dopo che tutto è pronto
+                    textEditor.classList.remove('loading');
+                    
+                    // Fallback: iteratively reduce font-size until content fits
+                    setTimeout(() => {
+                        let iterations = 0;
+                        const maxIterations = 10;
                         
-                        if (iterations === 1) {
-                            console.log(`Font-size reduced from ${currentFontSize}px to fit content`);
+                        while (textEditor.scrollHeight > textEditor.clientHeight && iterations < maxIterations) {
+                            const currentFontSize = parseFloat(textEditor.style.fontSize);
+                            const reductionFactor = Math.max(0.8, textEditor.clientHeight / textEditor.scrollHeight);
+                            const newFontSize = Math.max(6, currentFontSize * reductionFactor);
+                            textEditor.style.fontSize = `${newFontSize}px`;
+                            iterations++;
+                            
+                            if (iterations === 1) {
+                                console.log(`Font-size reduced from ${currentFontSize}px to fit content`);
+                            }
                         }
-                    }
-                    
-                    if (iterations >= maxIterations) {
-                        console.warn('Max iterations reached for font-size reduction');
-                    }
-                }, 300);
-            }
+                        
+                        if (iterations >= maxIterations) {
+                            console.warn('Max iterations reached for font-size reduction');
+                        }
+                    }, 300);
+                })
+                .catch((error) => {
+                    console.warn('Failed to load monitor background image:', error);
+                    backgroundDiv.style.backgroundImage = 'none';
+                    // Mostra il testo anche in caso di errore
+                    textEditor.classList.remove('loading');
+                });
         } else {
             // No background image - set default proportional font size
             backgroundDiv.style.backgroundImage = 'none';
+            // Assicurati che il testo sia visibile se non c'è sfondo
+            textEditor.classList.remove('loading');
             
             // For no-background manifesto, calculate font-size based on container dimensions
             const containerHeight = containerElem.parentElement.clientHeight || window.innerHeight * 0.75;
