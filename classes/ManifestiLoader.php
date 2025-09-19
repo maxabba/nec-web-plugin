@@ -164,6 +164,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
         {
             $query = new WP_Query([
                 'post_type' => 'manifesto',
+                'post_status' => 'publish',
                 'posts_per_page' => $this->limit,
                 'offset' => $this->offset,
                 'orderby' => 'date',
@@ -185,6 +186,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
 
             $query = new WP_Query([
                 'post_type' => 'manifesto',
+                'post_status' => 'publish',
                 'posts_per_page' => $this->limit,
                 'offset' => $current_author_data['offset'],
                 'author' => $current_author_data['author_id'],

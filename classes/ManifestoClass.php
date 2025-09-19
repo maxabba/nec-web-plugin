@@ -527,10 +527,19 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 $new_status = sanitize_text_field($inline_status);
                 
                 if ($new_status === 'delete') {
+                    // Get the post_id_annuncio to preserve it in redirect
+                    $post_id_annuncio = get_field('annuncio_di_morte_relativo', $post_id);
+                    
                     // Use existing delete logic which handles WooCommerce orders
                     $this->delete_manifesto_post($post_id);
                     wp_delete_post($post_id, true);
-                    wp_redirect(add_query_arg('deleted', '1', home_url('/dashboard/lista-manifesti')));
+                    
+                    // Build redirect URL with preserved post_id_annuncio parameter
+                    $redirect_args = array('deleted' => '1');
+                    if ($post_id_annuncio) {
+                        $redirect_args['post_id_annuncio'] = $post_id_annuncio;
+                    }
+                    wp_redirect(add_query_arg($redirect_args, home_url('/dashboard/lista-manifesti/')));
                     exit;
                 } elseif (in_array($new_status, ['draft', 'publish', 'pending'])) {
                     // Update post status - existing transition_post_status hook will handle WooCommerce logic
