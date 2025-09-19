@@ -72,23 +72,50 @@ document.addEventListener('DOMContentLoaded', function () {
         textEditor.innerHTML = '<p><br></p>';
     }
 
+    // Get the total container height with browser-specific adjustments
+    function getContainerHeight() {
+        const containerHeight = textEditor.clientHeight;
+        const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+        const isChrome = navigator.userAgent.toLowerCase().indexOf('chrome') > -1;
+        
+        // Firefox stops at 5 lines (244px) while Chrome allows 6 lines (246px)
+        // Extend Firefox's limit to match Chrome's 6-line behavior
+        let adjustedHeight = containerHeight;
+        
+        if (isFirefox) {
+            // Add 11px to Firefox to allow one more line (6 lines total)
+            adjustedHeight = containerHeight + 11;
+        }
+        
+        console.log('Container height calculation:', {
+            containerHeight,
+            adjustedHeight,
+            browser: isFirefox ? 'Firefox' : (isChrome ? 'Chrome' : 'Other'),
+            marginTopPx,
+            marginBottomPx,
+            note: 'Adjusted to allow max 6 lines consistently'
+        });
+        
+        return adjustedHeight;
+    }
+
     // Handle Enter key to create new paragraphs
     textEditor.addEventListener('keypress', function (event) {
         console.log('KEYPRESS EVENT:', event.key);
         if (event.key === 'Enter') {
-            const editorMaxHeight = textEditor.clientHeight;
-            console.log('ENTER - editorMaxHeight:', editorMaxHeight, 'scrollHeight before:', textEditor.scrollHeight);
+            const containerHeight = getContainerHeight();
+            console.log('ENTER - containerHeight:', containerHeight, 'scrollHeight before:', textEditor.scrollHeight);
             const p = document.createElement('p');
             p.id = 'p' + Math.floor(Math.random() * 1000000);
             p.innerHTML = '<br>';
             textEditor.appendChild(p);
 
-            if (textEditor.scrollHeight > editorMaxHeight) {
-                console.log('ENTER - LIMIT EXCEEDED:', textEditor.scrollHeight, '>', editorMaxHeight);
+            if (textEditor.scrollHeight > containerHeight) {
+                console.log('ENTER - CONTAINER LIMIT EXCEEDED:', textEditor.scrollHeight, '>', containerHeight);
                 event.preventDefault();
                 textEditor.removeChild(p);
             } else {
-                console.log('ENTER - OK:', textEditor.scrollHeight, '<=', editorMaxHeight);
+                console.log('ENTER - OK:', textEditor.scrollHeight, '<=', containerHeight);
                 textEditor.removeChild(p);
                 document.execCommand('formatBlock', false, 'p');
             }
@@ -108,9 +135,9 @@ document.addEventListener('DOMContentLoaded', function () {
         
         clearTimeout(heightCheckTimeout);
         heightCheckTimeout = setTimeout(() => {
-            const editorMaxHeight = textEditor.clientHeight;
-            console.log('INPUT - HEIGHT CHECK:', 'scrollHeight:', textEditor.scrollHeight, 'clientHeight:', editorMaxHeight);
-            if (textEditor.scrollHeight > editorMaxHeight) {
+            const containerHeight = getContainerHeight();
+            console.log('INPUT - HEIGHT CHECK:', 'scrollHeight:', textEditor.scrollHeight, 'containerHeight:', containerHeight);
+            if (textEditor.scrollHeight > containerHeight) {
                 console.log('INPUT - LIMIT EXCEEDED, setting isProcessingLimit = true');
                 isProcessingLimit = true;
                 

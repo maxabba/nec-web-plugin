@@ -1,4 +1,4 @@
-.idea/*
+.idea/
 /vendor/
 tempfile.php
 /admin_test_page.php

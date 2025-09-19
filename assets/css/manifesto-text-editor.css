@@ -18,6 +18,9 @@
     border: 1px solid #aaa;
 }
 
+.custom-text-editor p {
+    margin-block-end : .3rem;
+}
 
 .text-editor-container {
     position: relative;
