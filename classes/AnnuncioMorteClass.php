@@ -294,6 +294,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
         public function get_product_price($attr)
         {
             $product_id = isset($_GET['product_id']) && $_GET['product_id'] != 0 ? intval($_GET['product_id']) : '66';
+            $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : get_the_ID();
 
             $atts = shortcode_atts(
                 array(
@@ -303,7 +304,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             );
             if (is_numeric($atts['product_id'])) {
                 $text_before = "Costo: ";
-                $product_price = (new UtilsAMClass())->get_product_price($atts['product_id']);
+                $product_price = (new UtilsAMClass())->get_product_price($atts['product_id'], $post_id);
             } else {
                 $text_before = '';
                 $product_price = '';
@@ -318,7 +319,7 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                 }
             </style>
 
-            <span class="custom-widget-price">
+            <span id="custom-widget-price" class="custom-widget-price">
                 <?php echo esc_html($text_before); ?><span class="price-text"><?php echo $product_price; ?></span>
             </span>
             <?php

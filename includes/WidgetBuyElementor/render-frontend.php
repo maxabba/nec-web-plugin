@@ -54,10 +54,12 @@ elseif (($settings['button_link'] == 'bouquet' || $settings['button_link'] == 'c
 //if $settings['product_id'] is a number
 if (is_numeric($settings['product_id'])) {
     $text_before = "Costo: ";
-    $product_price = (new UtilsAMClass())->get_product_price($settings['product_id']);
+    $product_price = (new UtilsAMClass())->get_product_price($settings['product_id'], $post_id);
+    $product_description = (new UtilsAMClass())->get_product_description($settings['product_id'], $post_id);
 } else {
     $text_before = '';
     $product_price = '';
+    $product_description = null;
 }
 
 
@@ -88,6 +90,6 @@ if (is_numeric($settings['product_id'])) {
             <?php echo esc_html($text_before); ?><span class="price-text"><?php echo $product_price; ?></span>
         </span>
     <span class="custom-widget-tooltip">
-        <?php echo esc_html($settings['tooltip']); ?>
+        <?php echo wp_kses_post($product_description ? $product_description : $settings['tooltip']); ?>
     </span>
 </div>

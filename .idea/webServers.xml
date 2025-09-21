@@ -19,9 +19,10 @@
       <webServer id="07decaa2-ea61-4ad2-998d-60f1e6299f94" name="Kinsta" url="http://34.154.5.157">
         <fileTransfer rootFolder="/public" accessType="SFTP" host="34.154.5.157" port="63736" sshConfigId="fea2b447-7a0d-496c-83ff-e3500c5f88ee" sshConfig="abbattista@34.154.5.157:63736 password">
           <advancedOptions>
-            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" connections="1" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
         </fileTransfer>
+        <option name="numberOfConnections" value="1" />
       </webServer>
     </option>
   </component>

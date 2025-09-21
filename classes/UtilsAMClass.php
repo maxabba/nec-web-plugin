@@ -184,17 +184,25 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
         }*/
 
 
-        public function get_product_price($product_id)
+
+        public function get_product_price($product_id, $post_id = null)
         {
             // Get base SKU pattern
             $base_sku = $product_id . '-';
 
             // Initialize arrays for all prices
             $all_prices = array();
+            
+            // Get city from annuncio di morte if post_id is provided
+            $annuncio_city = null;
+            if ($post_id) {
+                $annuncio_city = get_field('citta', $post_id);
+            }
 
             // Query for products with SKU starting with our pattern
             $args = array(
                 'post_type' => 'product',
+                'post_status' => 'publish', // Solo prodotti pubblicati
                 'posts_per_page' => -1,
                 'meta_query' => array(
                     array(
@@ -208,6 +216,27 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
             $products = get_posts($args);
 
             foreach ($products as $product) {
+                // Se abbiamo un post_id, verifica la città del vendor
+                if ($post_id && $annuncio_city) {
+                    $vendor_id = get_post_field('post_author', $product->ID);
+                    $store_info = dokan_get_store_info($vendor_id);
+                    $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
+                    
+                    // Se il vendor non ha una città impostata, salta questo prodotto
+                    if (empty($vendor_city)) {
+                        continue;
+                    }
+                    
+                    // Normalizza le stringhe per il confronto
+                    $vendor_city_normalized = strtolower(trim($vendor_city));
+                    $annuncio_city_normalized = strtolower(trim($annuncio_city));
+
+                    // Se la città del vendor non corrisponde, salta questo prodotto
+                    if ($vendor_city_normalized !== $annuncio_city_normalized) {
+                        continue;
+                    }
+                }
+                
                 $product_wc = wc_get_product($product->ID);
 
                 if (!$product_wc) {
@@ -234,17 +263,41 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
             // Also check the original product
             $original_product = wc_get_product($product_id);
             if ($original_product) {
-                if ($original_product->is_type('variable')) {
-                    $variations = $original_product->get_available_variations();
-                    foreach ($variations as $variation) {
-                        $variation_obj = wc_get_product($variation['variation_id']);
-                        if ($variation_obj && $variation_obj->get_price()) {
-                            $all_prices[] = floatval($variation_obj->get_price());
+                // Se abbiamo un post_id, verifica anche la città del vendor del prodotto originale
+                $include_original = true;
+                if ($post_id && $annuncio_city) {
+                    $vendor_id = get_post_field('post_author', $product_id);
+                    $store_info = dokan_get_store_info($vendor_id);
+                    $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
+                    
+                    // Se il vendor non ha una città impostata, non includere
+                    if (empty($vendor_city)) {
+                        $include_original = false;
+                    } else {
+                        // Normalizza le stringhe per il confronto
+                        $vendor_city_normalized = strtolower(trim($vendor_city));
+                        $annuncio_city_normalized = strtolower(trim($annuncio_city));
+                        
+                        // Se la città del vendor non corrisponde, non includere il prodotto originale
+                        if ($vendor_city_normalized !== $annuncio_city_normalized) {
+                            $include_original = false;
                         }
                     }
-                } else {
-                    if ($original_product->get_price()) {
-                        $all_prices[] = floatval($original_product->get_price());
+                }
+                
+                if ($include_original) {
+                    if ($original_product->is_type('variable')) {
+                        $variations = $original_product->get_available_variations();
+                        foreach ($variations as $variation) {
+                            $variation_obj = wc_get_product($variation['variation_id']);
+                            if ($variation_obj && $variation_obj->get_price()) {
+                                $all_prices[] = floatval($variation_obj->get_price());
+                            }
+                        }
+                    } else {
+                        if ($original_product->get_price()) {
+                            $all_prices[] = floatval($original_product->get_price());
+                        }
                     }
                 }
             }
@@ -401,6 +454,135 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
                 'alignment' => $alignment,
             ];
 
+        }
+
+        public function get_product_description($product_id, $post_id = null)
+        {
+            // Get base SKU pattern
+            $base_sku = $product_id . '-';
+
+            // Initialize array for all descriptions
+            $all_descriptions = array();
+            
+            // Get city from annuncio di morte if post_id is provided
+            $annuncio_city = null;
+            if ($post_id) {
+                $annuncio_city = get_field('citta', $post_id);
+            }
+
+            // Query for products with SKU starting with our pattern
+            $args = array(
+                'post_type' => 'product',
+                'post_status' => 'publish', // Solo prodotti pubblicati
+                'posts_per_page' => -1,
+                'meta_query' => array(
+                    array(
+                        'key' => '_sku',
+                        'value' => $base_sku,
+                        'compare' => 'LIKE'
+                    )
+                )
+            );
+
+            $products = get_posts($args);
+
+            foreach ($products as $product) {
+                // Se abbiamo un post_id, verifica la città del vendor
+                if ($post_id && $annuncio_city) {
+                    $vendor_id = get_post_field('post_author', $product->ID);
+                    $store_info = dokan_get_store_info($vendor_id);
+                    $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
+                    
+                    // Se il vendor non ha una città impostata, salta questo prodotto
+                    if (empty($vendor_city)) {
+                        continue;
+                    }
+                    
+                    // Normalizza le stringhe per il confronto
+                    $vendor_city_normalized = strtolower(trim($vendor_city));
+                    $annuncio_city_normalized = strtolower(trim($annuncio_city));
+
+                    // Se la città del vendor non corrisponde, salta questo prodotto
+                    if ($vendor_city_normalized !== $annuncio_city_normalized) {
+                        continue;
+                    }
+                }
+                
+                // Recupera la descrizione del prodotto
+                $product_description = get_post_field('post_content', $product->ID);
+                
+                // Se la descrizione non è vuota, aggiungila all'array
+                if (!empty(trim($product_description))) {
+                    $all_descriptions[] = trim($product_description);
+                }
+            }
+
+            // Also check the original product
+            $original_product = wc_get_product($product_id);
+            if ($original_product) {
+                // Se abbiamo un post_id, verifica anche la città del vendor del prodotto originale
+                $include_original = true;
+                if ($post_id && $annuncio_city) {
+                    $vendor_id = get_post_field('post_author', $product_id);
+                    $store_info = dokan_get_store_info($vendor_id);
+                    $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
+                    
+                    // Se il vendor non ha una città impostata, non includere
+                    if (empty($vendor_city)) {
+                        $include_original = false;
+                    } else {
+                        // Normalizza le stringhe per il confronto
+                        $vendor_city_normalized = strtolower(trim($vendor_city));
+                        $annuncio_city_normalized = strtolower(trim($annuncio_city));
+                        
+                        // Se la città del vendor non corrisponde, non includere il prodotto originale
+                        if ($vendor_city_normalized !== $annuncio_city_normalized) {
+                            $include_original = false;
+                        }
+                    }
+                }
+                
+                if ($include_original) {
+                    // Recupera la descrizione del prodotto originale
+                    $original_description = get_post_field('post_content', $product_id);
+                    
+                    // Se la descrizione non è vuota, aggiungila all'array
+                    if (!empty(trim($original_description))) {
+                        $all_descriptions[] = trim($original_description);
+                    }
+                }
+            }
+
+            // Se non ci sono descrizioni, ritorna null
+            if (empty($all_descriptions)) {
+                return null;
+            }
+
+            // Conta le occorrenze di ogni descrizione
+            $description_counts = array_count_values($all_descriptions);
+            
+            // Se tutte le descrizioni sono uguali o c'è una sola descrizione
+            if (count($description_counts) === 1) {
+                return array_keys($description_counts)[0];
+            }
+            
+            // Trova la descrizione con più occorrenze
+            $max_count = max($description_counts);
+            $most_frequent_descriptions = array_keys($description_counts, $max_count);
+            
+            // Se c'è una sola descrizione più frequente, ritornala
+            if (count($most_frequent_descriptions) === 1) {
+                return $most_frequent_descriptions[0];
+            }
+            
+            // Se ci sono più descrizioni con lo stesso numero massimo di occorrenze
+            // e questo numero è 1 (tutte diverse), ritorna null
+            if ($max_count === 1) {
+                return null;
+            }
+            
+            // Altrimenti ritorna la prima delle descrizioni più frequenti
+            return $most_frequent_descriptions[0];
         }
 
     }

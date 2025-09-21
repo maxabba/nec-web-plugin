@@ -39,9 +39,65 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function updateProductDescription(data) {
+        const fallbackContent = document.getElementById('fallback-content');
+        const selectedContent = document.getElementById('selected-content');
+        const productNameElement = document.getElementById('selected-product-name');
+        const shortDescriptionElement = document.getElementById('selected-product-short-description');
+        const fullDescriptionElement = document.getElementById('selected-product-full-description');
+        const priceElement = document.getElementById('custom-widget-price');
+
+        if (fallbackContent && selectedContent) {
+            // Nascondi il contenuto di fallback
+            fallbackContent.style.display = 'none';
+            
+            // Aggiorna i contenuti dinamici
+            if (data.product_name && productNameElement) {
+                productNameElement.innerHTML = data.product_name;
+            }
+            
+            if (data.product_short_description && shortDescriptionElement) {
+                shortDescriptionElement.innerHTML = data.product_short_description;
+            }
+            
+            if (data.product_description && fullDescriptionElement) {
+                fullDescriptionElement.innerHTML = data.product_description;
+            }
+            if (data.product_price && priceElement) {
+                priceElement.innerHTML = "Costo: " + '<span class="price-text">' + data.product_price + '</span>';
+            }
+            
+            // Mostra il contenuto selezionato se abbiamo almeno un dato del prodotto
+            if (data.product_name || data.product_short_description || data.product_description) {
+                selectedContent.style.display = 'block';
+            }
+
+
+
+        }
+    }
+
+    function hideProductDescription() {
+        const fallbackContent = document.getElementById('fallback-content');
+        const selectedContent = document.getElementById('selected-content');
+        
+        if (fallbackContent && selectedContent) {
+            // Mostra il contenuto di fallback
+            fallbackContent.style.display = 'block';
+            // Nascondi il contenuto selezionato
+            selectedContent.style.display = 'none';
+        }
+    }
+
     window.setProductID = function (productID) {
         showthedefault();
+        hideProductDescription(); // Nascondi la descrizione precedente
         document.getElementById('product_id').value = productID;
+        
+        // Ottieni il post_id dal form
+        var postIdInput = document.querySelector('input[name="post_id"]');
+        var postId = postIdInput ? postIdInput.value : null;
+        
         jQuery('.manifesti-container').addClass('hide');
         jQuery('#comments-loader').show();
         jQuery.ajax({
@@ -50,11 +106,13 @@ document.addEventListener('DOMContentLoaded', function () {
             data: {
                 action: 'get_vendor_data',
                 product_id: productID,
+                post_id: postId,
             },
             success: function (response) {
                 if (response.success) {
                     jQuery('#comments-loader').hide();
                     updateEditorBackground(response.data);
+                    updateProductDescription(response.data);
                     jQuery('.manifesti-container').removeClass('hide');
                 } else {
                     alert('Errore nel caricamento dei dati del venditore: ' + response.data);

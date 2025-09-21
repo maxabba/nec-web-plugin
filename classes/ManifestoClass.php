@@ -75,6 +75,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             add_shortcode('vendor_selector', array($this, 'shortcode_vendor_selector'));
             add_shortcode('custom_text_editor', array($this, 'create_custom_text_editor_shortcode'));
             add_shortcode('render_manifesti', array($this, 'generate_manifesti_shortcode'));
+            add_shortcode('selected_product_description', array($this, 'selected_product_description_shortcode'));
         }
 
 
@@ -293,6 +294,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             }
 
             $product_id = intval($_POST['product_id']);
+            $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : null;
             $user_id = get_post_field('post_author', $product_id);
 
             if (!$user_id) {
@@ -300,6 +302,16 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             }
 
             $manifesto_array_data = (new UtilsAMClass())->get_vendor_data_by_id($user_id);
+            
+            // Aggiungi la descrizione del prodotto alla risposta
+            $product = wc_get_product($product_id);
+            if ($product) {
+                //recupera anche il prezzo passando anche il post_id
+                $manifesto_array_data['product_price'] = (new UtilsAMClass())->get_product_price($product_id, $post_id);
+                $manifesto_array_data['product_description'] = $product->get_description();
+                $manifesto_array_data['product_short_description'] = $product->get_short_description();
+                $manifesto_array_data['product_name'] = $product->get_name();
+            }
 
             wp_send_json_success($manifesto_array_data);
             wp_die();
@@ -598,6 +610,45 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             if (!empty($vendor_state)) {
                 update_field('provincia', $vendor_state, $post_id);
             }
+        }
+
+        public function selected_product_description_shortcode($atts)
+        {
+            $atts = shortcode_atts(
+                array(
+                    'show_name' => 'false',
+                    'show_short_description' => 'false',
+                    'show_full_description' => 'true',
+                    'container_class' => 'selected-product-description',
+                ),
+                $atts
+            );
+
+            ob_start();
+            ?>
+            <div id="selected-product-description" class="<?php echo esc_attr($atts['container_class']); ?>">
+                <!-- Contenuto di fallback mostrato prima della selezione del vendor -->
+                <div id="fallback-content" class="fallback-content">
+                    <p>Seleziona una agenzia per visualizzare la descrizione...</p>
+                </div>
+
+                <!-- Contenuto dinamico mostrato dopo la selezione del vendor -->
+                <div id="selected-content" class="selected-content" style="display: none;">
+                    <?php if ($atts['show_name'] === 'true'): ?>
+                        <h3 id="selected-product-name" class="product-name"></h3>
+                    <?php endif; ?>
+                    
+                    <?php if ($atts['show_short_description'] === 'true'): ?>
+                        <div id="selected-product-short-description" class="product-short-description"></div>
+                    <?php endif; ?>
+                    
+                    <?php if ($atts['show_full_description'] === 'true'): ?>
+                        <div id="selected-product-full-description" class="product-full-description"></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php
+            return ob_get_clean();
         }
 
 
