@@ -200,7 +200,10 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                     }
                 } else {
                     $post_data['post_status'] = $post_status ? $post_status : 'publish';
-                    $post_data['post_date'] = $current_time;
+                    // Non impostare automaticamente la data corrente se siamo nell'admin
+                    if (!is_admin()) {
+                        $post_data['post_date'] = $current_time;
+                    }
                 }
 
 

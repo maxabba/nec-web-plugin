@@ -55,8 +55,9 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
         public function migrate_ricorrenze_batch($file_name)
         {
-            $start_time = microtime(true);
-            $progress_status = $this->get_progress_status($file_name);
+            try {
+                $start_time = microtime(true);
+                $progress_status = $this->get_progress_status($file_name);
 
             // Se il processo è già completato completamente (tutti i batch)
             if ($progress_status == 'finished') {
@@ -109,18 +110,30 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $processed = $progress['processed'];
                 $total_rows = $progress['total'];
 
-                // Ensure CSV control is set correctly before reading header
+                // IMPORTANTE: Prima di leggere l'header, dobbiamo posizionarci all'inizio del file
+                // perché first_call_check potrebbe aver già letto l'header
+                $file->rewind();
+                
+                // CRITICO: Ristabilisce le impostazioni CSV control dopo rewind
                 $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
                 $this->log("DEBUG: CSV control set to delimiter: '{$this->csv_delimiter}', enclosure: '{$this->csv_enclosure}'");
                 
                 $header = $file->fgetcsv(); // Leggi l'header
                 $this->log("DEBUG: Header read: " . print_r($header, true));
-
-                // Riposizionamento lettura CSV per continuare dal progresso attuale
-                $file->seek($processed); // Salta le righe già processate
                 
-                // Ensure CSV control is maintained after seek
-                $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
+                // Verifica che l'header sia stato letto correttamente
+                if (!$header || !is_array($header)) {
+                    $this->log("ERRORE: Impossibile leggere l'header del file CSV o header non valido");
+                    $this->set_progress_status($file_name, 'error');
+                    return false;
+                }
+
+                // Ora salta all'offset corretto (processed + 1 per saltare l'header)
+                if ($processed > 0) {
+                    $file->seek($processed + 1);  // +1 per saltare l'header
+                    // Ensure CSV control is maintained after seek
+                    $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
+                }
 
                 $batch_data = [];
                 $batch_post_old_ids = [];
@@ -183,6 +196,18 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             }
 
             return false; // Se lo stato non rientra in nessuno dei casi previsti
+            
+            } catch (Exception $e) {
+                $error_message = "Errore durante la migrazione ricorrenze: " . $e->getMessage();
+                $this->log("ERRORE CRITICO: " . $error_message);
+                $this->log("Stack trace: " . $e->getTraceAsString());
+                
+                // Aggiorna lo status del progresso come errore
+                $this->set_progress_status($file_name, 'error');
+                
+                // Re-throw per permettere al sistema di loggare in wc-logs
+                throw $e;
+            }
         }
 
         // OLD is_process_active method removed - now using inherited method from parent class
@@ -215,7 +240,11 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
             // Skip se esiste già
             if (isset($existing_posts[$id])) {
-                $this->log("Ricorrenza già esistente: ID {$existing_posts[$id]}");
+                $existing_post_id = $existing_posts[$id];
+                $this->log("Ricorrenza già esistente: ID $id, Post ID: $existing_post_id");
+                
+                // Verifica e gestisci immagini mancanti per post esistenti
+                $this->handle_missing_images_for_existing_ricorrenza($existing_post_id, $data, $field_indexes, $image_queue);
                 return;
             }
 
@@ -267,22 +296,41 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 }
             }
 
-            // Calcolo della data di pubblicazione
+            // Data di pubblicazione del post: sempre il campo "Data" dal CSV
+            $pub_date = $data[$field_indexes['Data']];
+            
+            // Calcolo delle date ACF basate sulla data dell'annuncio di morte
+            // Converti la data base in formato corretto se necessario
+            $base_date_formatted = $this->parse_italian_date($base_date);
+            $this->log("ID $id: Data base convertita: '$base_date' -> '$base_date_formatted'");
+            
             if ($is_trigesimo) {
-                // Trigesimo: base_date + 30 giorni
-                $pub_date = date('Y-m-d H:i:s', strtotime($base_date . ' +30 days'));
-                $this->log("ID $id: Calcolata data trigesimo: $pub_date");
-            } else {
-                // Calcola data: base_date + N anni
-                $pub_date = date('Y-m-d H:i:s', strtotime($base_date . ' +' . $anniversary_number . ' year'));
-                $this->log("ID $id: Calcolata data anniversario n.$anniversary_number: $pub_date");
-                
-                // Validazione data
-                $year = date('Y', strtotime($pub_date));
-                if ($year > 2100) {
-                    $this->log("ERRORE ID $id: Anno calcolato non valido: $year. Uso data originale dal CSV.");
-                    $pub_date = $data[$field_indexes['Data']]; // Usa la data dal CSV come fallback
+                // Trigesimo: data annuncio di morte + 30 giorni
+                $timestamp = strtotime($base_date_formatted . ' +30 days');
+                if ($timestamp === false) {
+                    $this->log("ERRORE ID $id: Impossibile calcolare data trigesimo da '$base_date_formatted'");
+                    $acf_date = $data[$field_indexes['Data']];
+                } else {
+                    $acf_date = date('Y-m-d H:i:s', $timestamp);
                 }
+                $this->log("ID $id: Calcolata data ACF trigesimo: $acf_date (base: $base_date)");
+            } else {
+                // Anniversario: data annuncio di morte + N anni
+                $timestamp = strtotime($base_date_formatted . ' +' . $anniversary_number . ' year');
+                if ($timestamp === false) {
+                    $this->log("ERRORE ID $id: Impossibile calcolare data anniversario da '$base_date_formatted'");
+                    $acf_date = $data[$field_indexes['Data']];
+                } else {
+                    $acf_date = date('Y-m-d H:i:s', $timestamp);
+                    
+                    // Validazione data ACF
+                    $year = date('Y', $timestamp);
+                    if ($year > 2100) {
+                        $this->log("ERRORE ID $id: Anno calcolato non valido: $year. Uso data originale dal CSV.");
+                        $acf_date = $data[$field_indexes['Data']]; // Usa la data dal CSV come fallback
+                    }
+                }
+                $this->log("ID $id: Calcolata data ACF anniversario n.$anniversary_number: $acf_date (base: $base_date)");
             }
 
             // Creazione del nuovo post
@@ -291,7 +339,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 'post_status' => $data[$field_indexes['Pubblicato']] == 1 ? 'publish' : 'draft',
                 'post_title' => get_the_title($necrologio->ID),
                 'post_author' => $author_id,
-                'post_date' => $pub_date,
+                'post_date' => $pub_date, // Usa sempre il campo "Data" dal CSV
             ));
 
             if (!is_wp_error($post_id)) {
@@ -300,10 +348,10 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 update_field('id_old', $id, $post_id);
 
                 if ($is_trigesimo) { // Trigesimo
-                    update_field('_data', $data[$field_indexes['Data']], $post_id);
+                    update_field('trigesimo_data', $acf_date, $post_id); // Data calcolata (morte + 30 giorni)
                     update_field('testo_annuncio_trigesimo', $data[$field_indexes['Testo']], $post_id);
                 } else { // Anniversario
-                    update_field('anniversario_data', $data[$field_indexes['Data']], $post_id);
+                    update_field('anniversario_data', $acf_date, $post_id); // Data calcolata (morte + N anni)
                     update_field('testo_annuncio_anniversario', $data[$field_indexes['Testo']], $post_id);
                     // Usa il numero estratto invece del campo 'Anni' inesistente
                     update_field('anniversario_n_anniversario', $anniversary_number, $post_id);
@@ -460,11 +508,19 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
             $this->log("MANIPOLA_DATI: File di input trovato, dimensione: " . filesize($input_file) . " bytes");
 
+            // Prima rileva il formato CSV dal file path
+            $csv_format = $this->detectCsvFormat($input_file);
+            
+            // Imposta i parametri CSV rilevati
+            $this->csv_delimiter = $csv_format['delimiter'];
+            $this->csv_enclosure = $csv_format['enclosure'];
+            $this->csv_escape = $csv_format['escape'];
+            
             // Creazione degli oggetti SplFileObject per input e output
             try {
                 $file_input = new SplFileObject($input_file, 'r');
-                $file_input->setCsvControl(';', '"', '\\'); // Set semicolon as delimiter
-                $this->log("MANIPOLA_DATI: File di input aperto con successo, delimiter impostato a ';'");
+                $file_input->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
+                $this->log("MANIPOLA_DATI: File di input aperto con successo, delimiter rilevato: '{$this->csv_delimiter}'");
             } catch (RuntimeException $e) {
                 $this->log("MANIPOLA_DATI: ERRORE - Impossibile aprire file di input: " . $e->getMessage());
                 return false;
@@ -478,7 +534,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
             try {
                 $file_output = new SplFileObject($output_file, 'w');
-                $file_output->setCsvControl(';', '"', '\\'); // Set semicolon as delimiter for output too
+                $file_output->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
                 $this->log("MANIPOLA_DATI: File di output creato con successo: $output_file");
             } catch (RuntimeException $e) {
                 $this->log("MANIPOLA_DATI: ERRORE - Impossibile creare file di output: " . $e->getMessage());
@@ -585,12 +641,13 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
             $this->log("MANIPOLA_DATI: File di output creato, dimensione: " . filesize($output_file) . " bytes");
 
-            // Rinominare il file di output come il file originale
-            if (rename($output_file, $input_file)) {
-                $this->log("MANIPOLA_DATI: Rename completato con successo da $output_file a $input_file");
+            // Copiare il file di output come il file originale (mantenendo anche l'elaborato)
+            if (copy($output_file, $input_file)) {
+                $this->log("MANIPOLA_DATI: Copia completata con successo da $output_file a $input_file");
+                $this->log("MANIPOLA_DATI: File elaborato mantenuto: $output_file");
                 return true;
             } else {
-                $this->log("MANIPOLA_DATI: ERRORE - Impossibile rinominare $output_file in $input_file");
+                $this->log("MANIPOLA_DATI: ERRORE - Impossibile copiare $output_file in $input_file");
                 $this->log("MANIPOLA_DATI: Verifica permessi directory: " . dirname($input_file));
                 return false;
             }
@@ -746,8 +803,81 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             return null;
         }
 
+        /**
+         * Converte date italiane (DD/MM/YYYY) in formato compatibile con strtotime()
+         * @param string $date_string La data da convertire
+         * @return string Data in formato YYYY-MM-DD compatibile con strtotime()
+         */
+        private function parse_italian_date($date_string)
+        {
+            // Se è già in formato ISO (YYYY-MM-DD), restituiscila così com'è
+            if (preg_match('/^\d{4}-\d{2}-\d{2}/', $date_string)) {
+                return $date_string;
+            }
+            
+            // Se è in formato americano (YYYY-MM-DD HH:MM:SS), estraici solo la data
+            if (preg_match('/^(\d{4}-\d{2}-\d{2})/', $date_string, $matches)) {
+                return $matches[1];
+            }
+            
+            // Prova formato italiano DD/MM/YYYY o DD-MM-YYYY
+            if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/', $date_string, $matches)) {
+                $day = str_pad($matches[1], 2, '0', STR_PAD_LEFT);
+                $month = str_pad($matches[2], 2, '0', STR_PAD_LEFT);
+                $year = $matches[3];
+                return "$year-$month-$day";
+            }
+            
+            // Se non riesco a convertire, prova strtotime diretto e vedi se funziona
+            $timestamp = strtotime($date_string);
+            if ($timestamp !== false) {
+                return date('Y-m-d', $timestamp);
+            }
+            
+            // Fallback: restituisci la data originale
+            $this->log("ATTENZIONE: Impossibile convertire data '$date_string', uso originale");
+            return $date_string;
+        }
 
-
+        /**
+         * Gestisce le immagini mancanti per una ricorrenza esistente
+         * Verifica se i campi ACF delle immagini sono vuoti e li aggiunge alla coda di download
+         */
+        private function handle_missing_images_for_existing_ricorrenza($post_id, $data, $field_indexes, &$image_queue)
+        {
+            // Determina il tipo di ricorrenza per sapere quale campo ACF controllare
+            $post_type = get_post_type($post_id);
+            $foto_value = $data[$field_indexes['Foto']] ?? '';
+            
+            if (empty($foto_value)) {
+                return; // Nessuna immagine nel CSV da processare
+            }
+            
+            $image_field = null;
+            $image_type = null;
+            
+            if ($post_type === 'trigesimo') {
+                $image_field = 'immagine_annuncio_trigesimo';
+                $image_type = 'trigesimo';
+            } elseif ($post_type === 'anniversario') {
+                $image_field = 'immagine_annuncio_anniversario'; 
+                $image_type = 'anniversario';
+            } else {
+                $this->log("Tipo di post non riconosciuto per ricorrenza ID: $post_id (tipo: $post_type)");
+                return;
+            }
+            
+            // Verifica se il campo ACF è vuoto
+            $current_image = get_field($image_field, $post_id);
+            
+            if (empty($current_image)) {
+                $author_id = get_post_field('post_author', $post_id);
+                $image_queue[] = [$image_type, 'https://necrologi.sciame.it/necrologi/' . $foto_value, $post_id, $author_id];
+                $this->log("Aggiunta immagine $image_type alla coda per post esistente ID: $post_id (foto: $foto_value)");
+            } else {
+                $this->log("Post ID $post_id ($post_type) ha già immagine collegata: " . (is_array($current_image) ? $current_image['ID'] : $current_image));
+            }
+        }
 
     }
 }

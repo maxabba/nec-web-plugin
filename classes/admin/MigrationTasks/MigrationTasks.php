@@ -251,7 +251,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                 
                 // Verifica se ci sono quote nel file
                 $has_quotes = strpos($sample_text, '"') !== false;
-                $enclosure = $has_quotes ? '"' : '';
+                $enclosure = $has_quotes ? '"' : "'";
                 
                 // Conta le righe reali usando il delimitatore detectato
                 $test_count = $this->countLinesSimple($file_path);
@@ -938,9 +938,12 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             }
 
             if (!file_exists($queue_path)) {
-                $this->log("Queue file does not exist: $queue_file");
+                $this->log("Queue file does not exist: $queue_file (path: $queue_path)");
                 return;
             }
+            
+            $file_size = filesize($queue_path);
+            $this->log("DEBUG: Queue file exists: $queue_file, size: $file_size bytes");
 
             // Check if process is already active (using dedicated image queue methods)
             if ($this->getImageQueueProgressStatus($queue_file) === 'ongoing') {
@@ -958,11 +961,18 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                 $progress = $this->getImageQueueProgress($queue_file);
                 $processed_count = $progress['processed'] ?? 0;
                 
+                $this->log("DEBUG: Current image queue progress - processed: $processed_count, total: {$progress['total']}");
+                
                 // Initialize progress file if first time processing
                 if ($progress['total'] === 0) {
                     $total_rows_count = $this->countCsvRowsEfficient($queue_path);
+                    $this->log("DEBUG: Counting CSV rows in $queue_path found: $total_rows_count");
                     $this->updateImageQueueProgress($queue_file, $processed_count, $total_rows_count);
                     $this->log("Initialized image queue progress: 0/$total_rows_count");
+                    
+                    // Verifica che il file di progresso sia stato creato
+                    $progress_check = $this->getImageQueueProgress($queue_file);
+                    $this->log("DEBUG: Progress file verification - processed: {$progress_check['processed']}, total: {$progress_check['total']}");
                 }
                 
                 // CSV sync no longer needed - progress tracked in JSON only
@@ -976,8 +986,19 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                 $file->setFlags(SplFileObject::READ_CSV);
                 $file->setCsvControl(',', '"', '\\');
                 
+                $csv_row_count = 0;
                 foreach ($file as $data) {
+                    $csv_row_count++;
+                    
+                    // Debug prima riga per verificare formato
+                    if ($csv_row_count <= 3) {
+                        $this->log("DEBUG: CSV row $csv_row_count: " . print_r($data, true) . " (count: " . count($data) . ")");
+                    }
+                    
                     if (empty($data) || count($data) < 4) {
+                        if ($csv_row_count <= 10) {
+                            $this->log("DEBUG: Skipping row $csv_row_count - empty or less than 4 fields");
+                        }
                         continue;
                     }
                     
@@ -1025,7 +1046,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
                         break;
                     }
 
-                    list($image_type, $image_url, $post_id, $author_id, $retry_count) = $data;
+                    list($image_type, $image_url, $post_id, $author_id, $retry_count, $processed) = $data;
                     
                     try {
                         if ($this->downloadAndAttachImage($image_type, $image_url, (int)$post_id, (int)$author_id)) {
@@ -1473,6 +1494,18 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
             }
             
             $acf_field = self::$image_type_mapping[$image_type];
+            
+            // Check if there's an existing image and delete it
+            $existing_attachment_id = get_field($acf_field, $post_id);
+            if ($existing_attachment_id && is_numeric($existing_attachment_id)) {
+                $this->log("Deleting existing attachment ID $existing_attachment_id for field '$acf_field' on post $post_id");
+                wp_delete_attachment($existing_attachment_id, true);
+            } elseif (is_array($existing_attachment_id) && isset($existing_attachment_id['ID'])) {
+                $existing_id = $existing_attachment_id['ID'];
+                $this->log("Deleting existing attachment ID $existing_id (from array) for field '$acf_field' on post $post_id");
+                wp_delete_attachment($existing_id, true);
+            }
+            
             update_field($acf_field, $attachment_id, $post_id);
             
             $this->log("ACF field '$acf_field' updated with attachment ID $attachment_id for post $post_id");

@@ -21,6 +21,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
         private string $image_queue_file = 'image_download_queue.csv';
         private string $cron_hook = 'dokan_mods_process_image_queue';
         private int $images_per_cron = 500;
+        private bool $force_image_download = false;
 
         public function __construct(String $upload_dir, String $progress_file, String $log_file, Int $batch_size)
         {
@@ -39,6 +40,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                 return $schedules;
             });
 
+            $this->enableForceImageDownload(true );
 
         }
 
@@ -46,20 +48,29 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
         {
             $this->scheduleImageProcessing($this->cron_hook);
         }
+        
+        /**
+         * Abilita il download forzato delle immagini (sostituisce quelle esistenti)
+         */
+        public function enableForceImageDownload($force = true)
+        {
+            $this->force_image_download = $force;
+            $this->log("Force image download " . ($force ? "ENABLED" : "DISABLED"));
+        }
 
 
         public function migrate_necrologi_batch($file_name)
         {
+            try {
+                if($this->get_progress_status($file_name) == 'finished'){
+                    $this->schedule_image_processing();
 
-            if($this->get_progress_status($file_name) == 'finished'){
-                $this->schedule_image_processing();
+                    $this->log("Il file $file_name è già stato processato completamente.");
+                    return true;
+                }
 
-                $this->log("Il file $file_name è già stato processato completamente.");
-                return true;
-            }
-
-            $start_time = microtime(true);
-            $this->set_progress_status($file_name, 'ongoing');
+                $start_time = microtime(true);
+                $this->set_progress_status($file_name, 'ongoing');
 
             if(!$file = $this->load_file($file_name)){
                 return false;
@@ -72,9 +83,26 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             $processed = $progress['processed'];
             $total_rows = $progress['total'];
 
+            // IMPORTANTE: Prima di leggere l'header, dobbiamo posizionarci all'inizio del file
+            // perché first_call_check potrebbe aver già letto l'header
+            $file->rewind();
+            
+            // CRITICO: Ristabilisce le impostazioni CSV control dopo rewind
+            $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
+            
             $header = $file->fgetcsv();             // Leggi l'header
+            
+            // Verifica che l'header sia stato letto correttamente
+            if (!$header || !is_array($header)) {
+                $this->log("ERRORE: Impossibile leggere l'header del file CSV o header non valido");
+                $this->set_progress_status($file_name, 'error');
+                return false;
+            }
 
-            $file->seek($processed);                // Salta le righe già processate
+            // Ora salta all'offset corretto (processed + 1 per saltare l'header)
+            if ($processed > 0) {
+                $file->seek($processed + 1);  // +1 per saltare l'header
+            }
 
             $batch_data = [];
             $batch_user_old_ids = [];
@@ -130,12 +158,24 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
 
             $this->set_progress_status($file_name, 'completed');
 
-            if ($processed >= $total_rows) {
-                $this->set_progress_status($file_name, 'finished');
-                $this->schedule_image_processing();
-            }
+                if ($processed >= $total_rows) {
+                    $this->set_progress_status($file_name, 'finished');
+                    $this->schedule_image_processing();
+                }
 
-            return $processed >= $total_rows;
+                return $processed >= $total_rows;
+                
+            } catch (Exception $e) {
+                $error_message = "Errore durante la migrazione necrologi: " . $e->getMessage();
+                $this->log("ERRORE CRITICO: " . $error_message);
+                $this->log("Stack trace: " . $e->getTraceAsString());
+                
+                // Aggiorna lo status del progresso come errore
+                $this->set_progress_status($file_name, 'error');
+                
+                // Re-throw per permettere al sistema di loggare in wc-logs
+                throw $e;
+            }
         }
 
 
@@ -165,8 +205,12 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
 
             //check if ID is in array $existing_posts
             if (isset($existing_posts[$data[$field_indexes['ID']]])) {
-                $this->log("Annuncio di morte già esistente: ID {$data[$field_indexes['ID']]}");
-                return false;
+                $existing_post_id = $existing_posts[$data[$field_indexes['ID']]];
+                $this->log("Annuncio di morte già esistente: ID {$data[$field_indexes['ID']]}, Post ID: $existing_post_id");
+                
+                // Verifica e gestisci immagini mancanti per post esistenti
+                $this->handle_missing_images_for_existing_post($existing_post_id, $data, $field_indexes, $image_queue, $this->force_image_download);
+                return $existing_post_id;
             }
 
             $author_id = $this->getAuthorIdWithFallback($data[$field_indexes['IdAccount']], $existing_users);
@@ -180,7 +224,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             ]);
 
             if (!is_wp_error($post_id)) {
-                $this->update_post_fields($post_id, $data, $field_indexes);
+                $this->update_post_fields($post_id, $data, $field_indexes, $author_id);
 
                 // Add images to queue if they exist
                 $foto_value = $data[$field_indexes['Foto']] ?? '';
@@ -202,7 +246,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             return $post_id;
         }
 
-        private function update_post_fields($post_id, $data, $field_indexes)
+        private function update_post_fields($post_id, $data, $field_indexes, $author_id)
         {
             $fields = [
                 'id_old' => $data[$field_indexes['ID']],
@@ -211,7 +255,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                 'eta' => intval($data[$field_indexes['Anni']]),
                 'data_di_morte' => $data[$field_indexes['DataMorte']],
                 'testo_annuncio_di_morte' => $data[$field_indexes['Testo']] ?: $data[$field_indexes['AltTesto']],
-                'citta' => $this->format_luogo($data[$field_indexes['Luogo']]),
+                'citta' => $this->format_luogo($data[$field_indexes['Luogo']], $author_id),
                 'funerale_data' => $data[$field_indexes['DataFunerale']]
             ];
 
@@ -248,10 +292,12 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
         // get_existing_users_by_old_ids method moved to parent class MigrationTasks
 
 
-        private function format_luogo($luogo)
+        private function format_luogo($luogo, $author_id)
         {
             global $dbClassInstance;
+            $original_luogo = $luogo; // Salva l'originale per il logging
             $luogo = strtolower($luogo);
+            
             if (strpos($luogo, 'cimitero di') !== false) {
                 $parts = explode('cimitero di', $luogo);
                 $luogo = trim($parts[1]);
@@ -266,9 +312,20 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             if (!empty($result)) {
                 // Se troviamo una corrispondenza, usiamo il nome del comune dal database
                 $luogo = $result[0]['nome'];
+                $this->log("Luogo identificato correttamente: '$original_luogo' -> '{$luogo}'");
             } else {
-                // Se non troviamo una corrispondenza, formatta il nome originale
-                $luogo = ucwords($luogo);
+                // Fallback alla città dell'autore
+                $store_info = dokan_get_store_info($author_id);
+                $user_city = $store_info['address']['city'] ?? '';
+                
+                if (!empty($user_city)) {
+                    $this->log("Luogo non identificato '$original_luogo', uso città autore: '$user_city'");
+                    $luogo = $user_city;
+                } else {
+                    // Se non troviamo nemmeno la città dell'autore, formatta il nome originale
+                    $luogo = ucwords($luogo);
+                    $this->log("Nessuna città trovata per autore $author_id, uso luogo formattato: '$luogo'");
+                }
             }
 
             return $luogo;
@@ -399,6 +456,75 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
             return $result;
         }
 
+        /**
+         * Gestisce le immagini mancanti per un post esistente
+         * Verifica se i campi ACF delle immagini sono vuoti e li aggiunge alla coda di download
+         * Con force_download=true, sostituisce anche le immagini esistenti
+         */
+        private function handle_missing_images_for_existing_post($post_id, $data, $field_indexes, &$image_queue, $force_download = false)
+        {
+            $this->log("DEBUG: Checking images for existing post ID: $post_id");
+            
+            // Debug field indexes
+            $this->log("DEBUG: Field indexes - Foto: " . ($field_indexes['Foto'] ?? 'NOT_FOUND') . ", ImmagineManifesto: " . ($field_indexes['ImmagineManifesto'] ?? 'NOT_FOUND'));
+            
+            // Debug raw CSV data around image fields
+            if (isset($field_indexes['Foto']) && isset($data[$field_indexes['Foto']])) {
+                $this->log("DEBUG: Raw CSV data for Foto field (index {$field_indexes['Foto']}): '" . $data[$field_indexes['Foto']] . "'");
+            } else {
+                $this->log("DEBUG: Foto field index not found or data not available");
+            }
+            
+            if (isset($field_indexes['ImmagineManifesto']) && isset($data[$field_indexes['ImmagineManifesto']])) {
+                $this->log("DEBUG: Raw CSV data for ImmagineManifesto field (index {$field_indexes['ImmagineManifesto']}): '" . $data[$field_indexes['ImmagineManifesto']] . "'");
+            } else {
+                $this->log("DEBUG: ImmagineManifesto field index not found or data not available");
+            }
+            
+            // Verifica campo fotografia (profile_photo)
+            $fotografia_current = get_field('fotografia', $post_id);
+            $foto_value = $data[$field_indexes['Foto']] ?? '';
+            
+            // Enhanced logging for fotografia field
+            $this->log("DEBUG: Post $post_id - ACF fotografia field value: " . var_export($fotografia_current, true));
+            $this->log("DEBUG: Post $post_id - Fotografia current: " . (empty($fotografia_current) ? 'EMPTY' : 'NOT_EMPTY') . ", CSV foto value: '$foto_value'");
+            $this->log("DEBUG: Post $post_id - foto_value empty check: " . (empty($foto_value) ? 'TRUE' : 'FALSE') . ", foto_value isset: " . (isset($data[$field_indexes['Foto']]) ? 'TRUE' : 'FALSE'));
+            
+            if ((empty($fotografia_current) && !empty($foto_value)) || ($force_download && !empty($foto_value))) {
+                $author_id = get_post_field('post_author', $post_id);
+                $image_queue[] = ['profile_photo', 'https://necrologi.sciame.it/necrologi/' . $foto_value, $post_id, $author_id];
+                $action = $force_download ? "FORZATA sostituzione" : "Aggiunta";
+                $this->log("✅ $action fotografia alla coda per post esistente ID: $post_id (foto: $foto_value)");
+            } else {
+                $this->log("❌ DEBUG: Post $post_id - Fotografia NON aggiunta: current_empty=" . (empty($fotografia_current) ? 'true' : 'false') . ", csv_not_empty=" . (!empty($foto_value) ? 'true' : 'false') . ", force_download=" . ($force_download ? 'true' : 'false'));
+            }
+            
+            // Verifica campo immagine_annuncio_di_morte (manifesto_image)  
+            $manifesto_current = get_field('immagine_annuncio_di_morte', $post_id);
+            $manifesto_value = $data[$field_indexes['ImmagineManifesto']] ?? '';
+            
+            // Enhanced logging for manifesto field
+            $this->log("DEBUG: Post $post_id - ACF immagine_annuncio_di_morte field value: " . var_export($manifesto_current, true));
+            $this->log("DEBUG: Post $post_id - Manifesto current: " . (empty($manifesto_current) ? 'EMPTY' : 'NOT_EMPTY') . ", CSV manifesto value: '$manifesto_value'");
+            $this->log("DEBUG: Post $post_id - manifesto_value empty check: " . (empty($manifesto_value) ? 'TRUE' : 'FALSE') . ", manifesto_value isset: " . (isset($data[$field_indexes['ImmagineManifesto']]) ? 'TRUE' : 'FALSE'));
+            
+            if ((empty($manifesto_current) && !empty($manifesto_value)) || ($force_download && !empty($manifesto_value))) {
+                $author_id = get_post_field('post_author', $post_id);
+                $image_queue[] = ['manifesto_image', 'https://necrologi.sciame.it/necrologi/' . $manifesto_value, $post_id, $author_id];
+                $action = $force_download ? "FORZATA sostituzione" : "Aggiunta";
+                $this->log("✅ $action immagine manifesto alla coda per post esistente ID: $post_id (manifesto: $manifesto_value)");
+            } else {
+                $this->log("❌ DEBUG: Post $post_id - Manifesto NON aggiunto: current_empty=" . (empty($manifesto_current) ? 'true' : 'false') . ", csv_not_empty=" . (!empty($manifesto_value) ? 'true' : 'false') . ", force_download=" . ($force_download ? 'true' : 'false'));
+            }
+            
+            // Summary log
+            $queue_count_before = count($image_queue);
+            $added_items = 0;
+            if (empty($fotografia_current) && !empty($foto_value)) $added_items++;
+            if (empty($manifesto_current) && !empty($manifesto_value)) $added_items++;
+            
+            $this->log("DEBUG: Post $post_id summary - Expected to add $added_items images to queue");
+        }
 
     }
 }

@@ -20,6 +20,8 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
 
             add_filter('query_vars', array($this, 'add_custom_query_vars_filter'));
 
+            // Modificatore per il campo ACF eta
+            add_filter('acf/load_value/name=eta', array($this, 'modify_eta_field_value'), 10, 3);
 
             // add_action('init', array($this, 'custom_rewrite_rules'));
         }
@@ -230,6 +232,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
                 $query->set('meta_key', 'data_di_morte');
                 $query->set('orderby', 'meta_value');
                 $query->set('order', 'DESC');
+                $query->set('meta_type', 'DATETIME');
 
                 // Aggiungi meta_query per assicurare che i post abbiano il campo data_di_morte
                 $existing_meta_query = $query->get('meta_query') ?: array();
@@ -244,16 +247,39 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
 
                 $query->set('meta_query', $existing_meta_query);
 
-            } else {
-                // Per altri tipi di post, usa l'ordinamento per data di pubblicazione
-                if (!$query->get('orderby')) {
-                    $query->set('orderby', 'date');
-                    $query->set('order', 'DESC');
-                }
             }
 
             // Applica i filtri della classe FiltersClass
             (new FiltersClass())->custom_filter_query($query);
+        }
+
+        /**
+         * Modifica il valore del campo ACF "eta" per il post type "annuncio-di-morte"
+         * Ritorna una stringa vuota se il valore è 0 o non è impostato
+         *
+         * @param mixed $value Il valore del campo
+         * @param int $post_id L'ID del post
+         * @param array $field I dati del campo ACF
+         * @return string Il valore modificato
+         */
+        public function modify_eta_field_value($value, $post_id, $field): string
+        {
+            // Se il valore è null, ritorna stringa vuota
+            if ($value === null) {
+                return '';
+            }
+            
+            // Verifica che siamo in un post di tipo "annuncio-di-morte"
+            if (get_post_type($post_id) !== 'annuncio-di-morte') {
+                return (string)$value;
+            }
+
+            // Se il valore è 0, "0", false o stringa vuota, ritorna stringa vuota
+            if ($value === false || $value === '' || $value === '0' || $value === 0) {
+                return '';
+            }
+
+            return (string)$value;
         }
 
     }

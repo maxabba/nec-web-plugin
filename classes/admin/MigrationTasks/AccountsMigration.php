@@ -119,9 +119,15 @@ if (!class_exists(__NAMESPACE__ . '\AccountsMigration')) {
                 }
 
             } catch (Exception $e) {
-                $this->log("Errore critico nella migrazione: " . $e->getMessage());
+                $error_message = "Errore durante la migrazione accounts: " . $e->getMessage();
+                $this->log("ERRORE CRITICO: " . $error_message);
+                $this->log("Stack trace: " . $e->getTraceAsString());
+                
+                // Aggiorna lo status del progresso come errore
                 $this->set_progress_status($file_name, 'error');
-                return false;
+                
+                // Re-throw per permettere al sistema di loggare in wc-logs
+                throw $e;
             }
         }
 

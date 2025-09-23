@@ -42,11 +42,12 @@ if (!class_exists(__NAMESPACE__ . '\RingraziamentiMigration')) {
 
         public function migrate_ringraziamenti_batch($file_name)
         {
-            if ($this->get_progress_status($file_name) == 'finished') {
-                $this->schedule_image_processing();
-                $this->log("Il file $file_name è già stato processato completamente.");
-                return true;
-            }
+            try {
+                if ($this->get_progress_status($file_name) == 'finished') {
+                    $this->schedule_image_processing();
+                    $this->log("Il file $file_name è già stato processato completamente.");
+                    return true;
+                }
 
             $start_time = microtime(true);
             $this->set_progress_status($file_name, 'ongoing');
@@ -62,17 +63,30 @@ if (!class_exists(__NAMESPACE__ . '\RingraziamentiMigration')) {
             $processed = $progress['processed'];
             $total_rows = $progress['total'];
 
-            // Ensure CSV control is set correctly before reading header
+            // IMPORTANTE: Prima di leggere l'header, dobbiamo posizionarci all'inizio del file
+            // perché first_call_check potrebbe aver già letto l'header
+            $file->rewind();
+            
+            // CRITICO: Ristabilisce le impostazioni CSV control dopo rewind
             $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
             $this->log("DEBUG: CSV control set to delimiter: '{$this->csv_delimiter}', enclosure: '{$this->csv_enclosure}'");
             
             $header = $file->fgetcsv();
             $this->log("DEBUG: Header read: " . print_r($header, true));
-
-            $file->seek($processed);
             
-            // Ensure CSV control is maintained after seek
-            $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
+            // Verifica che l'header sia stato letto correttamente
+            if (!$header || !is_array($header)) {
+                $this->log("ERRORE: Impossibile leggere l'header del file CSV o header non valido");
+                $this->set_progress_status($file_name, 'error');
+                return false;
+            }
+
+            // Ora salta all'offset corretto (processed + 1 per saltare l'header)
+            if ($processed > 0) {
+                $file->seek($processed + 1);  // +1 per saltare l'header
+                // Ensure CSV control is maintained after seek
+                $file->setCsvControl($this->csv_delimiter, $this->csv_enclosure, $this->csv_escape);
+            }
 
             $batch_data = [];
             $batch_necrologi_ids = [];
@@ -144,6 +158,18 @@ if (!class_exists(__NAMESPACE__ . '\RingraziamentiMigration')) {
             }
 
             return $processed >= $total_rows;
+            
+            } catch (Exception $e) {
+                $error_message = "Errore durante la migrazione ringraziamenti: " . $e->getMessage();
+                $this->log("ERRORE CRITICO: " . $error_message);
+                $this->log("Stack trace: " . $e->getTraceAsString());
+                
+                // Aggiorna lo status del progresso come errore
+                $this->set_progress_status($file_name, 'error');
+                
+                // Re-throw per permettere al sistema di loggare in wc-logs
+                throw $e;
+            }
         }
 
         private function process_single_record($data, $header, $existing_necrologi, &$image_queue)
