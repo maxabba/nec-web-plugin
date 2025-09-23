@@ -190,6 +190,7 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
             // Get base SKU pattern
             $base_sku = $product_id . '-';
 
+
             // Initialize arrays for all prices
             $all_prices = array();
             

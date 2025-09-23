@@ -471,7 +471,7 @@ class RegistrationForm
         ));
         
         // Aggiorna i meta del prodotto
-        update_post_meta($clone_product_id, '_sku', 'manifesto-online-' . $vendor_id);
+        update_post_meta($clone_product_id, '_sku', '419-' . $vendor_id);
         update_post_meta($clone_product_id, '_vendor_id', $vendor_id);
         
         // Imposta la categoria_finale dal template

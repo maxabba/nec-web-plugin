@@ -16,6 +16,8 @@ if (!class_exists(__NAMESPACE__ . '\AnniversarioFrontendClass')) {
             //add shortcode get_anniversario_count
             add_shortcode('get_nuber_of_anniversary', array($this, 'get_nuber_of_anniversary'));
             add_shortcode('get_anniversary_date', array($this, 'get_anniversary_date'));
+
+
         }
 
         public function apply_custom_filter_query($query)

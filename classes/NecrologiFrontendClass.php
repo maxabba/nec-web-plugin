@@ -23,6 +23,8 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
             // Modificatore per il campo ACF eta
             add_filter('acf/load_value/name=eta', array($this, 'modify_eta_field_value'), 10, 3);
 
+            add_shortcode('acf_composito', array($this, 'get_acf_composito_field_value'));
+
             // add_action('init', array($this, 'custom_rewrite_rules'));
         }
 
@@ -280,6 +282,47 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
             }
 
             return (string)$value;
+        }
+
+        public function get_acf_composito_field_value($atts)
+        {
+            // Estrai gli attributi passati allo shortcode
+            $atts = shortcode_atts(array(
+                'fist_element' => '',
+                'second_element' => '',
+                'post_id' => get_the_ID(),
+            ), $atts, 'acf_composito');
+
+            if(!$atts['post_id']) {
+                return '';
+            }
+
+
+            if(empty($atts['fist_element']) || empty($atts['second_element'])) {
+                return '';
+            }
+
+            $field = get_field($atts['fist_element']."_". $atts['second_element'], $atts['post_id']);
+
+            if(!$field) {
+                return '';
+            }
+
+
+            if($atts["second_element"] == "data"){
+                // format d/m/Y H:i
+                $timestamp = strtotime($field);
+                if($timestamp) {
+                    return date("d/m/Y H:i", $timestamp);
+                } else {
+                    return $field; // return original if not valid date
+                }
+
+            }
+
+
+
+            return $field;
         }
 
     }

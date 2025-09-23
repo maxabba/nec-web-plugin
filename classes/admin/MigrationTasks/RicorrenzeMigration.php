@@ -22,6 +22,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
         private string $image_queue_file = 'image_download_queue_ricorrenze.csv';
         private string $cron_hook = 'dokan_mods_process_image_ricorrenze_queue';
         private int $images_per_cron = 500;
+        private bool $force_image_download = false;
 
         public function __construct(string $upload_dir, string $progress_file, string $log_file, int $batch_size)
         {
@@ -31,6 +32,8 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
             $this->max_execution_time = 30;
 
             add_action('dokan_mods_process_image_ricorrenze_queue', [$this, 'process_image_queue']);
+
+            $this->enableForceImageDownload(false); // Default disabled
 
             add_filter('cron_schedules', function ($schedules) {
                 // Controlla se l'intervallo 'every_one_minute' non esiste già
@@ -46,6 +49,46 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
         }
 
+        /**
+         * Abilita il download forzato delle immagini (sostituisce quelle esistenti)
+         */
+        public function enableForceImageDownload($force = true)
+        {
+            $this->force_image_download = $force;
+            $this->log("Force image download " . ($force ? "ENABLED" : "DISABLED"));
+        }
+
+        /**
+         * Inizializza il progresso della coda immagini se non esiste già
+         */
+        private function initializeImageQueueProgressIfNeeded($queue_file)
+        {
+            $progress = $this->getImageQueueProgress($queue_file);
+            
+            // Se il progresso non esiste o è vuoto, inizializzalo
+            if (empty($progress) || !isset($progress['total'])) {
+                $queue_path = $this->upload_dir . $queue_file;
+                
+                if (file_exists($queue_path)) {
+                    // Conta le righe nel file CSV
+                    try {
+                        $file = new SplFileObject($queue_path, 'r');
+                        $file->setFlags(SplFileObject::READ_CSV);
+                        $file->seek(PHP_INT_MAX);
+                        $total_rows = $file->key();
+                        $file = null;
+                        
+                        // Inizializza il progresso
+                        $this->setImageQueueProgressStatus($queue_file, 'not_started');
+                        $this->updateImageQueueProgress($queue_file, 0, $total_rows);
+                        
+                        $this->log("Initialized image queue progress: 0/$total_rows for $queue_file");
+                    } catch (Exception $e) {
+                        $this->log("ERROR: Failed to initialize image queue progress: " . $e->getMessage());
+                    }
+                }
+            }
+        }
 
         private function schedule_image_processing()
         {
@@ -163,7 +206,13 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $file = null;
 
                 if (!empty($image_queue)) {
-                    $this->addToImageQueueSimple($image_queue, $this->image_queue_file);
+                    $result = $this->addToImageQueueSimple($image_queue, $this->image_queue_file);
+                    $this->log("Added " . count($image_queue) . " images to queue: " . ($result ? 'SUCCESS' : 'FAILED'));
+                    
+                    // Initialize progress tracking if queue was successfully created
+                    if ($result) {
+                        $this->initializeImageQueueProgressIfNeeded($this->image_queue_file);
+                    }
                 }
                 unset($image_queue);
 
@@ -244,7 +293,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $this->log("Ricorrenza già esistente: ID $id, Post ID: $existing_post_id");
                 
                 // Verifica e gestisci immagini mancanti per post esistenti
-                $this->handle_missing_images_for_existing_ricorrenza($existing_post_id, $data, $field_indexes, $image_queue);
+                $this->handle_missing_images_for_existing_ricorrenza($existing_post_id, $data, $field_indexes, $image_queue, $this->force_image_download);
                 return;
             }
 
@@ -455,6 +504,96 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 $this->log("No image queue file found for ricorrenze");
                 return false;
             }
+        }
+
+        /**
+         * Stop image processing
+         */
+        public function stop_image_processing()
+        {
+            try {
+                // Stop the cron job
+                wp_clear_scheduled_hook($this->cron_hook);
+                
+                // Set status to stopped
+                $this->setImageQueueProgressStatus($this->image_queue_file, 'stopped');
+                
+                // Get final stats
+                $stats = $this->get_detailed_queue_status();
+                
+                $message = 'Image download processing stopped successfully.';
+                $this->log("Image processing stopped by user request");
+                
+                return [
+                    'success' => true,
+                    'message' => $message,
+                    'stats' => $stats
+                ];
+                
+            } catch (Exception $e) {
+                $error_msg = 'Failed to stop image processing: ' . $e->getMessage();
+                $this->log($error_msg);
+                return [
+                    'success' => false,
+                    'message' => $error_msg
+                ];
+            }
+        }
+
+        /**
+         * Get detailed queue status
+         */
+        public function get_detailed_queue_status()
+        {
+            $queue_path = $this->upload_dir . $this->image_queue_file;
+            $queue_progress = $this->getImageQueueProgress($this->image_queue_file);
+            $status = $this->getImageQueueProgressStatus($this->image_queue_file);
+            
+            // If progress total is 0 but file exists, count rows
+            $total_rows = $queue_progress['total'] ?? 0;
+            if ($total_rows == 0 && file_exists($queue_path) && filesize($queue_path) > 0) {
+                try {
+                    $file = new SplFileObject($queue_path, 'r');
+                    $file->setFlags(SplFileObject::READ_CSV);
+                    $file->seek(PHP_INT_MAX);
+                    $total_rows = $file->key();
+                    $file = null;
+                } catch (Exception $e) {
+                    $this->log("Error counting queue file rows: " . $e->getMessage());
+                }
+            }
+            
+            $result = [
+                'queue_exists' => file_exists($queue_path),
+                'file_size' => file_exists($queue_path) ? filesize($queue_path) : 0,
+                'status' => $status,
+                'processed' => $queue_progress['processed'] ?? 0,
+                'total' => $total_rows,
+                'percentage' => $total_rows > 0 ? round(($queue_progress['processed'] ?? 0) / $total_rows * 100, 2) : 0,
+                'cron_scheduled' => wp_next_scheduled($this->cron_hook) !== false,
+                'next_cron_time' => wp_next_scheduled($this->cron_hook),
+                'last_update' => $queue_progress['last_update'] ?? null
+            ];
+            
+            // Calculate additional stats
+            if ($result['total'] > 0) {
+                $result['remaining'] = $result['total'] - $result['processed'];
+                $result['completion_rate'] = round(($result['processed'] / $result['total']) * 100, 2);
+            } else {
+                $result['remaining'] = 0;
+                $result['completion_rate'] = 0;
+            }
+            
+            // Add estimated time if processing
+            if ($result['status'] === 'ongoing' && $result['processed'] > 0) {
+                $elapsed_time = time() - strtotime($result['last_update'] ?? 'now');
+                if ($elapsed_time > 0 && $result['remaining'] > 0) {
+                    $avg_time_per_image = $elapsed_time / $result['processed'];
+                    $result['estimated_completion'] = $result['remaining'] * $avg_time_per_image;
+                }
+            }
+            
+            return $result;
         }
 
         /**
@@ -842,8 +981,9 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
         /**
          * Gestisce le immagini mancanti per una ricorrenza esistente
          * Verifica se i campi ACF delle immagini sono vuoti e li aggiunge alla coda di download
+         * Con force_download=true, sostituisce anche le immagini esistenti
          */
-        private function handle_missing_images_for_existing_ricorrenza($post_id, $data, $field_indexes, &$image_queue)
+        private function handle_missing_images_for_existing_ricorrenza($post_id, $data, $field_indexes, &$image_queue, $force_download = false)
         {
             // Determina il tipo di ricorrenza per sapere quale campo ACF controllare
             $post_type = get_post_type($post_id);
@@ -867,15 +1007,19 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                 return;
             }
             
-            // Verifica se il campo ACF è vuoto
+            // Verifica se il campo ACF è vuoto o se forziamo il download
             $current_image = get_field($image_field, $post_id);
             
-            if (empty($current_image)) {
+            $this->log("DEBUG: Post $post_id - ACF $image_field field value: " . var_export($current_image, true));
+            $this->log("DEBUG: Post $post_id - Current: " . (empty($current_image) ? 'EMPTY' : 'NOT_EMPTY') . ", CSV foto value: '$foto_value', force_download: " . ($force_download ? 'true' : 'false'));
+            
+            if ((empty($current_image) && !empty($foto_value)) || ($force_download && !empty($foto_value))) {
                 $author_id = get_post_field('post_author', $post_id);
                 $image_queue[] = [$image_type, 'https://necrologi.sciame.it/necrologi/' . $foto_value, $post_id, $author_id];
-                $this->log("Aggiunta immagine $image_type alla coda per post esistente ID: $post_id (foto: $foto_value)");
+                $action = $force_download ? "FORZATA sostituzione" : "Aggiunta";
+                $this->log("✅ $action immagine $image_type alla coda per post esistente ID: $post_id (foto: $foto_value)");
             } else {
-                $this->log("Post ID $post_id ($post_type) ha già immagine collegata: " . (is_array($current_image) ? $current_image['ID'] : $current_image));
+                $this->log("❌ DEBUG: Post $post_id - Immagine $image_type NON aggiunta: current_empty=" . (empty($current_image) ? 'true' : 'false') . ", csv_not_empty=" . (!empty($foto_value) ? 'true' : 'false') . ", force_download=" . ($force_download ? 'true' : 'false'));
             }
         }
 

@@ -42,7 +42,9 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
             // Aggiungi menu admin per batch manifesto-online
             //add_action('admin_menu', array($this, 'add_admin_menu_manifesto_batch'));
             // Gestisci l'azione batch
-            add_action('admin_post_batch_create_manifesto_online', array($this, 'handle_batch_create_manifesto_online'));
+            add_action('admin_post_batch_create_manifesto_online', array($this, 'handle'));
+            // Gestisci l'azione batch per withdrawal
+            add_action('admin_post_batch_set_withdraw_rate', array($this, 'handle_batch_withdraw_rate'));
         }
 
 
@@ -254,12 +256,18 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
         {
             global $post;
 
+            // Recupera i valori salvati
+            $withdraw_type = get_post_meta($post->ID, '_dokan_withdraw_type', true);
+            $withdraw_rate = get_post_meta($post->ID, '_dokan_withdraw_rate', true);
+            $withdraw_fixed_amount = get_post_meta($post->ID, '_dokan_withdraw_fixed_amount', true);
+
             echo '<div class="options_group">';
             woocommerce_wp_select(
                 array(
                     'id' => 'dokan_withdraw_type',
                     'label' => __('Withdraw Type', 'dokan-mod'),
                     'description' => __('Seleziona il tipo di withdrawal: percentuale o importo fisso.', 'dokan-mod'),
+                    'value' => $withdraw_type ? $withdraw_type : 'percentage',
                     'options' => array(
                         'percentage' => __('Percentuale', 'dokan-mod'),
                         'fixed' => __('Importo fisso', 'dokan-mod')
@@ -274,6 +282,7 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                     'desc_tip' => 'true',
                     'description' => __('Inserisci la percentuale di withdrawal per questo prodotto.', 'dokan-mod'),
                     'type' => 'number',
+                    'value' => $withdraw_rate,
                     'custom_attributes' => array(
                         'step' => '0.01',
                         'min' => '0',
@@ -290,6 +299,7 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                     'desc_tip' => 'true',
                     'description' => __('Inserisci l\'importo fisso di withdrawal per questo prodotto.', 'dokan-mod'),
                     'type' => 'number',
+                    'value' => $withdraw_fixed_amount,
                     'custom_attributes' => array(
                         'step' => '0.01',
                         'min' => '0',
@@ -421,7 +431,7 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
         {
             ?>
             <div class="wrap">
-                <h1>Crea Prodotti Manifesto Online per Tutti i Seller</h1>
+                <h1>Operazioni Batch</h1>
                 
                 <?php
                 if (isset($_GET['batch_result'])) {
@@ -431,9 +441,14 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                         <div class="notice notice-success">
                             <p>
                                 <strong>Processo completato!</strong><br>
-                                Prodotti creati: <?php echo $result['created']; ?><br>
-                                Vendor che avevano già il prodotto: <?php echo $result['skipped']; ?><br>
-                                Totale vendor processati: <?php echo $result['total']; ?>
+                                <?php if (isset($result['created'])): ?>
+                                    Prodotti creati: <?php echo $result['created']; ?><br>
+                                    Vendor che avevano già il prodotto: <?php echo $result['skipped']; ?><br>
+                                <?php endif; ?>
+                                <?php if (isset($result['updated'])): ?>
+                                    Prodotti aggiornati: <?php echo $result['updated']; ?><br>
+                                <?php endif; ?>
+                                Totale processati: <?php echo $result['total']; ?>
                             </p>
                         </div>
                         <?php
@@ -441,6 +456,36 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                 }
                 ?>
                 
+                <hr>
+                
+                <h2>Imposta Withdraw Rate per Tutti i Prodotti</h2>
+                <p>Questa funzione imposterà la percentuale di withdrawal al 10% per tutti i prodotti del catalogo.</p>
+                
+                <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                    <?php wp_nonce_field('batch_set_withdraw_rate_nonce'); ?>
+                    <input type="hidden" name="action" value="batch_set_withdraw_rate">
+                    
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Informazioni</th>
+                            <td>
+                                <ul>
+                                    <li>• Tipo withdrawal: Percentuale</li>
+                                    <li>• Valore: 10%</li>
+                                    <li>• Applicato a: TUTTI i prodotti</li>
+                                </ul>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <p class="submit">
+                        <input type="submit" name="submit" class="button button-primary" value="Imposta Withdrawal 10% per Tutti">
+                    </p>
+                </form>
+                
+                <hr>
+                
+                <h2>Crea Prodotti Manifesto Online per Tutti i Seller</h2>
                 <p>Questa funzione creerà automaticamente un prodotto "Manifesto Online" per tutti i vendor con ruolo seller che non ce l'hanno ancora.</p>
                 
                 <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
@@ -470,9 +515,9 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
         }
 
         /**
-         * Gestisci l'azione batch per creare manifesto-online
+         * Aggiorna SKU dei prodotti manifesto-online da manifesto-online-xxx a 419-xxx
          */
-        public function handle_batch_create_manifesto_online()
+        public function handle()
         {
             // Verifica nonce e permessi
             if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'batch_create_manifesto_online_nonce')) {
@@ -483,126 +528,96 @@ if (!class_exists(__NAMESPACE__.'Dokan_Select_Products')) {
                 wp_die('Permission denied');
             }
 
-            // Cerca il prodotto template
-            $template_args = array(
+            // Trova tutti i prodotti con categoria "manifesto-online"
+            $products_args = array(
                 'post_type' => 'product',
-                'posts_per_page' => 1,
+                'posts_per_page' => -1,
                 'post_status' => 'publish',
-                'meta_query' => array(
-                    array(
-                        'key' => '_vendor_id',
-                        'compare' => 'NOT EXISTS'
-                    ),
-                    array(
-                        'key' => 'categoria_finale',
-                        'value' => 'Manifesto Online',
-                        'compare' => '='
-                    )
-                ),
                 'tax_query' => array(
                     array(
                         'taxonomy' => 'product_cat',
                         'field' => 'slug',
-                        'terms' => 'default-products',
+                        'terms' => 'manifesto-online',
                     ),
                 ),
             );
 
-            $template_products = get_posts($template_args);
-            
-            if (empty($template_products)) {
-                wp_die('Errore: Prodotto template manifesto-online non trovato. Assicurati che esista un prodotto con categoria_finale = "Manifesto Online" nella categoria default-products.');
-            }
+            $products = get_posts($products_args);
+            $updated_count = 0;
 
-            $template_id = $template_products[0]->ID;
+            foreach ($products as $product) {
+                $product_id = $product->ID;
+                $current_sku = get_post_meta($product_id, '_sku', true);
 
-            // Ottieni tutti i seller
-            $sellers = get_users(array(
-                'role' => 'seller',
-                'fields' => 'all'
-            ));
-
-            $created_count = 0;
-            $skipped_count = 0;
-
-            foreach ($sellers as $seller) {
-                // Verifica se il vendor ha già un prodotto manifesto-online
-                $existing_args = array(
-                    'post_type' => 'product',
-                    'posts_per_page' => 1,
-                    'author' => $seller->ID,
-                    'meta_query' => array(
-                        array(
-                            'key' => 'categoria_finale',
-                            'value' => 'Manifesto Online',
-                            'compare' => '='
-                        )
-                    ),
-                );
-
-                $existing_products = get_posts($existing_args);
-                if (!empty($existing_products)) {
-                    $skipped_count++;
-                    continue;
-                }
-
-                // Crea il prodotto per questo vendor
-                $vendor_store_name = get_user_meta($seller->ID, 'dokan_store_name', true);
-                if (empty($vendor_store_name)) {
-                    $vendor_store_name = $seller->display_name;
-                }
-
-                // Duplica il prodotto template
-                $wo_dup = new WC_Admin_Duplicate_Product();
-                $template_product = wc_get_product($template_id);
-                
-                if (!$template_product) {
-                    continue;
-                }
-
-                $clone_product = $wo_dup->product_duplicate($template_product);
-                
-                if (!$clone_product) {
-                    continue;
-                }
-
-                $clone_product_id = $clone_product->get_id();
-                
-                // Configura il prodotto clonato
-                $new_product_title = 'Manifesto Online - ' . $vendor_store_name;
-                
-                // Aggiorna il prodotto
-                wp_update_post(array(
-                    'ID' => $clone_product_id,
-                    'post_status' => 'publish',
-                    'post_title' => $new_product_title,
-                    'post_author' => $seller->ID
-                ));
-                
-                // Aggiorna i meta del prodotto
-                update_post_meta($clone_product_id, '_sku', 'manifesto-online-' . $seller->ID);
-                update_post_meta($clone_product_id, '_vendor_id', $seller->ID);
-                
-                // Imposta la categoria_finale dal template
-                $categoria_finale = get_field('categoria_finale', $template_id);
-                if ($categoria_finale) {
-                    update_field('categoria_finale', $categoria_finale, $clone_product_id);
+                // Verifica se lo SKU ha il formato manifesto-online-xxx
+                if (preg_match('/^manifesto-online-(.+)$/', $current_sku, $matches)) {
+                    $suffix = $matches[1];
+                    $new_sku = '419-' . $suffix;
                     
-                    // Imposta SOLO la categoria basata su categoria_finale (rimuove tutte le altre)
-                    wp_set_object_terms($clone_product_id, $categoria_finale, 'product_cat', false);
-                    
-                    // Assicurati di rimuovere esplicitamente default-products e dont-show se ancora presenti
-                    wp_remove_object_terms($clone_product_id, array('default-products', 'dont-show'), 'product_cat');
+                    // Aggiorna lo SKU
+                    update_post_meta($product_id, '_sku', $new_sku);
+                    $updated_count++;
                 }
-                
-                $created_count++;
             }
 
             // Prepara il risultato
             $result = array(
-                'created' => $created_count,
-                'skipped' => $skipped_count,
-                'total' => count($sellers)
+                'updated' => $updated_count,
+                'total' => count($products)
+            );
+
+            // Redirect con risultato
+            wp_redirect(add_query_arg(
+                'batch_result', 
+                base64_encode(json_encode($result)),
+                admin_url('admin.php?page=dokan-manifesto-online-batch')
+            ));
+            exit;
+        }
+
+        /**
+         * Imposta withdrawal rate al 10% per tutti i prodotti
+         */
+        public function handle_batch_withdraw_rate()
+        {
+            // Verifica nonce e permessi
+            if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'batch_set_withdraw_rate_nonce')) {
+                wp_die('Nonce verification failed');
+            }
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Permission denied');
+            }
+
+            // Trova tutti i prodotti
+            $products_args = array(
+                'post_type' => 'product',
+                'posts_per_page' => -1,
+                'post_status' => array('publish', 'pending', 'draft', 'private'),
+            );
+
+            $products = get_posts($products_args);
+            $updated_count = 0;
+
+            foreach ($products as $product) {
+                $product_id = $product->ID;
+                
+                // Imposta tipo withdrawal a percentuale
+                update_post_meta($product_id, '_dokan_withdraw_type', 'percentage');
+                
+                // Imposta rate al 10%
+                update_post_meta($product_id, '_dokan_withdraw_rate', 10);
+                
+                // Pulisci il valore fixed nel caso fosse stato impostato
+                update_post_meta($product_id, '_dokan_withdraw_fixed_amount', 0);
+                
+                $updated_count++;
+            }
+
+            // Prepara il risultato
+            $result = array(
+                'updated' => $updated_count,
+                'total' => count($products)
             );
 
             // Redirect con risultato
