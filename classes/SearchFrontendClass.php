@@ -18,17 +18,26 @@ if (!class_exists(__NAMESPACE__ . '\SearchFrontendClass')) {
 
         public function custom_search_query($query)
         {
-            // Verifica che non siamo nella dashboard
             if (!is_admin()) {
-                // Ottieni il parametro 's' dalla URL in modo sicuro
                 $s = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
 
-                // Verifica se la query di test è già stata eseguita
-                $test_query_id = 'test_query_executed';
+                if ($s) {
+                    // Implementa ordinamento condizionale basato sul tipo di post
+                    $this->apply_post_type_ordering($query);
 
-                if ($s && !$query->get($test_query_id)) {
+                    // Meta query performante per ACF fields: nome, cognome, provincia, citta
                     $meta_query = array(
                         'relation' => 'OR',
+                        array(
+                            'key' => 'nome',
+                            'value' => $s,
+                            'compare' => 'LIKE'
+                        ),
+                        array(
+                            'key' => 'cognome',
+                            'value' => $s,
+                            'compare' => 'LIKE'
+                        ),
                         array(
                             'key' => 'citta',
                             'value' => $s,
@@ -41,31 +50,83 @@ if (!class_exists(__NAMESPACE__ . '\SearchFrontendClass')) {
                         )
                     );
 
-                    // Imposta il meta_query
-
-
-                    // Esegui una query per verificare se ci sono risultati
-                    $test_query = new WP_Query(array(
-                        'post_type' => $query->get('post_type'),
-                        'meta_query' => $meta_query,
-                        'posts_per_page' => 1,
-                        'fields' => 'ids',  // Recupera solo gli ID per ridurre il consumo di memoria
-                        $test_query_id => true  // Aggiungi un ID unico alla query di test
-                    ));
-
-                    if ($test_query->have_posts()) {
-                        // Se ci sono risultati, non fare nulla
-                        $query->set('meta_query', $meta_query);
+                    // Integra con existing meta_query se presente
+                    $existing_meta_query = $query->get('meta_query') ?: array();
+                    if (!empty($existing_meta_query)) {
+                        $existing_meta_query['relation'] = 'AND';
+                        $existing_meta_query[] = $meta_query;
                     } else {
-                        // Se non ci sono risultati, esegui la ricerca completa
-                        $query->set('s', $s);
+                        $existing_meta_query = $meta_query;
                     }
-                    $test_query->reset_postdata();
-
+                    $query->set('meta_query', $existing_meta_query);
                 }
 
-                // Imposta la query principale con l'ID unico per evitare esecuzioni ripetute
-                //$query->set($test_query_id, true);
+                // Applica i filtri della classe FiltersClass
+                (new FiltersClass())->custom_filter_query($query);
+            }
+        }
+
+        private function apply_post_type_ordering($query)
+        {
+            $post_type = $query->get('post_type');
+
+            if ($post_type === 'annuncio-di-morte' || (is_array($post_type) && in_array('annuncio-di-morte', $post_type))) {
+                $query->set('meta_key', 'data_di_morte');
+                $query->set('orderby', 'meta_value');
+                $query->set('order', 'DESC');
+                $query->set('meta_type', 'DATETIME');
+
+                $existing_meta_query = $query->get('meta_query') ?: array();
+                if (!empty($existing_meta_query)) {
+                    $existing_meta_query['relation'] = 'AND';
+                }
+
+                $existing_meta_query[] = array(
+                    'key' => 'data_di_morte',
+                    'compare' => 'EXISTS'
+                );
+
+                $query->set('meta_query', $existing_meta_query);
+            }
+            elseif ($post_type === 'anniversario' || (is_array($post_type) && in_array('anniversario', $post_type))) {
+                $acf_date_field = 'anniversario_data';
+                
+                $query->set('meta_key', $acf_date_field);
+                $query->set('orderby', 'meta_value');
+                $query->set('order', 'DESC');
+                $query->set('meta_type', 'DATETIME');
+                
+                $existing_meta_query = $query->get('meta_query') ?: array();
+                if (!empty($existing_meta_query)) {
+                    $existing_meta_query['relation'] = 'AND';
+                }
+                
+                $existing_meta_query[] = array(
+                    'key' => $acf_date_field,
+                    'compare' => 'EXISTS'
+                );
+                
+                $query->set('meta_query', $existing_meta_query);
+            }
+            elseif ($post_type === 'trigesimo' || (is_array($post_type) && in_array('trigesimo', $post_type))) {
+                $acf_date_field = 'trigesimo_data';
+                
+                $query->set('meta_key', $acf_date_field);
+                $query->set('orderby', 'meta_value');
+                $query->set('order', 'DESC');
+                $query->set('meta_type', 'DATETIME');
+                
+                $existing_meta_query = $query->get('meta_query') ?: array();
+                if (!empty($existing_meta_query)) {
+                    $existing_meta_query['relation'] = 'AND';
+                }
+                
+                $existing_meta_query[] = array(
+                    'key' => $acf_date_field,
+                    'compare' => 'EXISTS'
+                );
+                
+                $query->set('meta_query', $existing_meta_query);
             }
         }
     }

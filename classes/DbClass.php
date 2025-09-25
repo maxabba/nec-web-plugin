@@ -103,6 +103,7 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
 
         public function get_comune_by_typing($search){
             global $wpdb;
+            
             $results = $wpdb->get_results(
                 $wpdb->prepare("SELECT nome FROM $this->table_name WHERE nome LIKE %s ORDER BY nome ASC", '%' . $wpdb->esc_like($search) . '%'),
                 ARRAY_A
@@ -111,7 +112,7 @@ if (!class_exists(__NAMESPACE__ . 'DbClass')) {
             $comuni = array_map(function ($results) {
                 return ['id' => $results['nome'], 'text' => $results['nome']];
             }, $results);
-
+            
             return $comuni;
         }
 

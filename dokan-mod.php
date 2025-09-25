@@ -61,3 +61,14 @@ if (!class_exists(__NAMESPACE__ . '\FiltersClass')) {
     require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/FiltersClass.php';
 }
 
+// Initialize PurchaseDeadlineManager
+if (!class_exists(__NAMESPACE__ . '\PurchaseDeadlineManager')) {
+    require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/PurchaseDeadlineManager.php';
+}
+
+// Initialize admin settings for purchase deadlines
+if (is_admin() && !class_exists(__NAMESPACE__ . '\Admin\PurchaseDeadlineSettings')) {
+    require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/admin/PurchaseDeadlineSettings.php';
+    new \Dokan_Mods\Admin\PurchaseDeadlineSettings();
+}
+

@@ -168,7 +168,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
                 'posts_per_page' => $this->limit,
                 'offset' => $this->offset,
                 'orderby' => 'date',
-                'order' => 'DESC',
+                'order' => 'ASC',
                 'meta_query' => $this->get_meta_query()
             ]);
 
@@ -191,7 +191,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
                 'offset' => $current_author_data['offset'],
                 'author' => $current_author_data['author_id'],
                 'orderby' => 'date',
-                'order' => 'DESC',
+                'order' => 'ASC',
                 'meta_query' => $this->get_meta_query()
             ]);
 
@@ -308,6 +308,11 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
             if ($query->have_posts()) {
                 while ($query->have_posts()) {
                     $query->the_post();
+
+                    if (!get_field('immagine_manifesto_old') && !(get_field("testo_manifesto")))
+                    {
+                        continue; // Skip this manifesto if both fields are empty
+                    }
                     $response[] = $this->render_manifesto();
                 }
             }
@@ -320,7 +325,13 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
         {
             $current_post_id = get_the_ID();
             $vendor_id = get_the_author_meta('ID');
+
             $vendor_data = (new UtilsAMClass())->get_vendor_data_by_id($vendor_id);
+
+            if(get_field('immagine_manifesto_old') && !(get_field("testo_manifesto")))
+            {
+                $vendor_data['manifesto_background'] = "https://necrologi.sciame.it/necrologi/".get_field('immagine_manifesto_old');
+            }
 
             ob_start();
             ?>

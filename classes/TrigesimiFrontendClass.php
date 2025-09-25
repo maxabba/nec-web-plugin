@@ -59,24 +59,51 @@ if (!class_exists(__NAMESPACE__ . '\TrigesimiFrontendClass')) {
             //attr can be post_id
             $atts = shortcode_atts(
                 array(
-                    'post_id' => get_the_ID(),
+                    'post_id' => null,
                 ),
                 $attrs,
                 'get_trigesimo_date'
             );
 
+            // Gestione migliorata del post_id per Elementor
             $post_id = $atts['post_id'];
+            
+            if (!$post_id) {
+                // Prima prova con il global $post
+                global $post;
+                if ($post && isset($post->ID)) {
+                    $post_id = $post->ID;
+                } else {
+                    // Fallback a get_the_ID()
+                    $post_id = get_the_ID();
+                }
+            }
+            
+            // Se ancora non abbiamo un post_id valido, ritorna vuoto
+            if (!$post_id) {
+                return '';
+            }
 
-            // Get the ACF date field value
-            $date_value = get_field('trigesimo_data', $post_id);
+            // Prima prova con get_post_meta direttamente
+            $date_value = get_post_meta($post_id, 'trigesimo_data', true);
+            
+            // Se vuoto, prova con get_field
+            if(empty($date_value)) {
+                $date_value = get_field('trigesimo_data', $post_id);
+            }
+
+            // Se ancora vuoto, prova con la field key
+            if(empty($date_value)) {
+                $date_value = get_field('field_6734d2e598b99', $post_id);
+            }
 
             if ($date_value) {
                 // Convert the date to a timestamp
                 $timestamp = strtotime($date_value);
 
                 if ($timestamp !== false) {
-                    // Format the date as "d/m/Y"
-                    return date('d/m/Y', $timestamp);
+                    // Format the date as "d/m/Y" date('j F, Y', $timestamp); italian format, i
+                    return date_i18n('j F, Y', $timestamp);
                 }
             }
 

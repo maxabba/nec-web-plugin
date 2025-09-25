@@ -1664,7 +1664,7 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
         /**
          * Safe file locking for concurrent access prevention
          */
-        protected function lockFile(string $file_path, string $mode = 'a'): ?resource
+        protected function lockFile(string $file_path, string $mode = 'a')
         {
             $this->log("DEBUG: lockFile called for: $file_path (mode: $mode)");
             $attempts = 0;
@@ -1726,14 +1726,15 @@ if (!class_exists(__NAMESPACE__ . '\MigrationTasks')) {
         protected function getImageQueueProgress(string $queue_file): array
         {
             $progress_file = $this->getImageQueueProgressFile($queue_file);
-            $default = ['processed' => 0, 'total' => 0, 'percentage' => 0];
+            //$default = ['processed' => 0, 'total' => 0, 'percentage' => 0];
             
             if (!file_exists($progress_file)) {
-                return $default;
+                //se il file non esiste crearlo con valori di default
+                return [];
             }
             
             $progress_data = json_decode(file_get_contents($progress_file), true);
-            return $progress_data[$queue_file] ?? $default;
+            return $progress_data[$queue_file];
         }
 
         /**

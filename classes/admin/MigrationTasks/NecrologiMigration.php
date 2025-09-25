@@ -40,7 +40,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiMigration')) {
                 return $schedules;
             });
 
-            $this->enableForceImageDownload(true );
+            //$this->enableForceImageDownload(false );
 
         }
 

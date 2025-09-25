@@ -505,15 +505,21 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                     $anno_anniversario = get_field('anniversario_n_anniversario', $ricorrenza->ID);
 
                     $tipo_ricorrenza = $anno_anniversario .'° ANNIVERSARIO';
+
+                    $data = get_field('anniversario_data', $ricorrenza->ID);
                 }else
                 {
                     $tipo_ricorrenza = 'TRIGESIMO';
+
+                    $data = get_field('trigesimo_data', $ricorrenza->ID);
                 }
+
+
 
 
                 $ricorrenze_data[] = [
                     'agenzia' => $agenzia,
-                    'data' => get_the_date('l, d F Y', $ricorrenza->ID),
+                    'data' => $data,
                     'foto' => get_field('fotografia', $annuncio_relativo)['url'],
                     'id' => $ricorrenza->ID,
                     'id_necrologio' => $annuncio_relativo,

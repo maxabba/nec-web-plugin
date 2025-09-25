@@ -33,7 +33,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
 
             add_action('dokan_mods_process_image_ricorrenze_queue', [$this, 'process_image_queue']);
 
-            $this->enableForceImageDownload(false); // Default disabled
+            //$this->enableForceImageDownload(false); // Default disabled
 
             add_filter('cron_schedules', function ($schedules) {
                 // Controlla se l'intervallo 'every_one_minute' non esiste già
@@ -212,6 +212,9 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeMigration')) {
                     // Initialize progress tracking if queue was successfully created
                     if ($result) {
                         $this->initializeImageQueueProgressIfNeeded($this->image_queue_file);
+                        $this->log("Image queue progress initialized or already exists.");
+                    }else{
+                        $this->log("ERROR: Failed to add images to queue.");
                     }
                 }
                 unset($image_queue);

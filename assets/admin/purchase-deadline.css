@@ -1,0 +1,269 @@
+.card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.04);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.card h2 {
+    margin-top: 0;
+    color: #23282d;
+}
+
+.card h3 {
+    color: #23282d;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e1e1e1;
+}
+
+.wp-list-table .deadline-input {
+    border: 1px solid #7e8993;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.wp-list-table .deadline-input.changed {
+    background-color: #fff8e5;
+    border-color: #ffb900;
+}
+
+.wp-list-table .description {
+    color: #646970;
+    font-size: 13px;
+    margin-left: 5px;
+}
+
+.button-success {
+    background-color: #00a32a !important;
+    border-color: #00a32a !important;
+    color: #fff !important;
+}
+
+.button.delete-city {
+    color: #d63638;
+    border-color: #d63638;
+}
+
+.button.delete-city:hover {
+    background-color: #d63638;
+    color: #fff;
+}
+
+.form-table th {
+    width: 200px;
+}
+
+.form-table input[type="number"],
+.form-table input[type="text"] {
+    border: 1px solid #8c8f94;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
+.notice-info {
+    margin: 20px 0;
+}
+
+#cities-table tr:hover {
+    background-color: #f6f7f7;
+}
+
+#cities-table td {
+    padding: 12px 10px;
+    vertical-align: middle;
+}
+
+#cities-table strong {
+    font-size: 14px;
+}
+
+#cities-table small {
+    color: #646970;
+    font-size: 12px;
+}
+
+/* Full width layouts - force override WordPress defaults */
+.wrap {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+.card {
+    width: 100% !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 20px !important;
+}
+
+.wp-list-table {
+    width: 100% !important;
+    max-width: none !important;
+    table-layout: auto;
+}
+
+.form-table {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+/* Override WordPress admin layout constraints */
+#wpbody-content {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+#wpbody-content .wrap {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+/* Ensure our page uses full width */
+.dokan-purchase-deadlines-page {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+.dokan-purchase-deadlines-page .card {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+/* Force full width by removing WordPress admin constraints */
+body.wp-admin .dokan-purchase-deadlines-page {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+body.wp-admin .dokan-purchase-deadlines-page .card {
+    width: 100% !important;
+    max-width: none !important;
+    flex: 1 1 100% !important;
+}
+
+/* Remove any container limitations */
+#wpcontent, #wpbody, #wpbody-content {
+    max-width: none !important;
+}
+
+/* Make sure our cards fill available space */
+.dokan-purchase-deadlines-page > .card {
+    display: block !important;
+    width: calc(100% - 20px) !important;  /* Account for right padding only */
+    margin: 20px 20px 20px 0 !important;  /* top right bottom left */
+}
+
+/* City autocomplete styles */
+.city-search-container {
+    position: relative;
+}
+
+.city-autocomplete-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #8c8f94;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.city-autocomplete-results li {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f1f1;
+    transition: background-color 0.2s;
+}
+
+.city-autocomplete-results li:last-child {
+    border-bottom: none;
+}
+
+.city-autocomplete-results li:hover,
+.city-autocomplete-results li.selected {
+    background-color: #0073aa;
+    color: #fff;
+}
+
+.city-autocomplete-results li.no-results {
+    padding: 8px 12px;
+    color: #646970;
+    cursor: default;
+    font-style: italic;
+}
+
+.city-autocomplete-results li.no-results:hover {
+    background-color: transparent;
+    color: #646970;
+}
+
+.search-spinner {
+    display: none;
+}
+
+.search-spinner.loading {
+    display: block;
+}
+
+/* Selected city display */
+.selected-city {
+    background-color: #e7f3ff;
+    border: 1px solid #0073aa;
+    padding: 5px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-top: 5px;
+}
+
+.selected-city .city-name {
+    font-weight: bold;
+    color: #0073aa;
+}
+
+.selected-city .clear-city {
+    margin-left: 8px;
+    color: #d63638;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.selected-city .clear-city:hover {
+    color: #fff;
+    background-color: #d63638;
+    border-radius: 2px;
+    padding: 1px 3px;
+}
+
+@media screen and (max-width: 782px) {
+    .wp-list-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    .form-table th {
+        display: block;
+        width: 100%;
+        padding-bottom: 5px;
+    }
+    
+    .form-table td {
+        display: block;
+        width: 100%;
+    }
+    
+    .city-search-container {
+        width: 100% !important;
+    }
+}

@@ -84,23 +84,52 @@ if (!class_exists(__NAMESPACE__ . '\AnniversarioFrontendClass')) {
         public function  get_anniversary_date($atts)
         {
             $atts = shortcode_atts( array(
-                'post_id' => get_the_ID(),
-            ), $atts, 'get_anniversay_date' );
+                'post_id' => null,
+            ), $atts, 'get_anniversary_date' );
 
+            // Gestione migliorata del post_id per Elementor
             $post_id = $atts['post_id'];
-
+            
             if (!$post_id) {
-                return "";
+                // Prima prova con il global $post
+                global $post;
+                if ($post && isset($post->ID)) {
+                    $post_id = $post->ID;
+                } else {
+                    // Fallback a get_the_ID()
+                    $post_id = get_the_ID();
+                }
+            }
+            
+            // Se ancora non abbiamo un post_id valido, ritorna vuoto
+            if (!$post_id) {
+                return '';
             }
 
-            //get the afc field anniversario_data
-            $anniversario_data = get_field('anniversario_data', $post_id);
-            if (!$anniversario_data) {
-                return "";
+            // Prima prova con get_post_meta direttamente
+            $anniversario_data = get_post_meta($post_id, 'anniversario_data', true);
+            
+            // Se vuoto, prova con get_field
+            if(empty($anniversario_data)) {
+                $anniversario_data = get_field('anniversario_data', $post_id);
             }
 
-            return date('d/m/Y', strtotime($anniversario_data));
+            // Se ancora vuoto, prova con la field key
+            if(empty($anniversario_data)) {
+                $anniversario_data = get_field('field_665ec95bca23d', $post_id);
+            }
 
+            if($anniversario_data){
+                $timestamp = strtotime($anniversario_data);
+                if($timestamp){
+
+                    error_log("data anniversario formattata da timestamp".(date_i18n("j F, Y", $timestamp)));
+
+
+                    return date_i18n("j F, Y", $timestamp);
+                }
+            }
+            return "";
         }
 
     }

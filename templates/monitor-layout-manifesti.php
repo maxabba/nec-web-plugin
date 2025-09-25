@@ -59,7 +59,6 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
             
             <div class="defunto-details">
                 <h1><?php echo esc_html($defunto_title); ?></h1>
-                <p><?php echo esc_html($display_date); ?></p>
             </div>
         </div>
     </header>
@@ -275,7 +274,7 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
         position: absolute;
         bottom: 0;
         left: 0;
-        width: 100%; /* Stesso width dell'header */
+        width: 30%; /* Stesso width dell'header */
         height: auto;
         padding: var(--monitor-padding-small) var(--monitor-padding-medium);
         background: var(--monitor-bg-primary);

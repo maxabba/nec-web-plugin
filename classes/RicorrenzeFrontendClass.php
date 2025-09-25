@@ -13,6 +13,8 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
         {
             //add_action('pre_get_posts', array($this, 'custom_filter_query'));
             add_action('elementor/query/ricorrenze_carousel', array($this, 'apply_custom_filter_query'));
+
+            add_shortcode('get_date_of_ricorrenza', array($this, 'get_date_of_ricorrenza'));
         }
 
         public function apply_custom_filter_query($query)
@@ -22,7 +24,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
             //$query->set('posts_per_page', -1); // Limita a 7 post
             // Data attuale in formato ACF (Ymd)
             $today = date('Ymd');
-            if (defined('WP_DEBUG') && WP_DEBUG) {
+/*            if (defined('WP_DEBUG') && WP_DEBUG) {
                 $meta_query = [
                     'relation' => 'OR',
                     [
@@ -34,7 +36,7 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
                         'compare' => 'EXISTS',
                     ]
                 ];
-            }else {
+            }else {*/
                 // Costruisci la meta query per includere i post futuri
                 $meta_query = [
                     'relation' => 'OR',
@@ -42,18 +44,18 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
                         'key' => 'anniversario_data',
                         'value' => $today,
                         'compare' => '>=',
-                        'type' => 'NUMERIC',
+                        'type' => 'DATETIME',
                     ],
                     [
                         'key' => 'trigesimo_data',
                         'value' => $today,
                         'compare' => '>=',
-                        'type' => 'NUMERIC',
+                        'type' => 'DATETIME',
                     ]
                 ];
                 $query->set('orderby', 'none');
 
-            }
+            //}
 
             $query->set('meta_query', $meta_query);
 
@@ -117,9 +119,9 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
 
             // In debug mode, if we have fewer than 3 posts in the next 7 days,
             // use posts from future dates instead
-            if (defined('WP_DEBUG') && WP_DEBUG && count($eligible_posts) < 3 && count($all_future_posts) >= 3) {
+/*            if (defined('WP_DEBUG') && WP_DEBUG && count($eligible_posts) < 3 && count($all_future_posts) >= 3) {
                 $eligible_posts = array_slice($all_future_posts, 0, 7);
-            }
+            }*/
 
             // If we need to limit the number of posts
             if (isset($query->query_vars['posts_per_page']) && $query->query_vars['posts_per_page'] > 0) {
@@ -131,5 +133,84 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
 
             return $eligible_posts;
         }
+
+
+
+        public function get_date_of_ricorrenza($attr){
+
+            //attr can be post_id
+            $atts = shortcode_atts(
+                array(
+                    'post_id' => null,
+                ),
+                $attr,
+                'get_date_of_ricorrenza'
+            );
+
+            // Gestione migliorata del post_id per Elementor
+            $post_id = $atts['post_id'];
+            
+            if (!$post_id) {
+                // Prima prova con il global $post
+                global $post;
+                if ($post && isset($post->ID)) {
+                    $post_id = $post->ID;
+                } else {
+                    // Fallback a get_the_ID()
+                    $post_id = get_the_ID();
+                }
+            }
+            
+            // Se ancora non abbiamo un post_id valido, ritorna vuoto
+            if (!$post_id) {
+                return '';
+            }
+
+            $post_type = get_post_type($post_id);
+            
+            if ($post_type === 'anniversario') {
+                // Prima prova con get_post_meta direttamente
+                $date_value = get_post_meta($post_id, 'anniversario_data', true);
+                
+                // Se vuoto, prova con get_field
+                if(empty($date_value)) {
+                    $date_value = get_field('anniversario_data', $post_id);
+                }
+                
+                // Se ancora vuoto, prova con la field key
+                if(empty($date_value)) {
+                    $date_value = get_field('field_665ec95bca23d', $post_id);
+                }
+            } elseif ($post_type === 'trigesimo') {
+                // Prima prova con get_post_meta direttamente
+                $date_value = get_post_meta($post_id, 'trigesimo_data', true);
+                
+                // Se vuoto, prova con get_field
+                if(empty($date_value)) {
+                    $date_value = get_field('trigesimo_data', $post_id);
+                }
+                
+                // Se ancora vuoto, prova con la field key
+                if(empty($date_value)) {
+                    $date_value = get_field('field_6734d2e598b99', $post_id);
+                }
+            } else {
+                return "";
+            }
+
+            if ($date_value) {
+                // Convert the date to a timestamp
+                $timestamp = strtotime($date_value);
+                if ($timestamp) {
+                    // Return the date in 27 Settembre, 2025 format
+                    return date_i18n('j F, Y', $timestamp);
+                }
+            }
+
+            return "";
+
+
+        }
+
     }
 }

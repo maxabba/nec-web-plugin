@@ -1,260 +1,265 @@
 (function ($) {
-    // Cache globale per le immagini di sfondo
+    'use strict';
+    
+    // Simple configuration
+    const CONFIG = {
+        CONTAINER_SIZE: 0.95, // 80%
+        MAX_FONT_SIZE: 50, // Hard limit in px
+        MIN_FONT_SIZE: 4,  // Minimum readable size
+        LINE_HEIGHT_RATIO: 1.2
+    };
+    
+    // Image cache for performance
     const imageCache = new Map();
-
-    // Funzione per caricare immagini con cache
-    function loadImageWithCache(url) {
+    const manifestiData = new Map();
+    
+    // Load image with caching
+    function loadImage(url) {
+        if (imageCache.has(url)) {
+            return Promise.resolve(imageCache.get(url));
+        }
+        
         return new Promise((resolve, reject) => {
-            if (imageCache.has(url)) {
-                // Immagine già in cache, restituisci immediatamente
-                console.log('🟢 CACHE HIT for:', url);
-                const cachedImg = imageCache.get(url);
-                resolve(cachedImg);
-            } else {
-                // Carica l'immagine e mettila in cache
-                console.log('🔴 CACHE MISS for:', url);
-                const img = new Image();
-                img.onload = function() {
-                    console.log('✅ Image loaded and cached:', url);
-                    imageCache.set(url, img);
-                    resolve(img);
-                };
-                img.onerror = function() {
-                    console.log('❌ Failed to load image:', url);
-                    reject(new Error('Failed to load image: ' + url));
-                };
-                img.src = url;
-            }
+            const img = new Image();
+            img.onload = () => {
+                imageCache.set(url, img);
+                resolve(img);
+            };
+            img.onerror = () => reject(new Error(`Failed to load: ${url}`));
+            img.src = url;
         });
     }
-
-    $(document).ready(function () {
-        $('.manifesto-container').each(function () {
-            var container = $(this);
-            var post_id = container.data('postid');
-            var tipo_manifesto = container.data('tipo');
-            var offset = 0;
-            var loading = false;
-            var allDataLoaded = false;
-            var totalManifesti = 0;
-
-            // Se non è la sezione "top" usiamo una sentinella per l'infinite scroll
-            var $sentinel = null;
-            if (tipo_manifesto !== 'top') {
-                var containerId = container.attr('id');
-                var instanceId = null;
-                
-                if (containerId) {
-                    var instanceMatch = containerId.match(/manifesto-container-(\d+)/);
-                    if (instanceMatch) {
-                        instanceId = instanceMatch[1];
-                    }
-                }
-
-                console.log('Searching for sentinel element:', {
-                    containerId: containerId,
-                    instanceId: instanceId,
-                    tipo_manifesto: tipo_manifesto
+    
+    
+    // Apply manifesto styles - VERY SIMPLIFIED
+    function applyStyles(data, containerElem, img = null) {
+        const backgroundDiv = containerElem.find('.text-editor-background')[0];
+        const textEditor = containerElem.find('.custom-text-editor')[0];
+        
+        if (!backgroundDiv || !textEditor) return;
+        
+        if (data.manifesto_background && img) {
+            setupBackground(backgroundDiv, textEditor, data, img);
+        } else {
+            setupNoBackground(backgroundDiv, textEditor, data);
+        }
+    }
+    
+    function setupBackground(backgroundDiv, textEditor, data, img) {
+        const aspectRatio = img.width / img.height;
+        
+        // Set background image
+        backgroundDiv.style.backgroundImage = `url(${data.manifesto_background})`;
+        
+        // CSS-based responsive sizing with aspect ratio
+        backgroundDiv.style.aspectRatio = `${img.width} / ${img.height}`;
+        backgroundDiv.style.width = `${CONFIG.CONTAINER_SIZE * 100}%`;
+        backgroundDiv.style.height = 'auto'; // Let CSS handle height via aspect-ratio
+        backgroundDiv.style.maxWidth = '100%';
+        backgroundDiv.style.maxHeight = '80vh'; // Prevent too tall images
+        
+        // Calculate margins as percentages of image dimensions (like old system)
+        const marginTop = data.margin_top || 0;
+        const marginRight = data.margin_right || 0;
+        const marginBottom = data.margin_bottom || 0;
+        const marginLeft = data.margin_left || 0;
+        
+        // Apply margins as padding percentages - CSS will scale automatically
+        textEditor.style.padding = `${marginTop}% ${marginRight}% ${marginBottom}% ${marginLeft}%`;
+        textEditor.style.textAlign = data.alignment || 'left';
+        
+        // Set CSS custom properties for responsive font sizing
+        backgroundDiv.style.setProperty('--max-font-size', `${CONFIG.MAX_FONT_SIZE}px`);
+        backgroundDiv.style.setProperty('--min-font-size', `${CONFIG.MIN_FONT_SIZE}px`);
+        backgroundDiv.style.setProperty('--line-height-ratio', CONFIG.LINE_HEIGHT_RATIO);
+    }
+    
+    function setupNoBackground(backgroundDiv, textEditor, data) {
+        backgroundDiv.style.backgroundImage = 'none';
+        backgroundDiv.style.aspectRatio = '16 / 9'; // Default A3 ratio
+        backgroundDiv.style.width = `${CONFIG.CONTAINER_SIZE * 100}%`;
+        backgroundDiv.style.height = 'auto';
+        
+        // Simple padding for no-background case
+        textEditor.style.padding = '5%';
+        textEditor.style.textAlign = data.alignment || 'center';
+        
+        // Set CSS custom properties
+        backgroundDiv.style.setProperty('--max-font-size', `${CONFIG.MAX_FONT_SIZE}px`);
+        backgroundDiv.style.setProperty('--min-font-size', `${CONFIG.MIN_FONT_SIZE}px`);
+        backgroundDiv.style.setProperty('--line-height-ratio', CONFIG.LINE_HEIGHT_RATIO);
+    }
+    
+    // Main function to update manifesto
+    function updateManifesto(data, containerElem) {
+        if (!data || !containerElem?.length) return;
+        
+        // Store for potential future use
+        const manifestoId = containerElem.attr('id') || `manifesto-${Date.now()}`;
+        if (!containerElem.attr('id')) {
+            containerElem.attr('id', manifestoId);
+        }
+        manifestiData.set(manifestoId, { data, containerElem });
+        
+        const textEditor = containerElem.find('.custom-text-editor')[0];
+        
+        if (data.manifesto_background) {
+            if (textEditor) textEditor.classList.add('loading');
+            
+            loadImage(data.manifesto_background)
+                .then(img => {
+                    applyStyles(data, containerElem, img);
+                    if (textEditor) textEditor.classList.remove('loading');
+                })
+                .catch(() => {
+                    applyStyles(data, containerElem);
+                    if (textEditor) textEditor.classList.remove('loading');
                 });
-
-                // Prova prima come sibling
-                $sentinel = container.siblings('.sentinel');
-                console.log('Found siblings .sentinel:', $sentinel.length);
-
-                // Se non trovato come sibling, prova nel parent
-                if ($sentinel.length === 0) {
-                    $sentinel = container.parent().find('.sentinel');
-                    console.log('Found in parent .sentinel:', $sentinel.length);
-                }
-
-                // Se ancora non trovato, prova con l'ID specifico
-                if ($sentinel.length === 0 && instanceId) {
-                    $sentinel = $('#sentinel-' + instanceId);
-                    console.log('Found by ID #sentinel-' + instanceId + ':', $sentinel.length);
-                }
+        } else {
+            if (textEditor) textEditor.classList.remove('loading');
+            applyStyles(data, containerElem);
+        }
+    }
+    
+    
+    // Initialize on document ready
+    $(document).ready(function () {
+        
+        // Fix mobile layout on initialization
+        if (window.innerWidth <= 639) {
+            $('.manifesto-container').each(function() {
+                $(this).css({
+                    'position': 'relative',
+                    'display': 'block',
+                    'height': 'auto',
+                    'min-height': 'min-content',
+                    'overflow': 'visible',
+                    'margin-bottom': '2rem'
+                });
+            });
+        }
+        
+        // Handle manifesto containers
+        $('.manifesto-container').each(function () {
+            const container = $(this);
+            const postId = container.data('postid');
+            const tipoManifesto = container.data('tipo');
+            let offset = 0;
+            let loading = false;
+            let allDataLoaded = false;
+            
+            // Setup infinite scroll sentinel
+            let $sentinel = container.siblings('.sentinel');
+            if ($sentinel.length === 0) {
+                $sentinel = container.parent().find('.sentinel');
             }
-            // Trova l'elemento loader con una strategia simile
-            var $loader = container.siblings('.manifesto-loader');
+            
+            // Setup loader
+            let $loader = container.siblings('.manifesto-loader');
             if ($loader.length === 0) {
                 $loader = container.parent().find('.manifesto-loader');
             }
-            if ($loader.length === 0) {
-                var containerId = container.attr('id');
-                if (containerId) {
-                    var instanceMatch = containerId.match(/manifesto-container-(\d+)/);
-                    if (instanceMatch) {
-                        $loader = $('#manifesto-loader-' + instanceMatch[1]);
-                    }
-                }
-            }
-
-            function updateEditorBackground(data, containerElem) {
-                if (!data || !containerElem || !containerElem.length) {
-                    console.warn('Missing data or container for updateEditorBackground');
-                    return;
-                }
-
-                const backgroundDiv = containerElem.find('.text-editor-background').get(0);
-                const textEditor = containerElem.find('.custom-text-editor').get(0);
-
-                if (!backgroundDiv || !textEditor) {
-                    console.warn('Required elements not found in container');
-                    return;
-                }
-
-                if (data.manifesto_background) {
-                    // Nasconde il testo durante il caricamento
-                    textEditor.classList.add('loading');
-
-                    // Usa la cache per caricare l'immagine
-                    loadImageWithCache(data.manifesto_background)
-                        .then(function(img) {
-                            const aspectRatio = img.width / img.height;
-                            backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
-                            
-                            if (aspectRatio > 1) {
-                                backgroundDiv.style.width = '350px';
-                                backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
-                            } else {
-                                backgroundDiv.style.height = '350px';
-                                backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
-                            }
-
-                            const marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
-                            const marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
-                            const marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
-                            const marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
-
-                            textEditor.style.paddingTop = `${marginTopPx}px`;
-                            textEditor.style.paddingRight = `${marginRightPx}px`;
-                            textEditor.style.paddingBottom = `${marginBottomPx}px`;
-                            textEditor.style.paddingLeft = `${marginLeftPx}px`;
-                            textEditor.style.textAlign = data.alignment || 'left';
-
-                            // Mostra il testo dopo che tutto è pronto
-                            textEditor.classList.remove('loading');
-                        })
-                        .catch(function(error) {
-                            console.warn('Failed to load background image:', error);
-                            backgroundDiv.style.backgroundImage = 'none';
-                            // Mostra il testo anche in caso di errore
-                            textEditor.classList.remove('loading');
-                        });
-                } else {
-                    backgroundDiv.style.backgroundImage = 'none';
-                    // Assicurati che il testo sia visibile se non c'è sfondo
-                    textEditor.classList.remove('loading');
-                }
-            }
-
+            
             function loadManifesti(isInfiniteScroll = false) {
                 if (loading || allDataLoaded) return;
-
-                // Su mobile: registra la posizione dell'ultimo elemento del batch precedente
-                var prevScrollPos = null;
-                if (window.innerWidth <= 768) {
-                    var lastChild = container.children().last();
-                    if (lastChild.length) {
-                        prevScrollPos = lastChild.offset().top + lastChild.outerHeight();
-                    }
-                }
-
+                
                 loading = true;
-                $loader && $loader.show();
-
+                $loader?.show();
+                
                 $.ajax({
                     url: my_ajax_object.ajax_url,
-                    type: 'post',
+                    type: 'POST',
                     data: {
                         action: 'load_more_manifesti',
-                        post_id: post_id,
-                        tipo_manifesto: tipo_manifesto,
+                        post_id: postId,
+                        tipo_manifesto: tipoManifesto,
                         offset: offset
                     },
-                    success: function (response) {
-                        if (!response.success || !response.data || response.data.length === 0) {
+                    success(response) {
+                        if (!response.success || !response.data?.length) {
                             allDataLoaded = true;
-                            $sentinel && $sentinel.remove();
-                            $loader && $loader.hide();
+                            $sentinel?.remove();
+                            $loader?.hide();
                             return;
                         }
-
-                        response.data.forEach(function (item) {
-                            if (!item || !item.html) return;
-
-                            var newElement = $(item.html);
-                            container.append(newElement);
-
-                            // Rende visibile il manifesto_divider per la sezione
-                            container.parent().parent().parent().parent().find('.manifesto_divider').show();
-
-                            if (item.vendor_data) {
-                                updateEditorBackground(item.vendor_data, newElement);
+                        
+                        response.data.forEach(item => {
+                            if (item?.html) {
+                                const newElement = $(item.html);
+                                container.append(newElement);
+                                
+                                // Show manifesto divider for the section
+                                container.parent().parent().parent().parent().find('.manifesto_divider').show();
+                                
+                                if (item.vendor_data) {
+                                    updateManifesto(item.vendor_data, newElement);
+                                }
                             }
                         });
-
+                        
                         offset += response.data.length;
-                        totalManifesti += response.data.length;
                         loading = false;
-                        $loader && $loader.hide();
-
-                        // Con grid layout non è più necessario modificare justify-content
-                        // Il grid gestisce automaticamente il layout
-
-                        // Su mobile, ripristina la posizione precedente: l'ultimo del batch precedente resta visibile,
-                        // mentre i nuovi 5 vengono caricati offscreen
-                        if (window.innerWidth <= 768 && prevScrollPos !== null) {
-                            $(window).scrollTop(prevScrollPos);
-                        }
-
-                        // Per "top": carica il batch successivo in automatico
-                        if (tipo_manifesto === 'top' && !isInfiniteScroll) {
+                        $loader?.hide();
+                        
+                        // Force layout recalculation after adding new items (especially for mobile)
+                        requestAnimationFrame(() => {
+                            // Trigger reflow on container and its parents
+                            container[0].offsetHeight;
+                            container.parent()[0].offsetHeight;
+                            
+                            // Force height recalculation on mobile
+                            if (window.innerWidth <= 639) {
+                                container.css({
+                                    'min-height': 'min-content',
+                                    'height': 'auto',
+                                    'position': 'relative',
+                                    'display': 'block',
+                                    'overflow': 'visible'
+                                });
+                                container.parent().css({
+                                    'min-height': 'min-content',
+                                    'height': 'auto',
+                                    'position': 'relative'
+                                });
+                                
+                                // Ensure no overlapping with footer by adding explicit margin
+                                if (container.is(':last-child') || container.siblings('.loader, .sentinel').length === 0) {
+                                    container.css('margin-bottom', '2rem');
+                                }
+                            }
+                        });
+                        
+                        // Auto-load for "top" type
+                        if (tipoManifesto === 'top' && !isInfiniteScroll) {
                             loadManifesti();
                         }
                     },
-                    error: function (jqXHR, textStatus, errorThrown) {
-                        console.error("Error during loading:", textStatus, errorThrown);
+                    error() {
                         loading = false;
-                        $loader && $loader.hide();
+                        $loader?.hide();
                     }
                 });
             }
-
-            if (tipo_manifesto === 'top') {
+            
+            // Initialize loading
+            if (tipoManifesto === 'top') {
                 loadManifesti();
+            } else if ($sentinel?.length) {
+                // Setup intersection observer for infinite scroll
+                const observer = new IntersectionObserver(entries => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting && !loading && !allDataLoaded) {
+                            loadManifesti(true);
+                        }
+                    });
+                }, { threshold: 0.1 });
+                
+                observer.observe($sentinel[0]);
+                loadManifesti(true);
             } else {
-                // Usa l'infinite scroll osservando la sentinella
-                if ($sentinel && $sentinel.length > 0) {
-                    var observer = new IntersectionObserver(function (entries) {
-                        entries.forEach(function (entry) {
-                            if (entry.isIntersecting && !loading && !allDataLoaded) {
-                                loadManifesti(true);
-                            }
-                        });
-                    }, {
-                        root: null,
-                        rootMargin: '0px',
-                        threshold: 0.1
-                    });
-
-                    observer.observe($sentinel[0]);
-
-                    // Carica il primo batch
-                    loadManifesti(true);
-                } else {
-                    console.warn('Sentinel element not found for infinite scroll.', {
-                        container: container,
-                        containerId: container.attr('id'),
-                        tipo_manifesto: tipo_manifesto,
-                        siblings: container.siblings().length,
-                        siblingClasses: container.siblings().map(function () {
-                            return this.className;
-                        }).get()
-                    });
-                    // Carica il primo batch anche se non c'è la sentinella
-                    loadManifesti(true);
-                }
+                loadManifesti(true);
             }
         });
     });
+    
 })(jQuery);

@@ -185,7 +185,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
                     'Testo' => array_search('Testo', $header),
                     'DataInserimento' => array_search('DataInserimento', $header),
                     'Pubblicato' => array_search('Pubblicato', $header),
-                    'IdAccount' => array_search('idAccount', $header)
+                    'IdAccount' => array_search('idAccount', $header),
+                    'Foto' => array_search('Foto', $header)
                 ];
             }
 
@@ -206,6 +207,26 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
                     'post_author' => $author_id
                 ]);
 
+                //ottieni il campo testo_manifesto
+                $existing_text = get_field('testo_manifesto', $existing_post_id);
+                //se il campo testo_manifesto è vuoto e il campo Foto non è vuoto aggiorna il campo immagine_manifesto_old con il valore di Foto
+                if (($existing_text == '' || $existing_text == null) && ($data[$field_indexes['Foto']] != '' && $data[$field_indexes['Foto']] != null)) {
+                    update_field('immagine_manifesto_old', $data[$field_indexes['Foto']], $existing_post_id);
+                    $this->log("Aggiornato immagine_manifesto_old per manifesto ID {$existing_post_id} con Foto {$data[$field_indexes['Foto']]}");
+                }
+
+
+
+/*                if ($data[$field_indexes['Foto']] != '' && $data[$field_indexes['Foto']] != null ) {
+                    //update imaggine_manifesto_old filed acf with Foto value
+                    update_field('immagine_manifesto_old', $data[$field_indexes['Foto']], $existing_post_id);
+                } else {
+                    $this->log("Manifesto con foto non gestita: ID {$data[$field_indexes['ID']]}");
+                }*/
+
+
+
+
                 if ($updated) {
                     $this->log("Post author aggiornato per manifesto ID {$existing_post_id} con nuovo author ID {$author_id}");
                 } else {
@@ -215,10 +236,18 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
                 return $updated;
             }
 
-            if ($data[$field_indexes['Testo']] == '' || $data[$field_indexes['Testo']] == null) {
+/*            if ($data[$field_indexes['Testo']] == '' || $data[$field_indexes['Testo']] == null) {
+
+                if ($data[$field_indexes['Foto']] != '' && $data[$field_indexes['Foto']] != null) {
+                    //update imaggine_manifesto_old filed acf with Foto value
+                    update_field('immagine_manifesto_old', $data[$field_indexes['Foto']], $existing_post_id);
+                } else {
+                    $this->log("Manifesto con foto non gestita: ID {$data[$field_indexes['ID']]}");
+                }
+
                 $this->log("Manifesto senza testo: ID {$data[$field_indexes['ID']]}");
                 return false;
-            }
+            }*/
 
             // Trova l'ID dell'utente con fallback migliorato
             $this->log("DEBUG: Cercando autore per IdAccount: " . $data[$field_indexes['IdAccount']]);
@@ -253,7 +282,18 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiMigration')) {
                     update_field('annuncio_di_morte_relativo', $necrologio_id, $post_id);
                 }
 
-                update_field('testo_manifesto', $this->cleanText($data[$field_indexes['Testo']]), $post_id);
+
+                if ($data[$field_indexes['Testo']] == '' || $data[$field_indexes['Testo']] == null) {
+                    if ($data[$field_indexes['Foto']] != '' && $data[$field_indexes['Foto']] != null) {
+                        //update imaggine_manifesto_old filed acf with Foto value
+                        update_field('immagine_manifesto_old', $data[$field_indexes['Foto']], $post_id);
+                    } else {
+                        $this->log("Manifesto con foto non gestita: ID {$data[$field_indexes['ID']]}");
+                    }
+                    $this->log("Manifesto senza testo: ID {$data[$field_indexes['ID']]}");
+                }else{
+                    update_field('testo_manifesto', $this->cleanText($data[$field_indexes['Testo']]), $post_id);
+                }
                 update_field('vendor_id', $author_id, $post_id);
                 update_field('tipo_manifesto', 'silver', $post_id);
 

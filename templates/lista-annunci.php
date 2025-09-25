@@ -46,6 +46,9 @@ if (!$filter_all_posts) {
     $args['author'] = $user_id;
     // Rimuoviamo la meta_query per mostrare solo i post dell'utente corrente
     unset($args['meta_query']);
+} else {
+    // Quando all_posts è attivo, escludi i post dell'utente corrente
+    $args['author__not_in'] = array($user_id);
 }
 
 // Execute the query
@@ -150,13 +153,13 @@ $active_menu = 'annunci/lista-annunci';
                                     <th><?php _e('Titolo', 'dokan-mod'); ?></th>
                                     <th><?php _e('Data publicazione', 'dokan-mod'); ?></th>
                                     <th><?php _e('Stato', 'dokan-mod'); ?></th>
+                                    <th><?php _e('Agenzia', 'dokan-mod'); ?></th>
                                     <th><?php _e('Città', 'dokan-mod'); ?></th>
                                     <th><?php _e('Azioni', 'dokan-mod'); ?></th>
                                     <th><?php _e('Partecipazioni', 'dokan-mod'); ?></th>
                                     <th><?php _e('Trigesimo', 'dokan-mod'); ?></th>
                                     <th><?php _e('Ringraziamento', 'dokan-mod'); ?></th>
                                     <th><?php _e('Anniversari', 'dokan-mod'); ?></th>
-                                    <th><?php _e('Agenzia', 'dokan-mod'); ?></th>
                                 </tr>
                                 </thead>
                                 <tbody>
@@ -176,6 +179,9 @@ $active_menu = 'annunci/lista-annunci';
                                             <td><?php the_title(); ?></td>
                                             <td><?php the_date(); ?></td>
                                             <td><?php echo $template_class->get_formatted_post_status(get_post_status()); ?></td>
+                                            <td>
+                                                <?php echo get_the_author() ?>
+                                            </td>
                                             <td><?php echo get_post_meta(get_the_ID(), 'citta', true); ?></td>
                                             <td>
                                                 <?php if ($modify_post_url_disabled): ?>
@@ -208,9 +214,7 @@ $active_menu = 'annunci/lista-annunci';
                                                     <a href="<?php echo home_url('/dashboard/lista-anniversari?post_id_annuncio=' . get_the_ID()); ?>"><?php _e('Visualizza lista', 'dokan-mod'); ?></a>
                                                 <?php endif; ?>
                                             </td>
-                                            <td>
-                                                <?php echo get_the_author() ?>
-                                            </td>
+
                                         </tr>
                                     <?php
                                     endwhile;

@@ -313,7 +313,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
                 // format d/m/Y H:i
                 $timestamp = strtotime($field);
                 if($timestamp) {
-                    return date("d/m/Y H:i", $timestamp);
+                    return date_i18n("j F, Y", $timestamp);
                 } else {
                     return $field; // return original if not valid date
                 }

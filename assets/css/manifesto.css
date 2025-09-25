@@ -38,30 +38,36 @@
     justify-self: center;
 }
 
-/* Container principale dell'editor */
+/* Container principale dell'editor - rimosso padding e limitazione larghezza */
 .text-editor-container {
-    --padding: clamp(10px, 2vw, 20px);
-
     position: relative;
-    padding: var(--padding);
-    width: min(100% - 2 * var(--padding), 800px);
+    width: 100%;
     margin-inline: auto;
 }
 
 .text-editor-background {
     position: relative;
-    aspect-ratio: 16 / 9;
-    height: clamp(300px, 50vh, 600px);
+    /* aspect-ratio will be set dynamically by JS based on image */
     width: 100%;
-    background-size: contain;
+    height: auto;
+    background-size: cover;
+    background-repeat: no-repeat;
     background-position: center;
-    margin-inline: auto;
     overflow: hidden;
+    margin-inline: auto;
+    /* Smooth transitions for resize */
+    transition: width 0.2s ease, height 0.2s ease;
+    
+    /* Container query support for modern browsers */
+    container-type: size;
+    
+    /* CSS custom properties for dynamic sizing */
+    --max-font-size: 18px;
+    --min-font-size: 8px;
+    --line-height-ratio: 1.2;
 }
 
 .custom-text-editor {
-    --font-size: clamp(14px, 1.5vw, 16px);
-
     width: 100%;
     height: 100%;
     border: none;
@@ -71,9 +77,39 @@
     box-sizing: border-box;
     outline: none;
     overflow: visible;
-    font-size: var(--font-size);
     font-family: var(--e-global-typography-text-font-family), Sans-serif;
     font-weight: var(--e-global-typography-text-font-weight);
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Centra verticalmente */
+
+    /* Smart font sizing that adapts to container */
+    font-size: clamp(
+        var(--min-font-size, 8px),
+        min(
+            calc(100cqw / 19), /* Width-based scaling */
+            calc(100cqh / 17), /* Height-based scaling */
+            var(--max-font-size, 18px) /* Hard maximum */
+        ),
+        var(--max-font-size, 18px)
+    );
+    
+    line-height: calc(var(--line-height-ratio, 1.2) * 1em);
+    
+    /* Smooth transitions for font changes during resize */
+    transition: font-size 0.15s ease, line-height 0.15s ease, padding 0.2s ease;
+}
+
+/* Fallback for browsers without container queries */
+@supports not (font-size: 100cqw) {
+    .custom-text-editor {
+        font-size: clamp(
+            var(--min-font-size, 8px),
+            min(4vw, 3vh, var(--max-font-size, 18px)),
+            var(--max-font-size, 18px)
+        );
+    }
 }
 
 /* Nasconde il testo durante il caricamento dell'immagine di sfondo */
@@ -110,14 +146,120 @@
     background: #f0f0f0;
 }
 
-/* Grid system moderno */
+/* Grid system moderno - transizioni granulari per ogni risoluzione */
 .flex-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: max(20px, 2vw); /* gap minimo con max() */
-    width: 90%;
+    gap: max(5px, 0.3vw);
+    width: 95%;
     margin: auto;
-    max-width: calc(5 * 350px + 4 * max(20px, 2vw)); /* Limita a massimo 5 colonne */
+    max-width: none;
+}
+
+/* Mobile: 1 colonna - forza il contenitore a adattarsi all'altezza */
+@media (max-width: 639px) {
+    .flex-container {
+        grid-template-columns: 1fr;
+        width: 100%;
+        /* Force proper height calculation on mobile */
+        min-height: min-content;
+        height: auto;
+        /* Ensure proper document flow */
+        position: relative;
+        clear: both;
+        /* Add margin bottom to prevent footer overlap */
+        margin-bottom: 2rem;
+    }
+    
+    /* Assicura che i contenitori parent si adattino su mobile */
+    .manifesto-container {
+        min-height: min-content !important;
+        height: auto !important;
+        /* Force proper positioning in document flow */
+        position: relative !important;
+        display: block !important;
+        /* Ensure container respects parent layout */
+        overflow: visible !important;
+        /* Add bottom spacing for Elementor footer */
+        margin-bottom: 2rem !important;
+    }
+    
+    /* Riduce la larghezza del background solo per mobile a 1 colonna */
+    .text-editor-background {
+        width: 80% !important;
+        margin: 0 auto;
+    }
+    
+    /* Force container to respect content height on mobile */
+    .flex-container,
+    .manifesto-container {
+        height: auto !important;
+        /* Prevent any absolute or fixed positioning */
+        position: relative !important;
+    }
+    
+    /* Ensure the parent elements also flow correctly */
+    .manifesto-container + .loader,
+    .manifesto-container + .sentinel,
+    .loader + .sentinel {
+        position: relative !important;
+        clear: both;
+        margin-top: 1rem;
+    }
+}
+
+/* Tablet portrait: 2 colonne */
+@media (min-width: 640px) and (max-width: 959px) {
+    .flex-container {
+        grid-template-columns: repeat(2, 1fr);
+        width: 95%;
+    }
+}
+
+/* Tablet landscape: 3 colonne */
+@media (min-width: 960px) and (max-width: 1199px) {
+    .flex-container {
+        grid-template-columns: repeat(3, 1fr);
+        width: 96%;
+    }
+}
+
+/* Desktop small: 4 colonne */
+@media (min-width: 1200px) and (max-width: 1599px) {
+    .flex-container {
+        grid-template-columns: repeat(4, 1fr);
+        width: 97%;
+    }
+}
+
+/* Desktop standard (1920px): 5 colonne */
+@media (min-width: 1600px) and (max-width: 2199px) {
+    .flex-container {
+        grid-template-columns: repeat(5, 1fr);
+        width: 98%;
+    }
+}
+
+/* Desktop wide: 6 colonne */
+@media (min-width: 2200px) and (max-width: 2799px) {
+    .flex-container {
+        grid-template-columns: repeat(6, 1fr);
+        width: 98%;
+    }
+}
+
+/* Ultra-wide: 7 colonne */
+@media (min-width: 2800px) {
+    .flex-container {
+        grid-template-columns: repeat(7, 1fr);
+        width: 98%;
+    }
+}
+
+/*sotto i 425px di larghezza .flex-container non deve eavere margin*/
+@media (max-width: 425px) {
+    .flex-container {
+        margin: 0;
+    }
 }
 
 .flex-item {
