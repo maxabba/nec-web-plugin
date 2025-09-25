@@ -142,6 +142,10 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
 
         function annuncio_save_post($post_id)
         {
+            //se è admin ritorna
+            if (current_user_can('administrator')) {
+                return;
+            }
             remove_action('acf/save_post', 'annuncio_save_post', 20);
 
             // Controlla se il post è del tipo 'annuncio-di-morte'

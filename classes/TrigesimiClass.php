@@ -55,6 +55,10 @@ if (!class_exists(__NAMESPACE__ . '\TrigesimiClass')) {
 
         public function trigesimi_save_post($post_id)
         {
+            if (current_user_can('administrator')) {
+                return;
+            }
+
             if (get_post_type($post_id) !== 'trigesimo') {
                 return;
             }

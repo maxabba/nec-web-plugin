@@ -15,6 +15,11 @@ if (!class_exists(__NAMESPACE__ . 'AnniversarioClass')) {
 
         public function anniversario_save_post($post_id){
 
+
+            if (current_user_can('administrator')) {
+                return;
+            }
+
             if (get_post_type($post_id) !== 'anniversario') {
                 return;
             }
