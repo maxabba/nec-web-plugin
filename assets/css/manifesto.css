@@ -84,21 +84,12 @@
     flex-direction: column;
     justify-content: center; /* Centra verticalmente */
 
-    /* Smart font sizing that adapts to container */
-    font-size: clamp(
-        var(--min-font-size, 8px),
-        min(
-            calc(100cqw / 19), /* Width-based scaling */
-            calc(100cqh / 17), /* Height-based scaling */
-            var(--max-font-size, 18px) /* Hard maximum */
-        ),
-        var(--max-font-size, 18px)
-    );
+    /* Font size calcolato responsivamente da JavaScript */
+    font-size: 16px;
+    line-height: 1.2;
     
-    line-height: calc(var(--line-height-ratio, 1.2) * 1em);
-    
-    /* Smooth transitions for font changes during resize */
-    transition: font-size 0.15s ease, line-height 0.15s ease, padding 0.2s ease;
+    /* Transizione fluida per il font-size */
+    transition: font-size 0.15s ease;
 }
 
 /* Fallback for browsers without container queries */
@@ -146,120 +137,14 @@
     background: #f0f0f0;
 }
 
-/* Grid system moderno - transizioni granulari per ogni risoluzione */
+/* Grid system moderno - CSS Grid responsivo che funziona già di default */
 .flex-container {
     display: grid;
-    gap: max(5px, 0.3vw);
-    width: 95%;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: max(20px, 2vw); /* gap minimo con max() */
+    width: 90%;
     margin: auto;
-    max-width: none;
-}
-
-/* Mobile: 1 colonna - forza il contenitore a adattarsi all'altezza */
-@media (max-width: 639px) {
-    .flex-container {
-        grid-template-columns: 1fr;
-        width: 100%;
-        /* Force proper height calculation on mobile */
-        min-height: min-content;
-        height: auto;
-        /* Ensure proper document flow */
-        position: relative;
-        clear: both;
-        /* Add margin bottom to prevent footer overlap */
-        margin-bottom: 2rem;
-    }
-    
-    /* Assicura che i contenitori parent si adattino su mobile */
-    .manifesto-container {
-        min-height: min-content !important;
-        height: auto !important;
-        /* Force proper positioning in document flow */
-        position: relative !important;
-        display: block !important;
-        /* Ensure container respects parent layout */
-        overflow: visible !important;
-        /* Add bottom spacing for Elementor footer */
-        margin-bottom: 2rem !important;
-    }
-    
-    /* Riduce la larghezza del background solo per mobile a 1 colonna */
-    .text-editor-background {
-        width: 80% !important;
-        margin: 0 auto;
-    }
-    
-    /* Force container to respect content height on mobile */
-    .flex-container,
-    .manifesto-container {
-        height: auto !important;
-        /* Prevent any absolute or fixed positioning */
-        position: relative !important;
-    }
-    
-    /* Ensure the parent elements also flow correctly */
-    .manifesto-container + .loader,
-    .manifesto-container + .sentinel,
-    .loader + .sentinel {
-        position: relative !important;
-        clear: both;
-        margin-top: 1rem;
-    }
-}
-
-/* Tablet portrait: 2 colonne */
-@media (min-width: 640px) and (max-width: 959px) {
-    .flex-container {
-        grid-template-columns: repeat(2, 1fr);
-        width: 95%;
-    }
-}
-
-/* Tablet landscape: 3 colonne */
-@media (min-width: 960px) and (max-width: 1199px) {
-    .flex-container {
-        grid-template-columns: repeat(3, 1fr);
-        width: 96%;
-    }
-}
-
-/* Desktop small: 4 colonne */
-@media (min-width: 1200px) and (max-width: 1599px) {
-    .flex-container {
-        grid-template-columns: repeat(4, 1fr);
-        width: 97%;
-    }
-}
-
-/* Desktop standard (1920px): 5 colonne */
-@media (min-width: 1600px) and (max-width: 2199px) {
-    .flex-container {
-        grid-template-columns: repeat(5, 1fr);
-        width: 98%;
-    }
-}
-
-/* Desktop wide: 6 colonne */
-@media (min-width: 2200px) and (max-width: 2799px) {
-    .flex-container {
-        grid-template-columns: repeat(6, 1fr);
-        width: 98%;
-    }
-}
-
-/* Ultra-wide: 7 colonne */
-@media (min-width: 2800px) {
-    .flex-container {
-        grid-template-columns: repeat(7, 1fr);
-        width: 98%;
-    }
-}
-
-/*sotto i 425px di larghezza .flex-container non deve eavere margin*/
-@media (max-width: 425px) {
-    .flex-container {
-        margin: 0;
-    }
+    max-width: calc(5 * 350px + 4 * max(20px, 2vw)); /* Limita a massimo 5 colonne */
 }
 
 .flex-item {
@@ -278,4 +163,5 @@
     justify-content: left;
     /* justify-content sarà modificato dinamicamente con JavaScript in base al numero di manifesti */
 }
+
 
