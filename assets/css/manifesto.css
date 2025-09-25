@@ -50,7 +50,8 @@
     /* aspect-ratio will be set dynamically by JS based on image */
     width: 100%;
     height: auto;
-    background-size: cover;
+    max-height: 80vh; /* Ensure max-height is always respected */
+    background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
     overflow: hidden;
@@ -65,6 +66,19 @@
     --max-font-size: 18px;
     --min-font-size: 8px;
     --line-height-ratio: 1.2;
+    
+    /* Force proper containment */
+    contain: layout style;
+}
+
+/* When viewport is narrower, adjust the container behavior */
+@media screen and (max-width: 1024px) {
+    .text-editor-background {
+        /* In single column, prioritize height constraint */
+        max-height: 70vh;
+        width: auto;
+        max-width: 100%;
+    }
 }
 
 .custom-text-editor {
@@ -150,6 +164,17 @@
 .flex-item {
     margin: 0;
     margin-bottom: 25px;
+    /* Prevent overflow in single column */
+    max-width: 100%;
+    overflow: hidden;
+}
+
+/* Single column layout - prevent overflow */
+@media screen and (max-width: 768px) {
+    .flex-item .text-editor-background {
+        max-height: 60vh; /* Reduce height in mobile */
+        width: 100%;
+    }
 }
 
 /* Divider che deve occupare tutta la larghezza del container */

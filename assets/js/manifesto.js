@@ -1,297 +1,535 @@
 (function ($) {
     'use strict';
     
-    // Simple configuration
+    // Configuration with all magic numbers extracted
     const CONFIG = {
-        CONTAINER_SIZE: 0.95, // 80%
+        CONTAINER_SIZE: 0.95,
         MAX_FONT_SIZE: 20, // Hard limit in px
         MIN_FONT_SIZE: 8,  // Minimum readable size
-        LINE_HEIGHT_RATIO: 1.2
+        LINE_HEIGHT_RATIO: 1.2,
+        
+        // Font scaling factors for different text types
+        FONT_SCALING: {
+            SHORT_TEXT_FACTOR: 0.6,
+            LONG_TEXT_FACTOR: 2.2,
+            WIDE_TEXT_FACTOR_UNDER_100: 0.5,
+            WIDE_TEXT_FACTOR_OVER_100: 0.4,
+            MEDIUM_TEXT_FACTOR: 0.4,
+            HEIGHT_FACTOR: 3.5
+        },
+        
+        // Text classification thresholds
+        TEXT_THRESHOLDS: {
+            SHORT_TEXT_CHARS: 100,
+            SHORT_TEXT_LINES: 10,
+            WIDE_TEXT_CHARS: 100
+        },
+        
+        // Optimization settings
+        OPTIMIZATION: {
+            MAX_ITERATIONS: 25,
+            FONT_INCREMENT: 0.5,
+            RESIZE_DEBOUNCE: 50,
+            INITIAL_SETUP_DELAY: 100
+        },
+        
+        // Layout settings
+        LAYOUT: {
+            DEFAULT_ASPECT_RATIO: '16 / 9',
+            MAX_HEIGHT: '80vh',
+            NO_BACKGROUND_PADDING: '5%',
+            // Firefox-specific fixes
+            FIREFOX_HEIGHT_FALLBACK: '75vh' // Slightly smaller for Firefox compatibility
+        }
     };
     
-    // Image cache for performance
-    const imageCache = new Map();
-    const manifestiData = new Map();
-    
-    // Cache intelligente per analisi testo
-    const textAnalysisCache = new Map();
+    // Module state - encapsulated variables
+    const ModuleState = {
+        imageCache: new Map(),
+        manifestiData: new Map(),
+        textAnalysisCache: new Map(),
+        resizeTimeouts: new Map(),
+        // New: Store initial sizing states for proportional scaling
+        initialSizingStates: new Map()
+    };
     
     // Load image with caching
     function loadImage(url) {
-        if (imageCache.has(url)) {
-            return Promise.resolve(imageCache.get(url));
+        if (!url) {
+            return Promise.reject(new Error('Invalid URL provided'));
+        }
+        
+        if (ModuleState.imageCache.has(url)) {
+            return Promise.resolve(ModuleState.imageCache.get(url));
         }
         
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
-                imageCache.set(url, img);
-                resolve(img);
+                try {
+                    ModuleState.imageCache.set(url, img);
+                    resolve(img);
+                } catch (error) {
+                    reject(new Error(`Failed to cache image: ${error.message}`));
+                }
             };
-            img.onerror = () => reject(new Error(`Failed to load: ${url}`));
+            img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+            
+            // Set a timeout to prevent hanging
+            const timeout = setTimeout(() => {
+                reject(new Error(`Image load timeout: ${url}`));
+            }, 10000);
+            
+            img.onload = () => {
+                clearTimeout(timeout);
+                try {
+                    ModuleState.imageCache.set(url, img);
+                    resolve(img);
+                } catch (error) {
+                    reject(new Error(`Failed to cache image: ${error.message}`));
+                }
+            };
+            
             img.src = url;
         });
     }
     
     
-    // Genera ID unico per l'elemento testo basato sul contenuto
-    function generateTextId(textEditor) {
-        const testo = textEditor.textContent || textEditor.innerText || '';
-        const html = textEditor.innerHTML || '';
-        
-        // Crea hash semplice del contenuto per ID univoco
-        let hash = 0;
-        const content = testo + html;
-        for (let i = 0; i < content.length; i++) {
-            const char = content.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash; // Convert to 32-bit integer
+    // TextAnalyzer class - encapsulates all text analysis logic
+    class TextAnalyzer {
+        constructor() {
+            this.cache = ModuleState.textAnalysisCache;
         }
         
-        return `text_${Math.abs(hash)}`;
-    }
-    
-    // Analizza la densità del testo per ottimizzare il font (con cache)
-    function analizzaTesto(textEditor, forceRecalculate = false) {
-        // Genera ID univoco per questo testo
-        const textId = generateTextId(textEditor);
-        
-        // Controlla se abbiamo già l'analisi in cache
-        if (!forceRecalculate && textAnalysisCache.has(textId)) {
-            const cachedAnalysis = textAnalysisCache.get(textId);
-            console.log(`💾 Cache hit per testo ID: ${textId}`);
-            return cachedAnalysis;
+        generateTextId(textEditor) {
+            if (!textEditor) return null;
+            
+            const text = textEditor.textContent || textEditor.innerText || '';
+            const html = textEditor.innerHTML || '';
+            
+            // Create simple hash of content for unique ID
+            let hash = 0;
+            const content = text + html;
+            for (let i = 0; i < content.length; i++) {
+                const char = content.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32-bit integer
+            }
+            
+            return `text_${Math.abs(hash)}`;
         }
         
-        console.log(`🔍 Analisi testo per ID: ${textId}`);
+        parseTextStructure(textEditor) {
+            if (!textEditor) return null;
+            
+            const text = textEditor.textContent || textEditor.innerText || '';
+            const divElements = textEditor.querySelectorAll('div');
+            
+            return {
+                text,
+                totalLength: text.length,
+                divElements,
+                divCount: divElements.length
+            };
+        }
         
-        const testo = textEditor.textContent || textEditor.innerText || '';
-        const lunghezzaTotale = testo.length;
-        
-        // Conta le righe REALI: ogni div + br/accapo dentro ogni div
-        const divElements = textEditor.querySelectorAll('div');
-        let righeReali = 0;
-        let rigaPiuLunga = 0;
-        let lunghezzaRigaPiuLunga = 0;
-        let rigaCorrente = 0;
-        
-        if (divElements.length > 0) {
-            // Analizza ogni div e conta le righe interne (br, \n)
-            divElements.forEach((div, divIndex) => {
-                const htmlDiv = div.innerHTML;
-                const testoDiv = div.textContent || div.innerText || '';
+        calculateTextMetrics(structure) {
+            if (!structure) return null;
+            
+            const { text, divElements } = structure;
+            let actualLines = 0;
+            let longestLineLength = 0;
+            let longestLineNumber = 0;
+            let currentLine = 0;
+            
+            if (divElements.length > 0) {
+                // Analyze each div and count internal lines (br, \n)
+                divElements.forEach((div) => {
+                    const htmlDiv = div.innerHTML;
+                    const textDiv = div.textContent || div.innerText || '';
+                    
+                    // Count <br> tags and \n characters inside this div
+                    const brCount = (htmlDiv.match(/<br\s*\/?>/gi) || []).length;
+                    const nlCount = (textDiv.match(/\n/g) || []).length;
+                    const linesInDiv = Math.max(1, brCount + nlCount + 1); // +1 for base line of div
+                    
+                    actualLines += linesInDiv;
+                    
+                    // For longest line, split div content by br/\n
+                    const subLines = textDiv.split(/\n/);
+                    subLines.forEach((subLine) => {
+                        currentLine++;
+                        if (subLine.length > longestLineLength) {
+                            longestLineLength = subLine.length;
+                            longestLineNumber = currentLine;
+                        }
+                    });
+                });
+            } else {
+                // Fallback: if no divs, analyze lines separated by \n or <br>
+                const linesArray = text.split(/\n|<br\s*\/?>/i);
+                actualLines = linesArray.length;
                 
-                // Conta i <br> e gli \n dentro questo div
-                const brCount = (htmlDiv.match(/<br\s*\/?>/gi) || []).length;
-                const nlCount = (testoDiv.match(/\n/g) || []).length;
-                const righeInDiv = Math.max(1, brCount + nlCount + 1); // +1 per la riga base del div
-                
-                righeReali += righeInDiv;
-                
-                // Per la riga più lunga, spezza il contenuto del div per br/\n
-                const sottoRighe = testoDiv.split(/\n/);
-                sottoRighe.forEach((sottoRiga) => {
-                    rigaCorrente++;
-                    if (sottoRiga.length > lunghezzaRigaPiuLunga) {
-                        lunghezzaRigaPiuLunga = sottoRiga.length;
-                        rigaPiuLunga = rigaCorrente;
+                linesArray.forEach((line, index) => {
+                    if (line.length > longestLineLength) {
+                        longestLineLength = line.length;
+                        longestLineNumber = index + 1;
                     }
                 });
-            });
-        } else {
-            // Fallback: se non ci sono div, analizza righe separate da \n o <br>
-            const righeArray = testo.split(/\n|<br\s*\/?>/i);
-            righeReali = righeArray.length;
+            }
             
-            righeArray.forEach((riga, index) => {
-                if (riga.length > lunghezzaRigaPiuLunga) {
-                    lunghezzaRigaPiuLunga = riga.length;
-                    rigaPiuLunga = index + 1;
-                }
-            });
+            const lines = Math.max(actualLines, 1); // Minimum 1 line
+            
+            return {
+                totalLength: structure.totalLength,
+                longestLineLength,
+                longestLineNumber,
+                lines,
+                divCount: structure.divCount
+            };
         }
         
-        const righe = Math.max(righeReali, 1); // Minimo 1 riga
+        categorizeText(metrics) {
+            if (!metrics) return null;
+            
+            return {
+                isShortText: metrics.longestLineLength <= CONFIG.TEXT_THRESHOLDS.SHORT_TEXT_CHARS && metrics.lines <= CONFIG.TEXT_THRESHOLDS.SHORT_TEXT_LINES,
+                isLongText: metrics.lines > CONFIG.TEXT_THRESHOLDS.SHORT_TEXT_LINES,
+                isWideText: metrics.longestLineLength > CONFIG.TEXT_THRESHOLDS.WIDE_TEXT_CHARS
+            };
+        }
         
-        const analysis = {
-            id: textId, // ID univoco per riferimento
-            lunghezzaTotale: lunghezzaTotale,
-            lunghezzaRigaPiuLunga: lunghezzaRigaPiuLunga,
-            rigaPiuLunga: rigaPiuLunga,
-            righe: righe,
-            righeDivs: divElements.length,
-            isTestoCorto: lunghezzaRigaPiuLunga <= 100 && righe <= 10,
-            isTestoLungo: righe > 10,
-            isTestoLargo: lunghezzaRigaPiuLunga > 100,
-            timestamp: Date.now() // Per debug/cache management
-        };
+        cacheAnalysis(textId, analysis) {
+            if (!textId || !analysis) return;
+            
+            this.cache.set(textId, {
+                ...analysis,
+                timestamp: Date.now()
+            });
+            
+            console.log(`💾 Cached analysis for ID: ${textId} (${analysis.lines} lines, max line: ${analysis.longestLineLength})`);
+        }
         
-        // Salva in cache
-        textAnalysisCache.set(textId, analysis);
-        console.log(`💾 Cached analisi per ID: ${textId} (${righe} righe, riga max: ${lunghezzaRigaPiuLunga})`);
+        getCachedAnalysis(textId) {
+            return this.cache.get(textId) || null;
+        }
         
-        // Associa l'ID al div per riferimento futuro
-        textEditor.dataset.textAnalysisId = textId;
+        hasCachedAnalysis(textId) {
+            return this.cache.has(textId);
+        }
         
-        return analysis;
+        analyzeText(textEditor, forceRecalculate = false) {
+            if (!textEditor) {
+                console.error('❌ Invalid textEditor provided to analyzeText');
+                return null;
+            }
+            
+            const textId = this.generateTextId(textEditor);
+            if (!textId) {
+                console.error('❌ Could not generate textId');
+                return null;
+            }
+            
+            // Check if we already have the analysis in cache
+            if (!forceRecalculate && this.hasCachedAnalysis(textId)) {
+                const cachedAnalysis = this.getCachedAnalysis(textId);
+                console.log(`💾 Cache hit for text ID: ${textId}`);
+                return cachedAnalysis;
+            }
+            
+            console.log(`🔍 Text analysis for ID: ${textId}`);
+            
+            try {
+                const structure = this.parseTextStructure(textEditor);
+                if (!structure) {
+                    throw new Error('Failed to parse text structure');
+                }
+                
+                const metrics = this.calculateTextMetrics(structure);
+                if (!metrics) {
+                    throw new Error('Failed to calculate text metrics');
+                }
+                
+                const categories = this.categorizeText(metrics);
+                if (!categories) {
+                    throw new Error('Failed to categorize text');
+                }
+                
+                const analysis = {
+                    id: textId,
+                    totalLength: metrics.totalLength,
+                    longestLineLength: metrics.longestLineLength,
+                    longestLineNumber: metrics.longestLineNumber,
+                    lines: metrics.lines,
+                    divCount: metrics.divCount,
+                    isShortText: categories.isShortText,
+                    isLongText: categories.isLongText,
+                    isWideText: categories.isWideText,
+                    timestamp: Date.now()
+                };
+                
+                // Cache the analysis
+                this.cacheAnalysis(textId, analysis);
+                
+                // Associate the ID with the element for future reference
+                textEditor.dataset.textAnalysisId = textId;
+                
+                return analysis;
+                
+            } catch (error) {
+                console.error(`❌ Error analyzing text: ${error.message}`);
+                return null;
+            }
+        }
     }
     
-    // Versione veloce per resize - usa solo cache
-    function adattaFontSizeFromCache(textEditor, backgroundDiv) {
-        if (!textEditor || !backgroundDiv) return false;
+    // Create global text analyzer instance
+    const textAnalyzer = new TextAnalyzer();
+    
+    // Backward compatibility function - use TextAnalyzer instance
+    function analyzeText(textEditor, forceRecalculate = false) {
+        return textAnalyzer.analyzeText(textEditor, forceRecalculate);
+    }
+    
+    // Ultra-fast proportional scaling for resize
+    function scaleFontSizeProportionally(textEditor, backgroundDiv, containerId) {
+        if (!textEditor || !backgroundDiv || !containerId) return false;
         
-        // Cerca analisi in cache usando l'ID associato
-        const textId = textEditor.dataset.textAnalysisId;
-        if (!textId || !textAnalysisCache.has(textId)) {
-            console.log(`⚠️ Cache miss per resize - ID: ${textId || 'missing'}`);
-            return false; // Fallback al calcolo completo
+        // Get initial state
+        const initialState = ModuleState.initialSizingStates.get(containerId);
+        if (!initialState) {
+            console.log(`⚠️ No initial state for container: ${containerId}`);
+            return false;
         }
         
-        const analisi = textAnalysisCache.get(textId);
-        const altezzaMax = backgroundDiv.clientHeight;
-        const larghezzaMax = backgroundDiv.clientWidth;
+        // Check if text content has changed (optional validation)
+        const currentTextId = textEditor.dataset.textAnalysisId;
+        if (initialState.textHash && currentTextId && initialState.textHash !== currentTextId) {
+            console.log(`🔄 Text content changed, clearing state for: ${containerId}`);
+            clearInitialSizingState(containerId);
+            return false; // Force recalculation
+        }
         
-        // Calcola font size usando analisi cached
-        const fontSize = calculateFontSizeFromAnalysis(analisi, larghezzaMax, altezzaMax);
+        // Get current dimensions
+        const currentWidth = backgroundDiv.clientWidth;
+        const currentHeight = backgroundDiv.clientHeight;
         
-        // Applica direttamente senza iterazioni (veloce!)
-        textEditor.style.fontSize = fontSize + 'px';
+        // Calculate scale factor (use the smaller scale to maintain proportions)
+        const scaleX = currentWidth / initialState.width;
+        const scaleY = currentHeight / initialState.height;
+        const scaleFactor = Math.min(scaleX, scaleY);
+        
+        // Apply proportional scaling
+        let newFontSize = initialState.fontSize * scaleFactor;
+        
+        // Apply limits
+        newFontSize = Math.max(CONFIG.MIN_FONT_SIZE, Math.min(CONFIG.MAX_FONT_SIZE, newFontSize));
+        
+        // Apply to element
+        textEditor.style.fontSize = newFontSize + 'px';
         textEditor.style.lineHeight = CONFIG.LINE_HEIGHT_RATIO;
         
-        console.log(`⚡ Resize veloce: ${fontSize}px usando cache ID: ${textId} | ${larghezzaMax}x${altezzaMax}`);
+        // Log only if significant change (reduce console noise)
+        const fontChange = Math.abs(newFontSize - initialState.fontSize * scaleFactor);
+        if (fontChange > 0.5 || CONFIG.OPTIMIZATION.RESIZE_DEBOUNCE) {
+            console.log(`⚡ Scale: ${newFontSize.toFixed(1)}px (${scaleFactor.toFixed(2)}x) | ${currentWidth}x${currentHeight}`);
+        }
+        
         return true;
     }
     
-    // Calcola font size basandosi sui dati di analisi cached
-    function calculateFontSizeFromAnalysis(analisi, larghezzaMax, altezzaMax) {
-        let fontSize;
+    // Store initial sizing state for future scaling
+    function storeInitialSizingState(containerId, fontSize, width, height, textHash = null) {
+        if (!containerId) return;
         
-        if (analisi.isTestoCorto) {
-            const fattoreRiga = Math.max(analisi.lunghezzaRigaPiuLunga, 1);
-            fontSize = larghezzaMax / (fattoreRiga * 0.6);
-        } else if (analisi.isTestoLungo) {
-            fontSize = altezzaMax / (analisi.righe * 2.2);
-        } else if (analisi.isTestoLargo) {
-            const fattoreRiga = analisi.lunghezzaRigaPiuLunga;
-            if(fattoreRiga < 100){
-                fontSize = Math.min(
-                    larghezzaMax / (fattoreRiga * 0.5),
-                    altezzaMax / (analisi.righe * 3.5)
+        const state = {
+            fontSize: fontSize,
+            width: width,
+            height: height,
+            aspectRatio: width / height,
+            textHash: textHash, // To detect content changes
+            timestamp: Date.now()
+        };
+        
+        ModuleState.initialSizingStates.set(containerId, state);
+        console.log(`📏 Stored initial state for ${containerId}: ${fontSize.toFixed(1)}px @ ${width}x${height}`);
+    }
+    
+    // Clear initial state (useful when content changes)
+    function clearInitialSizingState(containerId) {
+        if (ModuleState.initialSizingStates.has(containerId)) {
+            ModuleState.initialSizingStates.delete(containerId);
+            console.log(`🗎️ Cleared initial state for ${containerId}`);
+        }
+    }
+    
+    // FontSizeCalculator class with strategy pattern
+    class FontSizeCalculator {
+        constructor(config) {
+            this.config = config;
+        }
+        
+        calculateFromAnalysis(analysis, maxWidth, maxHeight) {
+            if (!analysis || !maxWidth || !maxHeight) {
+                console.error('❌ Invalid parameters for font size calculation');
+                return this.config.MIN_FONT_SIZE;
+            }
+            
+            let fontSize;
+            
+            if (analysis.isShortText) {
+                fontSize = this.calculateShortTextStrategy(analysis, maxWidth);
+            } else if (analysis.isLongText) {
+                fontSize = this.calculateLongTextStrategy(analysis, maxHeight);
+            } else if (analysis.isWideText) {
+                fontSize = this.calculateWideTextStrategy(analysis, maxWidth, maxHeight);
+            } else {
+                fontSize = this.calculateMediumTextStrategy(analysis, maxWidth, maxHeight);
+            }
+            
+            return this.applyLimits(fontSize);
+        }
+        
+        calculateShortTextStrategy(analysis, maxWidth) {
+            const lineFactor = Math.max(analysis.longestLineLength, 1);
+            return maxWidth / (lineFactor * this.config.FONT_SCALING.SHORT_TEXT_FACTOR);
+        }
+        
+        calculateLongTextStrategy(analysis, maxHeight) {
+            return maxHeight / (analysis.lines * this.config.FONT_SCALING.LONG_TEXT_FACTOR);
+        }
+        
+        calculateWideTextStrategy(analysis, maxWidth, maxHeight) {
+            const lineFactor = analysis.longestLineLength;
+            
+            if(lineFactor < this.config.TEXT_THRESHOLDS.WIDE_TEXT_CHARS) {
+                return Math.min(
+                    maxWidth / (lineFactor * this.config.FONT_SCALING.WIDE_TEXT_FACTOR_UNDER_100),
+                    maxHeight / (analysis.lines * this.config.FONT_SCALING.HEIGHT_FACTOR)
                 );
             } else {
-                fontSize = Math.max(
-                    larghezzaMax / (fattoreRiga * 0.4),
-                    altezzaMax / (analisi.righe * 3.5)
+                return Math.max(
+                    maxWidth / (lineFactor * this.config.FONT_SCALING.WIDE_TEXT_FACTOR_OVER_100),
+                    maxHeight / (analysis.lines * this.config.FONT_SCALING.HEIGHT_FACTOR)
                 );
             }
-        } else {
-            fontSize = Math.min(
-                larghezzaMax / (analisi.lunghezzaRigaPiuLunga * 0.4),
-                altezzaMax / (analisi.righe * 3.5)
+        }
+        
+        calculateMediumTextStrategy(analysis, maxWidth, maxHeight) {
+            return Math.min(
+                maxWidth / (analysis.longestLineLength * this.config.FONT_SCALING.MEDIUM_TEXT_FACTOR),
+                maxHeight / (analysis.lines * this.config.FONT_SCALING.HEIGHT_FACTOR)
             );
         }
         
-        // Applica limiti CONFIG
-        return Math.max(CONFIG.MIN_FONT_SIZE, Math.min(CONFIG.MAX_FONT_SIZE, fontSize));
+        applyLimits(fontSize) {
+            return Math.max(this.config.MIN_FONT_SIZE, Math.min(this.config.MAX_FONT_SIZE, fontSize));
+        }
+        
+        optimizeIteratively(textEditor, initialFontSize, analysis, maxWidth, maxHeight) {
+            if (!textEditor) return initialFontSize;
+            
+            let fontSize = initialFontSize;
+            let iterations = 0;
+            const maxIterations = this.config.OPTIMIZATION.MAX_ITERATIONS;
+            
+            // Apply initial font size
+            textEditor.style.fontSize = fontSize + 'px';
+            textEditor.style.lineHeight = this.config.LINE_HEIGHT_RATIO;
+            
+            // First phase: reduce if doesn't fit
+            while (
+                (textEditor.scrollHeight > maxHeight || textEditor.scrollWidth > maxWidth) 
+                && fontSize > this.config.MIN_FONT_SIZE 
+                && iterations < maxIterations
+            ) {
+                fontSize -= this.config.OPTIMIZATION.FONT_INCREMENT;
+                textEditor.style.fontSize = fontSize + 'px';
+                iterations++;
+                void textEditor.offsetHeight; // Force reflow
+            }
+            
+            // Second phase: for short texts, try to increase if there's space
+            if (analysis.isShortText && iterations < maxIterations) {
+                let testFontSize = fontSize;
+                while (
+                    textEditor.scrollHeight <= maxHeight && 
+                    textEditor.scrollWidth <= maxWidth &&
+                    testFontSize < this.config.MAX_FONT_SIZE &&
+                    iterations < maxIterations
+                ) {
+                    fontSize = testFontSize;
+                    testFontSize += this.config.OPTIMIZATION.FONT_INCREMENT;
+                    textEditor.style.fontSize = testFontSize + 'px';
+                    iterations++;
+                    void textEditor.offsetHeight; // Force reflow
+                }
+                // Return to last valid size
+                textEditor.style.fontSize = fontSize + 'px';
+            }
+            
+            return fontSize;
+        }
     }
     
-    // Adatta il font-size intelligentemente in base al contenuto (completo)
-    function adattaFontSize(textEditor, backgroundDiv, forceRecalculate = false) {
+    // Create global font calculator instance
+    const fontCalculator = new FontSizeCalculator(CONFIG);
+    
+    // Backward compatibility function
+    function calculateFontSizeFromAnalysis(analysis, maxWidth, maxHeight) {
+        return fontCalculator.calculateFromAnalysis(analysis, maxWidth, maxHeight);
+    }
+    
+    // Adapt font size intelligently based on content (complete)
+    function adaptFontSize(textEditor, backgroundDiv, forceRecalculate = false) {
         if (!textEditor || !backgroundDiv) return;
         
-        const altezzaMax = backgroundDiv.clientHeight;
-        const larghezzaMax = backgroundDiv.clientWidth;
-        const analisi = analizzaTesto(textEditor, forceRecalculate);
-        
-        // Strategia di font sizing basata sul contenuto
-        let fontSize;
-        
-        if (analisi.isTestoCorto) {
-            // TESTO CORTO: Massimizza larghezza basandosi sulla riga più lunga
-            const fattoreRiga = Math.max(analisi.lunghezzaRigaPiuLunga, 1); // Minimo 10 per evitare font enormi
-            fontSize = larghezzaMax / (fattoreRiga * 0.6); // 0.6 = coefficiente larghezza carattere
-            console.log(`Strategia: TESTO CORTO - ottimizza per larghezza (riga più lunga: ${analisi.lunghezzaRigaPiuLunga} char)`);
-            
-        } else if (analisi.isTestoLungo) {
-            // TESTO LUNGO: Massimizza altezza - font piccolo per entrare verticalmente
-            fontSize = altezzaMax / (analisi.righe * 2.2); // 1.4 = line-height approssimativo
-            console.log(`Strategia: TESTO LUNGO - ottimizza per altezza (${analisi.righe} righe)`);
-            
-        } else if (analisi.isTestoLargo) {
-            // RIGA MOLTO LARGA: Priorità alla larghezza della riga più lunga
-            const fattoreRiga = analisi.lunghezzaRigaPiuLunga;
-
-            //se fattore di riga è minore di 100 allora usa math min se no usa math max
-            if(fattoreRiga < 100){
-            fontSize = Math.min(
-                larghezzaMax / (fattoreRiga * 0.5), // Basato su riga più lunga
-                altezzaMax / (analisi.righe * 3.5)  // Ma limitato dall'altezza
-            );
-            }else {
-            fontSize = Math.max(
-                larghezzaMax / (fattoreRiga * 0.4), // Basato su riga più lunga
-                altezzaMax / (analisi.righe * 3.5)  // Ma limitato dall'altezza
-            );
-            }
-            console.log(`Strategia: RIGA LARGA - bilanciamento (riga più lunga: ${analisi.lunghezzaRigaPiuLunga} char)`);
-            
-        } else {
-            // TESTO MEDIO: Bilanciamento tra larghezza della riga più lunga e altezza totale
-            fontSize = Math.min(
-                larghezzaMax / (analisi.lunghezzaRigaPiuLunga * 0.4),  // Basato su riga più lunga
-                altezzaMax / (analisi.righe * 3.5)     // Basato su altezza totale
-            );
-            console.log(`Strategia: TESTO MEDIO - bilanciamento intelligente`);
+        const maxHeight = backgroundDiv.clientHeight;
+        const maxWidth = backgroundDiv.clientWidth;
+        const analysis = analyzeText(textEditor, forceRecalculate);
+        if (!analysis) {
+            console.error('❌ Failed to analyze text, aborting font size calculation');
+            return;
         }
         
-        // Limiti min/max usando CONFIG
-        fontSize = Math.max(CONFIG.MIN_FONT_SIZE, Math.min(CONFIG.MAX_FONT_SIZE, fontSize));
+        // Font sizing strategy based on content
+        const initialFontSize = fontCalculator.calculateFromAnalysis(analysis, maxWidth, maxHeight);
         
-        // Applica font size iniziale
-        textEditor.style.fontSize = fontSize + 'px';
-        textEditor.style.lineHeight = CONFIG.LINE_HEIGHT_RATIO;
-        
-        // FASE DI OTTIMIZZAZIONE: Aggiusta finemente
-        let iterations = 0;
-        const maxIterations = 25;
-        
-        // Prima fase: riduci se non entra
-        while (
-            (textEditor.scrollHeight > altezzaMax || textEditor.scrollWidth > larghezzaMax) 
-            && fontSize > CONFIG.MIN_FONT_SIZE 
-            && iterations < maxIterations
-        ) {
-            fontSize -= 0.5;
-            textEditor.style.fontSize = fontSize + 'px';
-            iterations++;
-            void textEditor.offsetHeight;
+        // Log strategy for debugging
+        let strategy = 'MEDIUM TEXT - intelligent balancing';
+        if (analysis.isShortText) {
+            strategy = `SHORT TEXT - optimize for width (longest line: ${analysis.longestLineLength} chars)`;
+        } else if (analysis.isLongText) {
+            strategy = `LONG TEXT - optimize for height (${analysis.lines} lines)`;
+        } else if (analysis.isWideText) {
+            strategy = `WIDE TEXT - balancing (longest line: ${analysis.longestLineLength} chars)`;
         }
+        console.log(`Strategy: ${strategy}`);
         
-        // Seconda fase: per testi corti, prova ad aumentare se c'è spazio
-        if (analisi.isTestoCorto && iterations < maxIterations) {
-            let testFontSize = fontSize;
-            while (
-                textEditor.scrollHeight <= altezzaMax && 
-                textEditor.scrollWidth <= larghezzaMax &&
-                testFontSize < CONFIG.MAX_FONT_SIZE &&
-                iterations < maxIterations
-            ) {
-                fontSize = testFontSize;
-                testFontSize += 0.5;
-                textEditor.style.fontSize = testFontSize + 'px';
-                iterations++;
-                void textEditor.offsetHeight;
-            }
-            // Ritorna all'ultima dimensione valida
-            textEditor.style.fontSize = fontSize + 'px';
+        // Iterative optimization for perfect fit
+        const fontSize = fontCalculator.optimizeIteratively(
+            textEditor, 
+            initialFontSize, 
+            analysis, 
+            maxWidth, 
+            maxHeight
+        );
+        
+        // Detailed log for debugging
+        console.log(`Font optimized: ${fontSize}px | Analysis: ${analysis.lines} total lines (${analysis.divCount} divs), longest line: ${analysis.longestLineLength} chars (line #${analysis.longestLineNumber}) | Container: ${maxWidth}x${maxHeight}`);
+        
+        // Store initial state for proportional scaling on resize
+        const containerElem = $(backgroundDiv).closest('.flex-item');
+        const containerId = containerElem.attr('id') || `container-${Date.now()}`;
+        if (!containerElem.attr('id')) {
+            containerElem.attr('id', containerId);
         }
-        
-        // Log dettagliato per debug
-        console.log(`Font ottimizzato: ${fontSize}px | Analisi: ${analisi.righe} righe totali (${analisi.righeDivs} div), riga più lunga: ${analisi.lunghezzaRigaPiuLunga} char (riga #${analisi.rigaPiuLunga}) | Contenitore: ${larghezzaMax}x${altezzaMax}`);
+        // Include text hash to detect content changes
+        const textHash = analysis ? analysis.id : null;
+        storeInitialSizingState(containerId, fontSize, maxWidth, maxHeight, textHash);
     }
     
-    // Sistema responsivo - ricalcolo font size al cambio dimensioni
-    let resizeTimeouts = new Map();
+    // Responsive system functions
     
     function setupResponsiveFontSize(textEditor, backgroundDiv) {
         if (!textEditor || !backgroundDiv) return;
@@ -299,31 +537,31 @@
         const containerElem = $(backgroundDiv).closest('.flex-item');
         const containerId = containerElem.attr('id') || `container-${Date.now()}`;
         
-        // Ricalcolo font size con cache intelligente
+        // Recalculate font size with intelligent cache
         function handleResize() {
-            // Clear timeout precedente per questo container
-            if (resizeTimeouts.has(containerId)) {
-                clearTimeout(resizeTimeouts.get(containerId));
+            // Clear previous timeout for this container
+            if (ModuleState.resizeTimeouts.has(containerId)) {
+                clearTimeout(ModuleState.resizeTimeouts.get(containerId));
             }
             
-            // Imposta nuovo timeout
-            resizeTimeouts.set(containerId, setTimeout(() => {
-                console.log(`🔄 Resize intelligente per container ${containerId}`);
+            // Set new timeout
+            ModuleState.resizeTimeouts.set(containerId, setTimeout(() => {
+                console.log(`🔄 Intelligent resize for container ${containerId}`);
                 
-                // Prova prima versione veloce (cache)
-                const usedCache = adattaFontSizeFromCache(textEditor, backgroundDiv);
+                // Try ultra-fast proportional scaling first
+                const usedScaling = scaleFontSizeProportionally(textEditor, backgroundDiv, containerId);
                 
-                if (!usedCache) {
-                    // Fallback a calcolo completo se cache non disponibile
-                    console.log(`🐌 Fallback a calcolo completo per container ${containerId}`);
-                    adattaFontSize(textEditor, backgroundDiv);
+                if (!usedScaling) {
+                    // Fallback to complete calculation if no initial state
+                    console.log(`🐌 Fallback to complete calculation for container ${containerId}`);
+                    adaptFontSize(textEditor, backgroundDiv);
                 }
                 
-                resizeTimeouts.delete(containerId);
-            }, 50)); // Debounce ancora più breve per cache veloce
+                ModuleState.resizeTimeouts.delete(containerId);
+            }, CONFIG.OPTIMIZATION.RESIZE_DEBOUNCE));
         }
         
-        // Observer per cambiamenti dimensioni del text-editor-background
+        // Observer for text-editor-background dimension changes
         if (window.ResizeObserver) {
             const resizeObserver = new ResizeObserver((entries) => {
                 for (const entry of entries) {
@@ -336,34 +574,47 @@
             
             resizeObserver.observe(backgroundDiv);
             
-            // Store observer per cleanup futuro
+            // Store observer for future cleanup
             backgroundDiv._fontResizeObserver = resizeObserver;
         } else {
-            // Fallback per browser senza ResizeObserver - usa window resize
+            // Fallback for browsers without ResizeObserver - use window resize
             $(window).on(`resize.responsiveFont.${containerId}`, handleResize);
         }
         
-        // Calcolo iniziale - stesso identico processo
+        // Initial calculation - same identical process
         setTimeout(() => {
-            adattaFontSize(textEditor, backgroundDiv);
-        }, 100);
+            adaptFontSize(textEditor, backgroundDiv);
+        }, CONFIG.OPTIMIZATION.INITIAL_SETUP_DELAY);
     }
     
     // Apply manifesto styles - VERY SIMPLIFIED
     function applyStyles(data, containerElem, img = null) {
+        if (!data || !containerElem?.length) {
+            console.error('❌ Invalid data or container provided to applyStyles');
+            return;
+        }
+        
         const backgroundDiv = containerElem.find('.text-editor-background')[0];
         const textEditor = containerElem.find('.custom-text-editor')[0];
         
-        if (!backgroundDiv || !textEditor) return;
-        
-        if (data.manifesto_background && img) {
-            setupBackground(backgroundDiv, textEditor, data, img);
-        } else {
-            setupNoBackground(backgroundDiv, textEditor, data);
+        if (!backgroundDiv || !textEditor) {
+            console.error('❌ Required DOM elements not found in container');
+            return;
         }
         
-        // Setup sistema responsivo - ricalcolo al resize
-        setupResponsiveFontSize(textEditor, backgroundDiv);
+        try {
+            if (data.manifesto_background && img) {
+                setupBackground(backgroundDiv, textEditor, data, img);
+            } else {
+                setupNoBackground(backgroundDiv, textEditor, data);
+            }
+            
+            // Setup responsive system - recalculate on resize
+            setupResponsiveFontSize(textEditor, backgroundDiv);
+            
+        } catch (error) {
+            console.error(`❌ Error applying styles: ${error.message}`);
+        }
     }
     
     function setupBackground(backgroundDiv, textEditor, data, img) {
@@ -372,12 +623,12 @@
         // Set background image
         backgroundDiv.style.backgroundImage = `url(${data.manifesto_background})`;
         
-        // CSS-based responsive sizing with aspect ratio
+        // CSS-based responsive sizing with aspect ratio (original simple approach)
         backgroundDiv.style.aspectRatio = `${img.width} / ${img.height}`;
         backgroundDiv.style.width = `${CONFIG.CONTAINER_SIZE * 100}%`;
         backgroundDiv.style.height = 'auto'; // Let CSS handle height via aspect-ratio
         backgroundDiv.style.maxWidth = '100%';
-        backgroundDiv.style.maxHeight = '80vh'; // Prevent too tall images
+        backgroundDiv.style.maxHeight = CONFIG.LAYOUT.MAX_HEIGHT;
         
         // Calculate margins as percentages of image dimensions (like old system)
         const marginTop = data.margin_top || 0;
@@ -397,12 +648,12 @@
     
     function setupNoBackground(backgroundDiv, textEditor, data) {
         backgroundDiv.style.backgroundImage = 'none';
-        backgroundDiv.style.aspectRatio = '16 / 9'; // Default A3 ratio
+        backgroundDiv.style.aspectRatio = CONFIG.LAYOUT.DEFAULT_ASPECT_RATIO;
         backgroundDiv.style.width = `${CONFIG.CONTAINER_SIZE * 100}%`;
         backgroundDiv.style.height = 'auto';
         
         // Simple padding for no-background case
-        textEditor.style.padding = '5%';
+        textEditor.style.padding = CONFIG.LAYOUT.NO_BACKGROUND_PADDING;
         textEditor.style.textAlign = data.alignment || 'center';
         
         // Set CSS custom properties
@@ -413,32 +664,41 @@
     
     // Main function to update manifesto
     function updateManifesto(data, containerElem) {
-        if (!data || !containerElem?.length) return;
-        
-        // Store for potential future use
-        const manifestoId = containerElem.attr('id') || `manifesto-${Date.now()}`;
-        if (!containerElem.attr('id')) {
-            containerElem.attr('id', manifestoId);
+        if (!data || !containerElem?.length) {
+            console.error('❌ Invalid data or container provided to updateManifesto');
+            return;
         }
-        manifestiData.set(manifestoId, { data, containerElem });
         
-        const textEditor = containerElem.find('.custom-text-editor')[0];
-        
-        if (data.manifesto_background) {
-            if (textEditor) textEditor.classList.add('loading');
+        try {
+            // Store for potential future use
+            const manifestoId = containerElem.attr('id') || `manifesto-${Date.now()}`;
+            if (!containerElem.attr('id')) {
+                containerElem.attr('id', manifestoId);
+            }
+            ModuleState.manifestiData.set(manifestoId, { data, containerElem });
             
-            loadImage(data.manifesto_background)
-                .then(img => {
-                    applyStyles(data, containerElem, img);
-                    if (textEditor) textEditor.classList.remove('loading');
-                })
-                .catch(() => {
-                    applyStyles(data, containerElem);
-                    if (textEditor) textEditor.classList.remove('loading');
-                });
-        } else {
-            if (textEditor) textEditor.classList.remove('loading');
-            applyStyles(data, containerElem);
+            const textEditor = containerElem.find('.custom-text-editor')[0];
+            
+            if (data.manifesto_background) {
+                if (textEditor) textEditor.classList.add('loading');
+                
+                loadImage(data.manifesto_background)
+                    .then(img => {
+                        applyStyles(data, containerElem, img);
+                        if (textEditor) textEditor.classList.remove('loading');
+                    })
+                    .catch(error => {
+                        console.error(`❌ Error loading background image: ${error.message}`);
+                        applyStyles(data, containerElem);
+                        if (textEditor) textEditor.classList.remove('loading');
+                    });
+            } else {
+                if (textEditor) textEditor.classList.remove('loading');
+                applyStyles(data, containerElem);
+            }
+            
+        } catch (error) {
+            console.error(`❌ Error updating manifesto: ${error.message}`);
         }
     }
     
@@ -446,7 +706,7 @@
     // Initialize on document ready
     $(document).ready(function () {
         
-        // Nessuna forzatura mobile necessaria - CSS Grid gestisce tutto automaticamente
+        // No mobile forcing necessary - CSS Grid handles everything automatically
         
         // Handle manifesto containers
         $('.manifesto-container').each(function () {
@@ -510,7 +770,7 @@
                         loading = false;
                         $loader?.hide();
                         
-                        // Layout automatico CSS Grid - nessuna forzatura necessaria
+                        // Automatic CSS Grid layout - no forcing necessary
                         
                         // Auto-load for "top" type
                         if (tipoManifesto === 'top' && !isInfiniteScroll) {
