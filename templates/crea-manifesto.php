@@ -21,7 +21,6 @@ $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_ann
 $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
 
 
-$form = $template_class->render_post_state_form_and_handle($post_id);
 $redirect_to = isset($_GET['redirect_to']) ? $_GET['redirect_to'] : null;
 
 //se redirect non è null il link di redirect è il redirect_to
@@ -92,16 +91,6 @@ wp_enqueue_style('manifesto-text-editor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL
                         <?php _e($add_edit_text . ' Partecipazione per: ' . $post_title, 'dokan-mod'); ?>
                         <span class="dokan-label dokan-product-status-label"></span>
                     </h1>
-                    <?php
-                    if (isset($_GET['operation_result'])) {
-                        $operation_result = wp_kses($_GET['operation_result'], array());
-                        if ($operation_result == 'success') {
-                            echo '<div class="alert alert-success">Operazione eseguita con successo.</div>';
-                        } else if ($operation_result == 'error') {
-                            echo '<div class="alert alert-danger">Si è verificato un errore durante l\'operazione.</div>';
-                        }
-                    }
-                    ?>
                 </header>
 
                 <div class="product-edit-new-container product-edit-container" style="margin-bottom: 100px">
