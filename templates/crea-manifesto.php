@@ -100,13 +100,8 @@ wp_enqueue_style('manifesto-text-editor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL
                             <!-- Post state control inline -->
                             <?php echo $template_class->render_post_state_inline_control($post_id); ?>
                             
-                            <!-- Custom Text Editor Form -->
-                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                                <?php wp_nonce_field('save_manifesto_nonce', 'manifesto_nonce'); ?>
-                                <input type="hidden" name="action" value="save_manifesto">
-                                <input type="hidden" name="post_id" value="<?php echo $post_id; ?>">
-                                <input type="hidden" name="post_id_annuncio" value="<?php echo $post_id_annuncio; ?>">
-                                <input type="hidden" name="redirect_to" value="<?php echo $redirect_to; ?>">
+                            <!-- Custom Text Editor Form (AJAX) -->
+                            <form id="manifesto-form">
                                 <input type="hidden" name="testo_manifesto" id="testo_manifesto_hidden">
                                 <?php 
                                 // Add the hidden field that the post state control expects

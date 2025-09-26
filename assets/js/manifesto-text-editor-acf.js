@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
     
-    // Sync content before form submission
+    // Handle form submission via AJAX
     const form = document.querySelector('form');
     if (form) {
         form.addEventListener('submit', function(event) {
@@ -336,9 +336,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Validate that content exists
             const hiddenField = document.getElementById('testo_manifesto_hidden');
-            console.log('Hidden field found:', hiddenField);
-            console.log('Hidden field value:', hiddenField ? hiddenField.value : 'FIELD NOT FOUND');
-            console.log('Content length:', hiddenField ? hiddenField.value.trim().length : 0);
             
             if (!hiddenField) {
                 alert('Errore interno: campo nascosto non trovato.');
@@ -350,9 +347,62 @@ document.addEventListener('DOMContentLoaded', function () {
                 return false;
             }
 
-            console.log('Form validation passed, submitting form');
-            // Submit the form
-            form.submit();
+            // Get post status from inline control
+            const postStatusControl = document.getElementById('acf_post_status_control');
+            const postStatus = postStatusControl ? postStatusControl.value : 'publish';
+
+            // Show loading state
+            const submitButton = form.querySelector('button[type="submit"]');
+            const originalText = submitButton ? submitButton.textContent : '';
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = 'Salvataggio in corso...';
+            }
+
+            // Prepare AJAX data
+            const formData = new FormData();
+            formData.append('action', 'save_manifesto_ajax');
+            formData.append('nonce', acf_ajax_object.nonce);
+            formData.append('post_id', acf_ajax_object.post_id);
+            formData.append('post_id_annuncio', acf_ajax_object.post_id_annuncio);
+            formData.append('testo_manifesto', hiddenField.value);
+            formData.append('post_status', postStatus);
+
+            // Send AJAX request
+            fetch(acf_ajax_object.ajax_url, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Success - redirect to the provided URL or default
+                    if (data.data.redirect_url) {
+                        window.location.href = data.data.redirect_url;
+                    } else {
+                        window.location.href = acf_ajax_object.redirect_to;
+                    }
+                } else {
+                    // Error - show message
+                    alert(data.data.message || data.data || 'Errore durante il salvataggio del manifesto');
+                    
+                    // Re-enable button
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                        submitButton.textContent = originalText;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('AJAX error:', error);
+                alert('Errore di connessione. Per favore riprova.');
+                
+                // Re-enable button
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalText;
+                }
+            });
         });
     }
 
