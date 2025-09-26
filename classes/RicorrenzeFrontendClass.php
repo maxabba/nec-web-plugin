@@ -21,45 +21,48 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
         {
             // Imposta i post type
             $query->set('post_type', ['anniversario', 'trigesimo']);
-            //$query->set('posts_per_page', -1); // Limita a 7 post
-            // Data attuale in formato ACF (Ymd)
-            $today = date('Ymd');
-/*            if (defined('WP_DEBUG') && WP_DEBUG) {
-                $meta_query = [
-                    'relation' => 'OR',
-                    [
-                        'key' => 'anniversario_data',
-                        'compare' => 'EXISTS',
-                    ],
-                    [
-                        'key' => 'trigesimo_data',
-                        'compare' => 'EXISTS',
-                    ]
-                ];
-            }else {*/
-                // Costruisci la meta query per includere i post futuri
-                $meta_query = [
-                    'relation' => 'OR',
-                    [
-                        'key' => 'anniversario_data',
-                        'value' => $today,
-                        'compare' => '>=',
-                        'type' => 'DATETIME',
-                    ],
-                    [
-                        'key' => 'trigesimo_data',
-                        'value' => $today,
-                        'compare' => '>=',
-                        'type' => 'DATETIME',
-                    ]
-                ];
-                $query->set('orderby', 'none');
 
-            //}
+            // Data attuale in formato corretto per DATETIME
+            $today = date('Y-m-d');
+            $today_no_dash = date('Ymd');
+
+            $meta_query = [
+                'relation' => 'OR',
+                [
+                    'relation' => 'OR',
+                    [
+                        'key' => 'anniversario_data',
+                        'value' => $today,
+                        'compare' => '>=',
+                        'type' => 'DATE',
+                    ],
+                    [
+                        'key' => 'anniversario_data',
+                        'value' => $today_no_dash,
+                        'compare' => '>=',
+                        'type' => 'NUMERIC',
+                    ]
+                ],
+                [
+                    'relation' => 'OR',
+                    [
+                        'key' => 'trigesimo_data',
+                        'value' => $today,
+                        'compare' => '>=',
+                        'type' => 'DATE',
+                    ],
+                    [
+                        'key' => 'trigesimo_data',
+                        'value' => $today_no_dash,
+                        'compare' => '>=',
+                        'type' => 'NUMERIC',
+                    ]
+                ]
+            ];
 
             $query->set('meta_query', $meta_query);
 
-            // Mantieni la post-elaborazione per l’ordinamento e il filtro avanzato
+            // Mantieni la post-elaborazione per l'ordinamento e il filtro avanzato
             add_filter('the_posts', [$this, 'sort_and_alternate_posts'], 10, 2);
         }
 
@@ -72,6 +75,11 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
          */
         public function sort_and_alternate_posts($posts, $query)
         {
+
+            //error log the number of posts and the query vars
+            error_log('Number of posts : ' . count($posts));
+            //error_log('Query vars: ' . print_r($query->query_vars, true));
+
             // Get current date for comparison
             $current_date = current_time('Y-m-d');
 
@@ -88,9 +96,16 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
                 $post_date = null;
 
                 if ($post->post_type === 'anniversario') {
-                    $post_date = get_field('anniversario_data', $post->ID);
+                    $post_date = get_post_meta($post->ID, 'anniversario_data', true);
+                    if (!$post_date) {
+                        $post_date = get_field('anniversario_data', $post->ID);
+                    }
                 } else if ($post->post_type === 'trigesimo') {
-                    $post_date = get_field('trigesimo_data', $post->ID);
+
+                    $post_date = get_post_meta($post->ID, 'trigesimo_data', true);
+                    if (!$post_date) {
+                        $post_date = get_field('trigesimo_data', $post->ID);
+                    }
                 }
 
                 if ($post_date) {

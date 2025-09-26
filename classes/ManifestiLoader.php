@@ -53,6 +53,9 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
          */
         public function load_manifesti_for_monitor()
         {
+
+            $response = [];
+
             $query = new WP_Query([
                 'post_type' => 'manifesto',
                 'posts_per_page' => -1, // Load all manifesti
@@ -68,13 +71,71 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
                     ],
                     [
                         'key' => 'tipo_manifesto',
-                        'value' => ['top', 'silver', 'online'],
+                        'value' => ['top'],
                         'compare' => 'IN'
                     ]
                 ]
             ]);
 
-            return $this->process_monitor_results($query);
+            $response = array_merge($response, $this->process_monitor_results($query));
+            $query = new WP_Query([
+                'post_type' => 'manifesto',
+                'posts_per_page' => -1, // Load all manifesti
+                'orderby' => 'date',
+                'order' => 'DESC',
+                'post_status' => 'publish',
+                'meta_query' => [
+                    'relation' => 'AND',
+                    [
+                        'key' => 'annuncio_di_morte_relativo',
+                        'value' => $this->post_id,
+                        'compare' => '='
+                    ],
+                    [
+                        'key' => 'tipo_manifesto',
+                        'value' => ['silver', 'online'],
+                        'compare' => 'IN'
+                    ]
+                ]
+            ]);
+
+            //grup this results by author, original author first, then random order for the rest
+            $grouped_results = [];
+            if ($query->have_posts()) {
+                while ($query->have_posts()) {
+                    $query->the_post();
+                    $author_id = get_the_author_meta('ID');
+                    if (!isset($grouped_results[$author_id])) {
+                        $grouped_results[$author_id] = [];
+                    }
+                    $grouped_results[$author_id][] = $this->render_manifesto_for_monitor();
+                }
+            }
+            wp_reset_postdata();
+
+            //sort grouped_result  using original_author_id as first key  and the rest in random order in seed post_id
+            $sorted_grouped_results = [];
+            if (isset($grouped_results[$this->original_author_id])) {
+                $sorted_grouped_results[$this->original_author_id] = $grouped_results[$this->original_author_id];
+                unset($grouped_results[$this->original_author_id]);
+            }
+            $other_authors = array_keys($grouped_results);
+            //sort other_authors in random order using seed post_id
+            $seed = $this->post_id;
+            usort($other_authors, function ($a, $b) use ($seed) {
+                return (($a * $seed) % 100) - (($b * $seed) % 100);
+            });
+            foreach ($other_authors as $author_id) {
+                $sorted_grouped_results[$author_id] = $grouped_results[$author_id];
+            }
+
+            //flatten the sorted_grouped_results array
+            foreach ($sorted_grouped_results as $author_id => $manifestos) {
+                $response = array_merge($response, $manifestos);
+            }
+
+
+            return $response;
         }
 
         /**
