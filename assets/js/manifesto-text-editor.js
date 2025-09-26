@@ -15,12 +15,26 @@ document.addEventListener('DOMContentLoaded', function () {
             img.onload = function () {
                 const aspectRatio = img.width / img.height;
                 backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
-                if (aspectRatio > 1) {
-                    backgroundDiv.style.width = '400px';
-                    backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
+                
+                // Use responsive sizing based on viewport instead of fixed 400px
+                const maxHeight = window.innerWidth <= 1024 ? '70vh' : '80vh';
+                const maxWidth = '100%';
+                
+                // Set CSS properties for responsive behavior
+                backgroundDiv.style.width = maxWidth;
+                backgroundDiv.style.maxHeight = maxHeight;
+                backgroundDiv.style.height = 'auto';
+                
+                // Set aspect-ratio CSS property for modern browsers
+                if (CSS.supports('aspect-ratio', `${aspectRatio}`)) {
+                    backgroundDiv.style.aspectRatio = aspectRatio;
                 } else {
-                    backgroundDiv.style.height = '400px';
-                    backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
+                    // Fallback for older browsers
+                    if (aspectRatio > 1) {
+                        backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
+                    } else {
+                        backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
+                    }
                 }
 
                 marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
@@ -33,6 +47,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 textEditor.style.paddingBottom = `${marginBottomPx}px`;
                 textEditor.style.paddingLeft = `${marginLeftPx}px`;
                 textEditor.style.textAlign = data.alignment ? data.alignment : 'left';
+                
+                // Set dynamic font-size for paragraphs based on image orientation
+                const fontSize = aspectRatio > 1 ? '8cqh' : '4cqh'; // horizontal: 10cqh, vertical: 4cqh
+                const paragraphs = textEditor.querySelectorAll('p');
+                paragraphs.forEach(p => {
+                    p.style.fontSize = fontSize;
+                });
+                
+                // Set font-size for future paragraphs via CSS rule
+                const styleElement = document.getElementById('dynamic-paragraph-style') || document.createElement('style');
+                styleElement.id = 'dynamic-paragraph-style';
+                styleElement.innerHTML = `.custom-text-editor p { font-size: ${fontSize} !important; }`;
+                if (!document.getElementById('dynamic-paragraph-style')) {
+                    document.head.appendChild(styleElement);
+                }
             }
         } else {
             backgroundDiv.style.backgroundImage = 'none';

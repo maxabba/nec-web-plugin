@@ -532,24 +532,37 @@ class MonitorDisplay {
                     textEditor.style.paddingLeft = `${marginLeftPx}px`;
                     textEditor.style.textAlign = data.alignment || 'left';
                     
-                    // Calculate font-size proportional to background dimensions (responsive to monitor size)
+                    // Calculate font-size proportional to background dimensions
                     const currentWidth = parseInt(backgroundDiv.style.width);
                     const currentHeight = parseInt(backgroundDiv.style.height);
-                    const actualBaseSize = Math.min(currentWidth, currentHeight);
-                    let baseFontSize;
                     
-                    // Scale font size based on manifesto dimensions - adapted from manifesto.js
-                    if (actualBaseSize < 300) {
-                        baseFontSize = Math.max(12, actualBaseSize * 0.06);
-                    } else if (actualBaseSize < 450) {
-                        baseFontSize = Math.max(16, actualBaseSize * 0.05);
+                    // Determine image orientation
+                    const isLandscape = currentWidth > currentHeight;
+                    const isPortrait = currentHeight > currentWidth;
+                    
+                    // Calculate consistent font-size based on image dimensions and orientation only
+                    let baseFontSize;
+                    let lineHeightMultiplier = 1.3; // default line-height multiplier
+                    
+                    // Use area-based calculation for more consistent results
+                    const area = currentWidth * currentHeight;
+
+                    // Base font size calculation using area
+                    let areaBasedFontSize = Math.sqrt(area) * 0.07; // Base calculation from area
+                    
+                    // Apply orientation-based adjustments
+                    if (isPortrait) {
+                        baseFontSize = areaBasedFontSize * 0.9; // Smaller font for portrait
+                        lineHeightMultiplier = 1.2; // Tighter line-height for portrait
+                    } else if (isLandscape) {
+                        baseFontSize = areaBasedFontSize * 1; // Same font for landscape
+                        lineHeightMultiplier = 1.2; // Same line-height for landscape
                     } else {
-                        baseFontSize = Math.max(20, actualBaseSize * 0.04);
+                        baseFontSize = areaBasedFontSize; // Square images use base calculation
                     }
                     
                     textEditor.style.fontSize = `${baseFontSize}px`;
-                    
-                    // Paragraph margins are now handled by CSS
+                    textEditor.style.lineHeight = `${baseFontSize * lineHeightMultiplier}px`;
                     
                     // Ensure text is visible
                     textEditor.style.color = '#000';
@@ -571,7 +584,10 @@ class MonitorDisplay {
                             const currentFontSize = parseFloat(textEditor.style.fontSize);
                             const reductionFactor = Math.max(0.8, textEditor.clientHeight / textEditor.scrollHeight);
                             const newFontSize = Math.max(6, currentFontSize * reductionFactor);
+                            const newLineHeight = newFontSize * lineHeightMultiplier;
+                            
                             textEditor.style.fontSize = `${newFontSize}px`;
+                            textEditor.style.lineHeight = `${newLineHeight}px`;
                             iterations++;
                             
                             if (iterations === 1) {
@@ -622,12 +638,16 @@ class MonitorDisplay {
             setTimeout(() => {
                 let iterations = 0;
                 const maxIterations = 10;
-                
+                const defaultLineHeightMultiplier = 1.3; // Default line-height multiplier for no-background case
+
                 while (textEditor.scrollHeight > textEditor.clientHeight && iterations < maxIterations) {
                     const currentFontSize = parseFloat(textEditor.style.fontSize);
                     const reductionFactor = Math.max(0.8, textEditor.clientHeight / textEditor.scrollHeight);
                     const newFontSize = Math.max(6, currentFontSize * reductionFactor);
+                    const newLineHeight = newFontSize * defaultLineHeightMultiplier;
+                    
                     textEditor.style.fontSize = `${newFontSize}px`;
+                    textEditor.style.lineHeight = `${newLineHeight}px`;
                     iterations++;
                     
                     if (iterations === 1) {

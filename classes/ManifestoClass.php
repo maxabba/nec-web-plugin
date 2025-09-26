@@ -39,9 +39,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             add_action('wp_ajax_load_more_manifesti', array($this, 'load_more_manifesti'));
             add_action('wp_ajax_nopriv_load_more_manifesti', array($this, 'load_more_manifesti'));
 
-            // Custom manifesto save action
-            add_action('wp_ajax_save_custom_manifesto', array($this, 'save_custom_manifesto'));
-            add_action('wp_ajax_nopriv_save_custom_manifesto', array($this, 'save_custom_manifesto'));
+
 
             // Add ACF save post hook for dashboard manifesto creation
             add_action('acf/save_post', array($this, 'manifesto_save_post'), 20);
@@ -513,104 +511,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             wp_die();
         }
 
-        public function save_custom_manifesto()
-        {
-            // Verify nonce for security
-            if (!wp_verify_nonce($_POST['nonce'], 'save_manifesto_nonce')) {
-                wp_send_json_error('Security check failed');
-                wp_die();
-            }
-
-            // Check if user is logged in
-            if (!is_user_logged_in()) {
-                wp_send_json_error('User not logged in');
-                wp_die();
-            }
-
-            // Get and validate data
-            $post_id = isset($_POST['post_id']) ? sanitize_text_field($_POST['post_id']) : '';
-            $post_id_annuncio = isset($_POST['post_id_annuncio']) ? intval($_POST['post_id_annuncio']) : null;
-            $testo_manifesto = isset($_POST['testo_manifesto']) ? wp_kses_post($_POST['testo_manifesto']) : '';
-            $redirect_to = isset($_POST['redirect_to']) ? esc_url_raw($_POST['redirect_to']) : '';
-
-            if (!$post_id_annuncio || !$testo_manifesto) {
-                wp_send_json_error('Missing required data');
-                wp_die();
-            }
-
-            $user_id = get_current_user_id();
-
-            // Check if vendor is enabled
-            if (dokan_is_user_seller($user_id) && !dokan_is_seller_enabled($user_id)) {
-                wp_send_json_error('Vendor account not enabled');
-                wp_die();
-            }
-
-            try {
-                if ($post_id === 'new_post') {
-                    // Create new post
-                    $post_data = array(
-                        'post_title' => 'Manifesto per ' . get_the_title($post_id_annuncio),
-                        'post_status' => 'publish',
-                        'post_author' => $user_id,
-                        'post_type' => 'manifesto',
-                    );
-
-                    $new_post_id = wp_insert_post($post_data);
-
-                    if (is_wp_error($new_post_id)) {
-                        wp_send_json_error('Error creating post: ' . $new_post_id->get_error_message());
-                        wp_die();
-                    }
-
-                    $post_id = $new_post_id;
-                } else {
-                    // Update existing post
-                    $post_id = intval($post_id);
-                    
-                    // Verify user can edit this post
-                    if (get_post_field('post_author', $post_id) != $user_id) {
-                        wp_send_json_error('Permission denied');
-                        wp_die();
-                    }
-
-                    // Update post title
-                    wp_update_post(array(
-                        'ID' => $post_id,
-                        'post_title' => 'Manifesto per ' . get_the_title($post_id_annuncio)
-                    ));
-                }
-
-                // Update ACF fields directly
-                update_field('testo_manifesto', $testo_manifesto, $post_id);
-                update_field('annuncio_di_morte_relativo', $post_id_annuncio, $post_id);
-                update_field('vendor_id', $user_id, $post_id);
-                update_field('tipo_manifesto', 'online', $post_id);
-
-                // Copy city and province from annuncio
-                $annuncio_city = get_field('citta', $post_id_annuncio);
-                $annuncio_province = get_field('provincia', $post_id_annuncio);
-                
-                if (!empty($annuncio_city)) {
-                    update_field('citta', $annuncio_city, $post_id);
-                }
-                if (!empty($annuncio_province)) {
-                    update_field('provincia', $annuncio_province, $post_id);
-                }
-
-                // Return success with redirect URL
-                wp_send_json_success(array(
-                    'post_id' => $post_id,
-                    'redirect_to' => $redirect_to ?: home_url('/dashboard/lista-manifesti/?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success'),
-                    'message' => 'Manifesto salvato con successo!'
-                ));
-
-            } catch (Exception $e) {
-                wp_send_json_error('Error saving manifesto: ' . $e->getMessage());
-            }
-
-            wp_die();
-        }
 
         public function save_manifesto()
         {
