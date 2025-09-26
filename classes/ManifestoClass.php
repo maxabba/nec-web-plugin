@@ -13,6 +13,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
     {
         public function __construct()
         {
+
             add_action('init', array($this, 'register_shortcodes'));
             add_action('wp_enqueue_scripts', array($this, 'my_enqueue_scripts'));
 
@@ -21,6 +22,11 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
             add_action('admin_post_save_custom_text_editor', array($this, 'save_custom_text_editor'));
             add_action('admin_post_nopriv_save_custom_text_editor', array($this, 'save_custom_text_editor'));
+
+            // New manifesto form handler
+            add_action('admin_post_save_manifesto', array($this, 'save_manifesto'));
+            add_action('admin_post_nopriv_save_manifesto', array($this, 'save_manifesto'));
+            
 
             add_action('woocommerce_payment_complete', array($this, 'handle_payment_complete'));
             add_filter('woocommerce_get_item_data', array($this, 'display_manifesto_and_post_title_in_cart'), 10, 2);
@@ -33,6 +39,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
             add_action('wp_ajax_load_more_manifesti', array($this, 'load_more_manifesti'));
             add_action('wp_ajax_nopriv_load_more_manifesti', array($this, 'load_more_manifesti'));
+
+
 
             // Add ACF save post hook for dashboard manifesto creation
             add_action('acf/save_post', array($this, 'manifesto_save_post'), 20);
@@ -462,7 +470,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                             <button type="button" data-command="italic"><i>I</i></button>
                             <button type="button" data-command="underline"><u>U</u></button>
                         </div>
-                        <div id="text-editor-background" class="text-editor-background" style="background-image: none;">
+                        <div id="text-editor-background" class="text-editor-background" style="background-image: none;container-type: unset; ">
                             <div id="text-editor" contenteditable="true" class="custom-text-editor"></div>
                         </div>
 
@@ -483,6 +491,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             $post_id = intval($_POST['post_id']) !== null ? intval($_POST['post_id']) : null;
             $offset = intval($_POST['offset']) !== null ? intval($_POST['offset']) : 0;
             $tipo_manifesto = $_POST['tipo_manifesto'] ?? null;
+            $current_author_id = isset($_POST['current_author_id']) ? intval($_POST['current_author_id']) : null;
+            $author_offset = isset($_POST['author_offset']) ? intval($_POST['author_offset']) : 0;
 
             if (!$post_id) {
                 wp_send_json_error('Invalid post ID');
@@ -490,10 +500,119 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             }
 
             $loader = new ManifestiLoader($post_id, $offset, $tipo_manifesto);
+            
+            // Set author-specific pagination if provided
+            if ($current_author_id !== null) {
+                $loader->set_author_pagination($current_author_id, $author_offset);
+            }
+            
             $response = $loader->load_manifesti();
 
             wp_send_json_success($response);
             wp_die();
+        }
+
+
+        public function save_manifesto()
+        {
+            // Debug logging
+            error_log('save_manifesto method called');
+            error_log('POST data: ' . print_r($_POST, true));
+            
+            // Verify nonce
+            if (!wp_verify_nonce($_POST['manifesto_nonce'], 'save_manifesto_nonce')) {
+                error_log('Nonce verification failed');
+                wp_die('Security check failed');
+            }
+            
+            // Check if user is logged in
+            if (!is_user_logged_in()) {
+                wp_die('User not logged in');
+            }
+            
+            // Get and validate data
+            $post_id = isset($_POST['post_id']) ? sanitize_text_field($_POST['post_id']) : '';
+            $post_id_annuncio = isset($_POST['post_id_annuncio']) ? intval($_POST['post_id_annuncio']) : null;
+            $testo_manifesto = isset($_POST['testo_manifesto']) ? wp_kses_post($_POST['testo_manifesto']) : '';
+            $redirect_to = isset($_POST['redirect_to']) ? esc_url_raw($_POST['redirect_to']) : '';
+            
+            if (!$post_id_annuncio || !$testo_manifesto) {
+                // Better error reporting for debugging
+                $error_details = array();
+                if (!$post_id_annuncio) $error_details[] = 'post_id_annuncio missing';
+                if (!$testo_manifesto) $error_details[] = 'testo_manifesto empty or missing';
+                
+                error_log('Manifesto save failed: ' . implode(', ', $error_details));
+                error_log('POST data: ' . print_r($_POST, true));
+                
+                wp_die('Missing required data: ' . implode(', ', $error_details));
+            }
+            
+            $user_id = get_current_user_id();
+            
+            // Check if vendor is enabled
+            if (dokan_is_user_seller($user_id) && !dokan_is_seller_enabled($user_id)) {
+                wp_die('Vendor account not enabled');
+            }
+            
+            try {
+                if ($post_id === 'new_post') {
+                    // Create new post
+                    $post_data = array(
+                        'post_title' => 'Manifesto per ' . get_the_title($post_id_annuncio),
+                        'post_status' => 'publish',
+                        'post_author' => $user_id,
+                        'post_type' => 'manifesto',
+                    );
+                    
+                    $new_post_id = wp_insert_post($post_data);
+                    
+                    if (is_wp_error($new_post_id)) {
+                        wp_die('Error creating post: ' . $new_post_id->get_error_message());
+                    }
+                    
+                    $post_id = $new_post_id;
+                } else {
+                    // Update existing post
+                    $post_id = intval($post_id);
+                    
+                    // Verify user can edit this post
+                    if (get_post_field('post_author', $post_id) != $user_id) {
+                        wp_die('Permission denied');
+                    }
+                    
+                    // Update post title
+                    wp_update_post(array(
+                        'ID' => $post_id,
+                        'post_title' => 'Manifesto per ' . get_the_title($post_id_annuncio)
+                    ));
+                }
+                
+                // Update ACF fields directly
+                update_field('testo_manifesto', $testo_manifesto, $post_id);
+                update_field('annuncio_di_morte_relativo', $post_id_annuncio, $post_id);
+                update_field('vendor_id', $user_id, $post_id);
+                update_field('tipo_manifesto', 'online', $post_id);
+                
+                // Copy city and province from annuncio
+                $annuncio_city = get_field('citta', $post_id_annuncio);
+                $annuncio_province = get_field('provincia', $post_id_annuncio);
+                
+                if (!empty($annuncio_city)) {
+                    update_field('citta', $annuncio_city, $post_id);
+                }
+                if (!empty($annuncio_province)) {
+                    update_field('provincia', $annuncio_province, $post_id);
+                }
+                
+                // Redirect to success page
+                $redirect_url = $redirect_to ?: home_url('/dashboard/lista-manifesti/?post_id_annuncio=' . $post_id_annuncio . '&operation_result=success');
+                wp_redirect($redirect_url);
+                exit;
+                
+            } catch (Exception $e) {
+                wp_die('Error saving manifesto: ' . $e->getMessage());
+            }
         }
 
 // Shortcode PHP per generare il container e il loader

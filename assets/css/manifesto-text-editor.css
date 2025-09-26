@@ -32,7 +32,7 @@
 
 .custom-text-editor {
     width: 100%;
-    height: calc(100% - 50px); /* Altezza totale meno l'altezza della toolbar */
+    height: 100%; /* Altezza totale meno l'altezza della toolbar */
     border: none;
     background: transparent;
     color: #000;
@@ -40,10 +40,13 @@
     box-sizing: border-box;
     outline: none;
     overflow: visible;
-    font-size: 14px; /* Dimensione del font reattiva e leggermente più piccola di 16px */
+    container-type: size;
+
+    /*font-size: clamp(1.6rem, 5cqh , 7cqh); /* Dimensione del font reattiva e leggermente più piccola di 16px */
     font-family: var(--e-global-typography-text-font-family), Sans-serif;
     font-weight: var(--e-global-typography-text-font-weight);
 }
+
 
 @media (max-width: 768px) {
     .text-editor-container {
@@ -55,6 +58,18 @@
     }
 
     .custom-text-editor {
-        font-size: 14px; /* Dimensione del font reattiva per schermi piccoli */
+        /*font-size: 14px; /* Dimensione del font reattiva per schermi piccoli */
     }
+}
+
+.manifesti-container{
+    width: clamp(300px, 80%, 600px);
+}
+
+.manifesto-container{
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: left;
+    /* justify-content sarà modificato dinamicamente con JavaScript in base al numero di manifesti */
 }

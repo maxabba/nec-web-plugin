@@ -88,7 +88,15 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
 
 
         public function render_post_state_form_and_handle($post_id){
-            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['post_status'])) {
+            // Debug: Log POST requests to see what's being intercepted
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                error_log('Templates_MiscClass - POST request detected');
+                error_log('POST data: ' . print_r($_POST, true));
+                error_log('post_status set: ' . (isset($_POST['post_status']) ? 'YES' : 'NO'));
+                error_log('action set: ' . (isset($_POST['action']) ? 'YES - ' . $_POST['action'] : 'NO'));
+            }
+            
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['post_status']) && !isset($_POST['action'])) {
                 $post_status = sanitize_text_field($_POST['post_status']);
 
                 $post_id = intval($_POST['post_id']);

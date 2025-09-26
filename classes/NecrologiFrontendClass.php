@@ -26,6 +26,16 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
             add_shortcode('acf_composito', array($this, 'get_acf_composito_field_value'));
 
             // add_action('init', array($this, 'custom_rewrite_rules'));
+
+            add_shortcode("login_or_name_of_user", function() {
+                if(is_user_logged_in()) {
+                    $current_user = wp_get_current_user();
+                    //return username
+                    return esc_html($current_user->user_login);
+                } else {
+                    return 'Area riservata Agenzie';
+                }
+            });
         }
 
         public function enqueue_select2()

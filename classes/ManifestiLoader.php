@@ -17,6 +17,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
         private $tipo_manifesto;
         private $limit;
         private $original_author_id;
+        private $current_author_id;
+        private $author_offset;
 
         public function __construct($post_id, $offset, $tipo_manifesto, $limit = 20)
         {
@@ -25,6 +27,17 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
             $this->tipo_manifesto = $tipo_manifesto;
             $this->limit = $limit;
             $this->original_author_id = get_post_field('post_author', $post_id);
+            $this->current_author_id = null;
+            $this->author_offset = 0;
+        }
+
+        /**
+         * Set author-specific pagination parameters
+         */
+        public function set_author_pagination($author_id, $author_offset)
+        {
+            $this->current_author_id = $author_id;
+            $this->author_offset = $author_offset;
         }
 
         public function load_manifesti()
@@ -178,10 +191,19 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
         private function load_grouped_manifesti()
         {
             $author_order = $this->get_ordered_authors();
-            $current_author_data = $this->calculate_current_author($author_order);
+            
+            // Use author-specific pagination if provided
+            if ($this->current_author_id !== null) {
+                $current_author_data = [
+                    'author_id' => $this->current_author_id,
+                    'offset' => $this->author_offset
+                ];
+            } else {
+                $current_author_data = $this->calculate_current_author($author_order);
+            }
 
             if (!$current_author_data) {
-                return [];
+                return $this->build_response_with_meta([], null);
             }
 
             $query = new WP_Query([
@@ -197,26 +219,40 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
 
             $response = [];
 
-            // Se non è il primo autore e stiamo caricando i suoi primi post
+            // Add divider only if we're starting a new author (not original) and at offset 0
             if ($current_author_data['author_id'] !== $this->original_author_id &&
                 $current_author_data['offset'] === 0) {
                 $response[] = $this->get_divider();
             }
 
-            // Se siamo all'ultimo post di questo autore e ci sono altri autori dopo
+            // Process query results first
+            $results = $this->process_query_results($query);
+            
+            // Calculate pagination metadata
             $total_author_posts = $this->get_author_total_posts($current_author_data['author_id']);
             $current_position = $current_author_data['offset'] + $query->post_count;
-
-            if ($current_position >= $total_author_posts) {
-                $next_author_exists = $this->check_next_author_exists($author_order, $current_author_data['author_id']);
-                if ($next_author_exists) {
-                    $results = $this->process_query_results($query);
-                    $results[] = $this->get_divider();
-                    return array_merge($response, $results);
+            $next_author_info = null;
+            
+            // Check if there's a next author for pagination info, but don't add divider here
+            if (!empty($results)) {
+                if ($current_position >= $total_author_posts) {
+                    $next_author_info = $this->get_next_author_info($author_order, $current_author_data['author_id']);
+                    // Remove the ending divider - it will be added at the beginning of next author's batch
                 }
             }
 
-            return array_merge($response, $this->process_query_results($query));
+            $manifesti = array_merge($response, $results);
+            
+            // Calculate next pagination info
+            $pagination_info = $this->calculate_next_pagination_info(
+                $current_author_data, 
+                $author_order, 
+                $total_author_posts, 
+                $current_position,
+                $next_author_info
+            );
+
+            return $this->build_response_with_meta($manifesti, $pagination_info);
         }
 
 
@@ -256,22 +292,46 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
             // Usa l'ID del post come seed per mantenere lo stesso ordine casuale
             $seed = $this->post_id;
 
-            $other_authors_query = new WP_Query([
+            // Get ALL authors who have manifestos for this annuncio with the specific tipo_manifesto
+            $all_authors_query = new WP_Query([
                 'post_type' => 'manifesto',
                 'fields' => 'id=>post_author',
                 'posts_per_page' => -1,
                 'meta_query' => $this->get_meta_query(),
-                'author__not_in' => [$this->original_author_id, 1]
+                'author__not_in' => [1] // Exclude only admin user (ID 1)
             ]);
 
-            $other_authors = array_unique(wp_list_pluck($other_authors_query->posts, 'post_author'));
+            $all_authors = array_unique(wp_list_pluck($all_authors_query->posts, 'post_author'));
+            
+            // Filter out authors with zero posts (consistency check)
+            $valid_authors = array_filter($all_authors, function($author_id) {
+                $count = count(get_posts([
+                    'post_type' => 'manifesto',
+                    'author' => $author_id,
+                    'posts_per_page' => -1,
+                    'fields' => 'ids',
+                    'meta_query' => $this->get_meta_query()
+                ]));
+                return $count > 0;
+            });
+            
+            // Separate original author from others, only if they have valid posts
+            $other_authors = array_filter($valid_authors, function($author_id) {
+                return $author_id != $this->original_author_id;
+            });
 
             // Ordina gli altri autori in modo deterministico basato sul seed
             usort($other_authors, function ($a, $b) use ($seed) {
                 return (($a * $seed) % 100) - (($b * $seed) % 100);
             });
 
-            return array_merge([$this->original_author_id], $other_authors);
+            // Only include original author if they have posts for this tipo_manifesto
+            $ordered_authors = [];
+            if (in_array($this->original_author_id, $valid_authors)) {
+                $ordered_authors[] = $this->original_author_id;
+            }
+            
+            return array_merge($ordered_authors, $other_authors);
         }
 
         private function calculate_current_author($author_order)
@@ -309,7 +369,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
                 while ($query->have_posts()) {
                     $query->the_post();
 
-                    if (!get_field('immagine_manifesto_old') && !(get_field("testo_manifesto")))
+                    if (!(get_field("testo_manifesto")))
                     {
                         continue; // Skip this manifesto if both fields are empty
                     }
@@ -349,6 +409,74 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
                 'html' => ob_get_clean(),
                 'vendor_data' => $vendor_data
             ];
+        }
+
+        /**
+         * Get information about the next author in sequence
+         */
+        private function get_next_author_info($author_order, $current_author_id)
+        {
+            $current_index = array_search($current_author_id, $author_order);
+            
+            if ($current_index !== false && isset($author_order[$current_index + 1])) {
+                return [
+                    'author_id' => $author_order[$current_index + 1],
+                    'author_offset' => 0
+                ];
+            }
+            
+            return null;
+        }
+
+        /**
+         * Calculate next pagination information for JS
+         */
+        private function calculate_next_pagination_info($current_author_data, $author_order, $total_author_posts, $current_position, $next_author_info)
+        {
+            // If we haven't reached the end of current author's posts
+            if ($current_position < $total_author_posts) {
+                return [
+                    'has_more' => true,
+                    'current_author_id' => $current_author_data['author_id'],
+                    'author_offset' => $current_position,
+                    'next_author' => null
+                ];
+            }
+            
+            // If we're at the end of current author but there's a next author
+            if ($next_author_info) {
+                return [
+                    'has_more' => true,
+                    'current_author_id' => $next_author_info['author_id'],
+                    'author_offset' => 0,
+                    'next_author' => $next_author_info
+                ];
+            }
+            
+            // No more content available
+            return [
+                'has_more' => false,
+                'current_author_id' => null,
+                'author_offset' => 0,
+                'next_author' => null
+            ];
+        }
+
+        /**
+         * Build response with pagination metadata for JS tracking
+         */
+        private function build_response_with_meta($manifesti, $pagination_info)
+        {
+            if ($this->tipo_manifesto === 'top' || $this->current_author_id !== null) {
+                // For 'top' type or when using author-specific pagination, return manifesti with metadata
+                return [
+                    'manifesti' => $manifesti,
+                    'pagination' => $pagination_info
+                ];
+            }
+            
+            // Fallback for backward compatibility
+            return $manifesti;
         }
     }
 }
