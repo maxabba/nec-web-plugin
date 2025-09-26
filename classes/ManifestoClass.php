@@ -57,7 +57,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             $post_type = get_post_type();
             //if type post is annuncio_di_morte
             if ($post_type === 'annuncio-di-morte') {
-                wp_enqueue_script('my-manifesto-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/manifesto.js', array('jquery'), null, true);
+                wp_enqueue_script('my-manifesto-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/manifesto.js', array('jquery'), '2.1.3', true);
                 wp_localize_script('my-manifesto-script', 'my_ajax_object', array(
                     'ajax_url' => admin_url('admin-ajax.php')
                 ));
@@ -68,7 +68,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
 
             if (get_query_var('manifesto-top') || get_query_var('manifesto-silver') || get_query_var('manifesto-online') ) {
-                wp_enqueue_script('text-editor-manifesto-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/manifesto-text-editor.js', array('jquery'), null, true);
+                wp_enqueue_script('text-editor-manifesto-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/manifesto-text-editor.js', array('jquery'), '2.1.0', true);
                 wp_localize_script('text-editor-manifesto-script', 'my_ajax_object', array(
                     'ajax_url' => admin_url('admin-ajax.php')
                 ));

@@ -1,3 +1,15 @@
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
 (function ($) {
     // Cache globale per le immagini di sfondo
     const imageCache = new Map();
@@ -194,21 +206,26 @@
                         }
 
                         // Handle new response structure with pagination metadata
-                        var manifesti = response.data;
+                        var manifesti = null;
                         var pagination = null;
-                        console.log('Received manifesti:', manifesti.length);
+
                         // Check if response contains pagination metadata (new structure)
                         if (response.data.manifesti && response.data.pagination) {
                             manifesti = response.data.manifesti;
                             pagination = response.data.pagination;
-                            
-                            // Update author pagination for next request
-                            if (pagination.has_more) {
-                                currentAuthorId = pagination.current_author_id;
-                                authorOffset = pagination.author_offset;
-                            } else {
-                                allDataLoaded = true;
-                            }
+                            console.log('Received manifesti:', manifesti.length);
+
+                            //se response.data.manifesti è vuoto e pagination offset e -1 e is_finished_current_author true, significa che abbiamo finito tutto
+                            if((!manifesti || manifesti.length === 0) && pagination['offset']
+                                && pagination['offset'] === -1
+                                && pagination['is_finished_current_author'] === true) {
+                                    allDataLoaded = true;
+                                    $sentinel && $sentinel.remove();
+                                    $loader && $loader.hide();
+                                    return;
+                                }
+                        }else {
+                            console.log('Struttura della risposta non riconosciuta. Contatta l\'amministratore del sito.');
                         }
 
                         // Check if we have manifesti to display
@@ -219,8 +236,6 @@
                             return;
                         }
 
-                        // Process manifesti and count only real manifesti (not dividers)
-                        var realManifestiCount = 0;
                         manifesti.forEach(function (item) {
                             if (!item || !item.html) return;
 
@@ -231,19 +246,25 @@
                             container.parent().parent().parent().parent().find('.manifesto_divider').show();
 
                             // Count only real manifesti, not dividers - check both vendor_data and HTML content
-                            var isDivider = !item.vendor_data || item.html.includes('manifesto_divider') || item.html.includes('class="col-12"');
-                            if (!isDivider) {
-                                updateEditorBackground(item.vendor_data, newElement);
-                                realManifestiCount++;
-                            }
+
+                            updateEditorBackground(item.vendor_data, newElement);
+
                         });
 
-                        offset += realManifestiCount;
-                        totalManifesti += realManifestiCount;
+                        offset = pagination['offset'];
+
+                        if(pagination['is_finished_current_author'] == true)
+                        {
+                            var divider = $('<div class="col-12" style="width: 90%;"><hr class="manifesto_divider" style="margin: 30px 0;"></div>');
+                            container.append(divider);
+                        }
+
+
+
+                        totalManifesti += pagination['offset'];
                         loading = false;
                         $loader && $loader.hide();
                         
-                        console.log('Batch loaded - offset:', offset, 'realManifesti:', realManifestiCount, 'allDataLoaded:', allDataLoaded);
 
                         // Con grid layout non è più necessario modificare justify-content
                         // Il grid gestisce automaticamente il layout
@@ -252,17 +273,6 @@
                         // mentre i nuovi 5 vengono caricati offscreen
                         if (window.innerWidth <= 768 && prevScrollPos !== null) {
                             $(window).scrollTop(prevScrollPos);
-                        }
-
-                        // Se abbiamo caricato pochissimi elementi (1-2), potrebbe essere un batch di transizione
-                        // In questo caso, forza il caricamento del prossimo batch per migliorare l'UX
-                        if (realManifestiCount <= 2 && !allDataLoaded && isInfiniteScroll) {
-                            console.log('🚀 Small batch detected, preloading next batch for better UX');
-                            setTimeout(function() {
-                                if (!loading && !allDataLoaded) {
-                                    loadManifesti(true);
-                                }
-                            }, 100);
                         }
 
                         // Forza un check dell'IntersectionObserver dopo il DOM update
@@ -278,10 +288,7 @@
                             }
                         }, 200);
 
-                        // Per "top": carica il batch successivo in automatico
-                        if (tipo_manifesto === 'top' && !isInfiniteScroll) {
-                            loadManifesti();
-                        }
+
                     },
                     error: function (jqXHR, textStatus, errorThrown) {
                         console.error("Error during loading:", textStatus, errorThrown);
@@ -295,7 +302,19 @@
                 loadManifesti();
             } else {
                 // Usa l'infinite scroll osservando la sentinella
+// Modifica la sezione dell'IntersectionObserver nel tuo codice
                 if ($sentinel && $sentinel.length > 0) {
+                    // Configurazione ottimizzata per mobile
+                    var isMobile = window.innerWidth <= 768;
+
+                    // Debounce per evitare chiamate multiple
+                    var debouncedLoad = debounce(function () {
+                        if (!loading && !allDataLoaded) {
+                            console.log('🔄 Triggering infinite scroll load');
+                            loadManifesti(true);
+                        }
+                    }, isMobile ? 500 : 300);
+
                     var observer = new IntersectionObserver(function (entries) {
                         entries.forEach(function (entry) {
                             console.log('Sentinel intersection:', {
@@ -304,18 +323,41 @@
                                 allDataLoaded: allDataLoaded,
                                 offset: offset
                             });
-                            if (entry.isIntersecting && !loading && !allDataLoaded) {
-                                console.log('🔄 Triggering infinite scroll load');
-                                loadManifesti(true);
+
+                            if (entry.isIntersecting) {
+                                // Usa il debounced load su mobile
+                                if (isMobile) {
+                                    debouncedLoad();
+                                } else if (!loading && !allDataLoaded) {
+                                    loadManifesti(true);
+                                }
                             }
                         });
                     }, {
                         root: null,
-                        rootMargin: '0px',
-                        threshold: 0.1
+                        // Pre-carica prima su mobile per evitare lag
+                        rootMargin: isMobile ? '50px' : '0px',
+                        threshold: isMobile ? 0.1 : 0.1
                     });
 
                     observer.observe($sentinel[0]);
+
+                    // Ottimizzazioni mobile aggiuntive
+                    if (isMobile) {
+                        // Previeni scroll durante il caricamento su mobile
+                        var originalScrollPos;
+                        $(document).on('ajaxStart', function () {
+                            if (loading) {
+                                originalScrollPos = $(window).scrollTop();
+                            }
+                        });
+
+                        // Smooth scroll per mobile
+                        container.css({
+                            '-webkit-overflow-scrolling': 'touch',
+                            'will-change': 'transform'
+                        });
+                    }
 
                     // Carica il primo batch
                     loadManifesti(true);

@@ -24,6 +24,8 @@ if ($post_id !== 'new_post') {
     }
 }
 
+$add_edit_text = $post_id === 'new_post' ? 'Crea' : 'Modifica';
+
 //check if vendor status is enabled
 $disable_form = false;
 if (dokan_is_user_seller($user_id) && !dokan_is_seller_enabled($user_id)) {
@@ -75,7 +77,7 @@ $active_menu = 'annunci/crea-annuncio';
                     <header class="dokan-dashboard-header dokan-clearfix">
 
                         <h1 class="entry-title">
-                            <?php _e('Crea Nuovo Annuncio di Morte', 'dokan-mod'); ?> <span
+                            <?php _e($add_edit_text.' Annuncio di Morte', 'dokan-mod'); ?> <span
                                     class="dokan-label  dokan-product-status-label">
                                             </span>
                         </h1>

@@ -185,7 +185,14 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
                 'meta_query' => $this->get_meta_query()
             ]);
 
-            return $this->process_query_results($query);
+            $pagination_info['offset'] = $this->offset + $query->post_count;
+            $pagination_info['is_finished_current_author'] = false; // Not relevant for 'top' type
+
+
+            return [
+                'manifesti' => $this->process_query_results($query),
+                'pagination' => $pagination_info
+            ];
         }
 
         private function load_grouped_manifesti()
@@ -203,7 +210,9 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
             }
 
             if (!$current_author_data) {
-                return $this->build_response_with_meta([], null);
+                $pagination_info['offset'] = -1; // No more content
+                $pagination_info['is_finished_current_author'] = true;
+                return $this->build_response_with_meta([], $pagination_info);
             }
 
             $query = new WP_Query([
@@ -217,12 +226,10 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
                 'meta_query' => $this->get_meta_query()
             ]);
 
-            $response = [];
-
-            // Add divider only if we're starting a new author (not original) and at offset 0
-            if ($current_author_data['author_id'] !== $this->original_author_id &&
-                $current_author_data['offset'] === 0) {
-                $response[] = $this->get_divider();
+            $is_finished = false;
+            //if post count is less than limit, we are at the end of this author's posts
+            if ($query->post_count < $this->limit) {
+                $is_finished = true;
             }
 
             // Process query results first
@@ -241,17 +248,21 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
                 }
             }
 
-            $manifesti = array_merge($response, $results);
-            
+            $manifesti = $results;
+
             // Calculate next pagination info
-            $pagination_info = $this->calculate_next_pagination_info(
-                $current_author_data, 
-                $author_order, 
-                $total_author_posts, 
+/*            $pagination_info = $this->calculate_next_pagination_info(
+                $current_author_data,
+                $author_order,
+                $total_author_posts,
                 $current_position,
                 $next_author_info
-            );
+            );*/
 
+
+
+            $pagination_info['offset'] = $this->offset + $query->post_count;
+            $pagination_info['is_finished_current_author'] = $is_finished;
             return $this->build_response_with_meta($manifesti, $pagination_info);
         }
 
@@ -307,6 +318,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
             $valid_authors = array_filter($all_authors, function($author_id) {
                 $count = count(get_posts([
                     'post_type' => 'manifesto',
+                    'post_status' => 'publish',
                     'author' => $author_id,
                     'posts_per_page' => -1,
                     'fields' => 'ids',
@@ -342,6 +354,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
                 $author_posts_count = count(get_posts([
                     'post_type' => 'manifesto',
                     'author' => $author_id,
+                    'post_status' => 'publish',
                     'posts_per_page' => -1,
                     'fields' => 'ids',
                     'meta_query' => $this->get_meta_query()
@@ -476,7 +489,10 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
             }
             
             // Fallback for backward compatibility
-            return $manifesti;
+            return [
+                'manifesti' => $manifesti,
+                'pagination' => $pagination_info
+            ];
         }
     }
 }
