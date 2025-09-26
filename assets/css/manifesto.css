@@ -38,50 +38,30 @@
     justify-self: center;
 }
 
-/* Container principale dell'editor - rimosso padding e limitazione larghezza */
+/* Container principale dell'editor */
 .text-editor-container {
+    --padding: clamp(10px, 2vw, 20px);
+
     position: relative;
-    width: 100%;
+    padding: var(--padding);
+    width: min(100% - 2 * var(--padding), 800px);
     margin-inline: auto;
 }
 
 .text-editor-background {
     position: relative;
-    /* aspect-ratio will be set dynamically by JS based on image */
+    aspect-ratio: 16 / 9;
+    height: clamp(300px, 50vh, 600px);
     width: 100%;
-    height: auto;
-    max-height: 80vh; /* Ensure max-height is always respected */
     background-size: contain;
-    background-repeat: no-repeat;
     background-position: center;
-    overflow: hidden;
     margin-inline: auto;
-    /* Smooth transitions for resize */
-    transition: width 0.2s ease, height 0.2s ease;
-    
-    /* Container query support for modern browsers */
-    container-type: size;
-    
-    /* CSS custom properties for dynamic sizing */
-    --max-font-size: 18px;
-    --min-font-size: 8px;
-    --line-height-ratio: 1.2;
-    
-    /* Force proper containment */
-    contain: layout style;
-}
-
-/* When viewport is narrower, adjust the container behavior */
-@media screen and (max-width: 1024px) {
-    .text-editor-background {
-        /* In single column, prioritize height constraint */
-        max-height: 70vh;
-        width: auto;
-        max-width: 100%;
-    }
+    overflow: hidden;
 }
 
 .custom-text-editor {
+    --font-size: clamp(14px, 1.5vw, 16px);
+
     width: 100%;
     height: 100%;
     border: none;
@@ -91,30 +71,9 @@
     box-sizing: border-box;
     outline: none;
     overflow: visible;
+    font-size: var(--font-size);
     font-family: var(--e-global-typography-text-font-family), Sans-serif;
     font-weight: var(--e-global-typography-text-font-weight);
-
-    display: flex;
-    flex-direction: column;
-    justify-content: center; /* Centra verticalmente */
-
-    /* Font size calcolato responsivamente da JavaScript */
-    font-size: 16px;
-    line-height: 1.2;
-    
-    /* Transizione fluida per il font-size */
-    transition: font-size 0.15s ease;
-}
-
-/* Fallback for browsers without container queries */
-@supports not (font-size: 100cqw) {
-    .custom-text-editor {
-        font-size: clamp(
-            var(--min-font-size, 8px),
-            min(4vw, 3vh, var(--max-font-size, 18px)),
-            var(--max-font-size, 18px)
-        );
-    }
 }
 
 /* Nasconde il testo durante il caricamento dell'immagine di sfondo */
@@ -151,7 +110,7 @@
     background: #f0f0f0;
 }
 
-/* Grid system moderno - CSS Grid responsivo che funziona già di default */
+/* Grid system moderno */
 .flex-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -164,17 +123,6 @@
 .flex-item {
     margin: 0;
     margin-bottom: 25px;
-    /* Prevent overflow in single column */
-    max-width: 100%;
-    overflow: hidden;
-}
-
-/* Single column layout - prevent overflow */
-@media screen and (max-width: 768px) {
-    .flex-item .text-editor-background {
-        max-height: 60vh; /* Reduce height in mobile */
-        width: 100%;
-    }
 }
 
 /* Divider che deve occupare tutta la larghezza del container */
@@ -188,5 +136,4 @@
     justify-content: left;
     /* justify-content sarà modificato dinamicamente con JavaScript in base al numero di manifesti */
 }
-
 

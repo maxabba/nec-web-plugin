@@ -146,10 +146,6 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
             if (current_user_can('administrator')) {
                 return;
             }
-            if (get_post_type($post_id) !== 'annuncio-di-morte') {
-                return;
-            }
-
             remove_action('acf/save_post', 'annuncio_save_post', 20);
 
             // Controlla se il post è del tipo 'annuncio-di-morte'

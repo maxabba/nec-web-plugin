@@ -1,6 +1,7 @@
 (function ($) {
     // Cache globale per le immagini di sfondo
     const imageCache = new Map();
+
     // Funzione per caricare immagini con cache
     function loadImageWithCache(url) {
         return new Promise((resolve, reject) => {
