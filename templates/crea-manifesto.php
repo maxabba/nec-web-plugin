@@ -18,6 +18,12 @@ $margin_left = get_user_meta($user_id, 'manifesto_margin_left', true) !== '' ? g
 $alignment = get_user_meta($user_id, 'manifesto_alignment', true) !== '' ? get_user_meta($user_id, 'manifesto_alignment', true) : 'center';
 
 $post_id_annuncio = isset($_GET['post_id_annuncio']) ? intval($_GET['post_id_annuncio']) : null;
+
+// Debug: log the missing parameter
+if (!$post_id_annuncio) {
+    error_log('WARNING: post_id_annuncio missing from URL parameters in crea-manifesto.php');
+    error_log('Current URL parameters: ' . print_r($_GET, true));
+}
 $post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 'new_post';
 
 
@@ -97,15 +103,22 @@ wp_enqueue_style('manifesto-text-editor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL
                     <?php if (!$disable_form) { ?>
                         <?php if (is_user_logged_in()) { ?>
                             
+                            <?php if (!$post_id_annuncio) { ?>
+                                <div class="alert alert-danger">
+                                    <strong>Errore:</strong> ID annuncio mancante. Assicurati di accedere a questa pagina con il parametro post_id_annuncio corretto.
+                                </div>
+                            <?php } else { ?>
+                            
                             <!-- Post state control inline -->
                             <?php echo $template_class->render_post_state_inline_control($post_id); ?>
                             
                             <!-- Custom Text Editor Form (AJAX) -->
-                            <form id="manifesto-form">
+                            <form id="manifesto-form" method="post" onsubmit="return false;">
                                 <input type="hidden" name="testo_manifesto" id="testo_manifesto_hidden">
                                 <?php 
                                 // Add the hidden field that the post state control expects
-                                $current_status = ($post_id !== 'new_post') ? get_post_status($post_id) : 'publish';
+                                // For new posts, default to 'draft' to match the select control
+                                $current_status = ($post_id !== 'new_post') ? get_post_status($post_id) : 'draft';
                                 ?>
                                 <input type="hidden" id="acf_post_status_control" name="acf_post_status_control" value="<?php echo esc_attr($current_status); ?>" data-original="<?php echo esc_attr($current_status); ?>">
                                 
@@ -140,6 +153,7 @@ wp_enqueue_style('manifesto-text-editor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL
                                 </div>
                             </form>
                             
+                            <?php } // End of post_id_annuncio check ?>
                             
                         <?php } else { ?>
                             <p><?php _e('Devi essere loggato per compilare questo form.', 'dokan-mod'); ?></p>

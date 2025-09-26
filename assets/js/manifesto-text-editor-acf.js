@@ -308,28 +308,60 @@ document.addEventListener('DOMContentLoaded', function () {
         if (hiddenField) {
             const content = textEditor.innerHTML;
 
-            //remove style attributes from all tags
+            // Create temporary div for processing
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = content;
+            
+            // Remove style attributes from all tags
             const elementsWithStyle = tempDiv.querySelectorAll('[style]');
             elementsWithStyle.forEach(el => el.removeAttribute('style'));
+            
+            // Convert empty paragraphs and divs to <br> tags (more compatible approach)
+            const allElements = tempDiv.querySelectorAll('p, div');
+            allElements.forEach(el => {
+                const textContent = el.textContent.trim();
+                const innerHTML = el.innerHTML.trim();
+                
+                // Check if element is effectively empty
+                const isEffectivelyEmpty = (
+                    textContent === '' ||                    // Completely empty
+                    innerHTML === '' ||                      // No HTML content
+                    innerHTML === '&nbsp;' ||               // Only non-breaking space
+                    innerHTML === '<br>' ||                 // Only line break
+                    innerHTML === '<br/>' ||                // Self-closing line break
+                    (el.children.length === 1 &&           // Only contains one <br> element
+                     el.children[0].tagName === 'BR' && 
+                     textContent === '')
+                );
+                
+                if (isEffectivelyEmpty) {
+                    const br = document.createElement('br');
+                    el.parentNode.replaceChild(br, el);
+                }
+            });
+
             const cleanedContent = tempDiv.innerHTML;
-
-
             hiddenField.value = cleanedContent;
-            console.log('Synced content to hidden field:', content);
-            console.log('Hidden field value:', hiddenField.value);
+            console.log('Original content:', content);
+            console.log('Cleaned content (empty elements as br):', cleanedContent);
         } else {
             console.error('Hidden field not found: testo_manifesto_hidden');
         }
     }
     
     // Handle form submission via AJAX
-    const form = document.querySelector('form');
+    const form = document.getElementById('manifesto-form');
     if (form) {
-        form.addEventListener('submit', function(event) {
+        console.log('Form found, attaching submit handler');
+        
+        // Function to handle the AJAX submission
+        function handleFormSubmit(event) {
             // Prevent form submission
-            event.preventDefault();
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            console.log('Form submit intercepted - starting AJAX');
 
             // Sync content to hidden field
             syncContentToHiddenField();
@@ -347,9 +379,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 return false;
             }
 
-            // Get post status from inline control
+            // Get post status from inline control - prioritize select value over hidden field
+            const postStatusSelect = document.getElementById('post_status_selector');
             const postStatusControl = document.getElementById('acf_post_status_control');
-            const postStatus = postStatusControl ? postStatusControl.value : 'publish';
+            
+            let postStatus;
+            if (postStatusSelect) {
+                // Use the select value (current user selection)
+                postStatus = postStatusSelect.value;
+                console.log('Using post status from select:', postStatus);
+            } else if (postStatusControl) {
+                // Fallback to hidden field value
+                postStatus = postStatusControl.value;
+                console.log('Using post status from hidden field:', postStatus);
+            } else {
+                // Final fallback
+                postStatus = 'draft';
+                console.log('Using default post status: draft');
+            }
 
             // Show loading state
             const submitButton = form.querySelector('button[type="submit"]');
@@ -368,6 +415,22 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('testo_manifesto', hiddenField.value);
             formData.append('post_status', postStatus);
 
+            // Debug: Check if we have all required data
+            console.log('AJAX object content:', acf_ajax_object);
+            console.log('Sending AJAX request with data:', {
+                action: 'save_manifesto_ajax',
+                post_id: acf_ajax_object.post_id,
+                post_id_annuncio: acf_ajax_object.post_id_annuncio,
+                ajax_url: acf_ajax_object.ajax_url
+            });
+            
+            // Validate required data before sending
+            if (!acf_ajax_object.post_id_annuncio) {
+                alert('Errore: post_id_annuncio mancante. Verifica che l\'URL contenga il parametro post_id_annuncio.');
+                console.error('post_id_annuncio is missing from acf_ajax_object');
+                return false;
+            }
+
             // Send AJAX request
             fetch(acf_ajax_object.ajax_url, {
                 method: 'POST',
@@ -375,6 +438,7 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(response => response.json())
             .then(data => {
+                console.log('AJAX response:', data);
                 if (data.success) {
                     // Success - redirect to the provided URL or default
                     if (data.data.redirect_url) {
@@ -403,7 +467,24 @@ document.addEventListener('DOMContentLoaded', function () {
                     submitButton.textContent = originalText;
                 }
             });
-        });
+            
+            return false; // Extra safety to prevent form submission
+        }
+        
+        // Attach the handler to form submit event
+        form.addEventListener('submit', handleFormSubmit);
+        
+        // Also attach to button click as a backup
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.addEventListener('click', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                handleFormSubmit(event);
+            });
+        }
+    } else {
+        console.error('Form with ID "manifesto-form" not found!');
     }
 
     // Font size selector event listener

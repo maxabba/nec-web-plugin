@@ -193,10 +193,14 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
                                                    value === 'pending' ? '#ffc107' : '#6c757d';
                     });
                     
-                    // Set initial border color
+                    // Set initial border color and sync hidden field
                     const initialValue = selector.value;
                     selector.style.borderColor = initialValue === 'publish' ? '#28a745' : 
                                                 initialValue === 'pending' ? '#ffc107' : '#6c757d';
+                    
+                    // Initialize hidden field with current select value
+                    hiddenField.value = initialValue;
+                    console.log('Initialized hidden field with select value:', initialValue);
                 }
             });
             </script>

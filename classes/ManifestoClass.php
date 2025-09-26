@@ -657,7 +657,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             <!-- Il loader visibile solo se vuoi mostrare uno spinner -->
             <div class="loader manifesto-loader" id="manifesto-loader-<?php echo $instance; ?>"></div>
             <!-- Elemento sentinella per l'infinite scroll -->
-            <div class="sentinel" id="sentinel-<?php echo $instance; ?>"></div>
+            <div class="sentinel" style="display: block; position:relative; height: 5px; background-color:black;" id="sentinel-<?php echo $instance; ?>"></div>
         <?php else: ?>
             <div class="loader manifesto-loader" id="manifesto-loader-<?php echo $instance; ?>"></div>
         <?php endif; ?>
