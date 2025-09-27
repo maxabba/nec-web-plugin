@@ -238,82 +238,45 @@
             
             console.log(`Print summary: ${landscapeCount} landscape, ${portraitCount} portrait manifesti`);
             
-            // Prepara contenuti con wrapper per forzare orientamento
-            var processedContents = '';
-            var currentOrientation = null;
-            var pageGroup = [];
+            // Applica classi CSS per il formato di pagina selezionato
+            const format = pageFormat.toLowerCase();
+            const formatSuffix = format !== 'a4' ? '-' + format : '';
             
+            // Applica classi ai manifesti basate su formato e orientamento
             container.find('.text-editor-background').each(function(index, element) {
                 const orientation = $(element).attr('data-orientation');
-                const elementHtml = element.outerHTML;
                 
-                // Se cambia orientamento o è il primo elemento, crea nuovo gruppo
-                if (orientation !== currentOrientation) {
-                    // Chiudi gruppo precedente se esiste
-                    if (pageGroup.length > 0) {
-                        processedContents += '<div class="print-group-' + currentOrientation + '">' + pageGroup.join('') + '</div>';
-                        pageGroup = [];
-                    }
-                    currentOrientation = orientation;
+                // Rimuovi classi precedenti
+                $(element).removeClass('print-landscape print-portrait print-a3 print-a4 print-a5');
+                
+                // Aggiungi classi per formato e orientamento
+                $(element).addClass('print-' + format);
+                $(element).addClass('print-' + orientation);
+                
+                // Modifica la proprietà page CSS direttamente
+                if (orientation === 'landscape') {
+                    element.style.setProperty('page', 'landscape-forced' + formatSuffix, 'important');
+                } else {
+                    element.style.setProperty('page', 'portrait-forced' + formatSuffix, 'important');
                 }
-                
-                pageGroup.push(elementHtml);
             });
             
-            // Chiudi ultimo gruppo
-            if (pageGroup.length > 0) {
-                processedContents += '<div class="print-group-' + currentOrientation + '">' + pageGroup.join('') + '</div>';
-            }
-            
+            var printContents = container.html();
             var printWindow = window.open('', '', 'height=600,width=800');
             printWindow.document.write('<html><head><title>Print Manifesti</title>');
             printWindow.document.write('<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function() { window.print(); }, 2000); });<\/script>');
             
-            // Stili di stampa con formato e orientamento automatici
-            var printStyles = generatePrintStyles();
+            // Stili base
             printWindow.document.write('<style>body{font-family: Arial, sans-serif; margin: 0; padding: 0;}</style>');
 
             //add the ttf font to the print window
             printWindow.document.write('<style>@font-face {font-family: "PlayFair Display Mine"; src: url("' + my_ajax_object.plugin_url + 'assets/fonts/Playfair_Display/static/PlayfairDisplay-Regular.ttf") format("truetype");}</style>');
-            printWindow.document.write('<link rel="stylesheet" type="text/css" href="' + my_ajax_object.plugin_url + 'assets/css/manifesto-print.css">');
-            printWindow.document.write('<style>' + printStyles + '</style>');
             
-            // Aggiungi stili specifici per forzare orientamento
-            const format = pageFormat.toLowerCase();
-            printWindow.document.write(`<style>
-                /* Forza orientamento landscape per i manifesti orizzontali */
-                @page landscape-page {
-                    size: ${format} landscape !important;
-                    margin: 0;
-                }
-                
-                @page portrait-page {
-                    size: ${format} portrait !important;
-                    margin: 0;
-                }
-                
-                @media print {
-                    /* Applica page rules ai gruppi */
-                    .print-group-landscape {
-                        page: landscape-page;
-                        page-break-before: always;
-                    }
-                    
-                    .print-group-portrait {
-                        page: portrait-page;
-                        page-break-before: always;
-                    }
-                    
-                    /* Forza ogni manifesto landscape a ruotare se necessario */
-                    .text-editor-background[data-orientation="landscape"] {
-                        size: landscape !important;
-                        page-orientation: rotate-right !important;
-                    }
-                }
-            </style>`);
+            // Il CSS principale con tutte le regole
+            printWindow.document.write('<link rel="stylesheet" type="text/css" href="' + my_ajax_object.plugin_url + 'assets/css/manifesto-print.css">');
             
             printWindow.document.write('</head><body>');
-            printWindow.document.write(processedContents);
+            printWindow.document.write(printContents);
             printWindow.document.write('</body></html>');
             printWindow.document.close();
 
@@ -322,124 +285,6 @@
         }
 
 
-        function generatePrintStyles() {
-            const format = pageFormat.toLowerCase();
-            
-            // Dimensioni fisiche per i formati carta (in mm)
-            const formatDimensions = {
-                'a5': {width: 148, height: 210},
-                'a4': {width: 210, height: 297},
-                'a3': {width: 297, height: 420}
-            };
-            
-            const dims = formatDimensions[format] || formatDimensions['a4'];
-            
-            return `
-                /* Configurazione base delle pagine con approccio aggressivo */
-                @page {
-                    size: ${format};
-                    margin: 0;
-                }
-                
-                @page landscape-forced {
-                    size: ${format} landscape !important;
-                    margin: 0;
-                }
-                
-                @page portrait-forced {
-                    size: ${format} portrait !important;
-                    margin: 0;
-                }
-                
-                /* Reset globale per la stampa */
-                @media print {
-                    * {
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                        color-adjust: exact !important;
-                    }
-                    
-                    html, body {
-                        width: 100% !important;
-                        height: 100% !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                    }
-                    
-                    /* APPROCCIO 1: Forza dimensioni viewport per landscape */
-                    .text-editor-background[data-orientation="landscape"] {
-                        page: landscape-forced !important;
-                        page-break-after: always !important;
-                        page-break-inside: avoid !important;
-                        
-                        /* Forza viewport landscape */
-                        width: 100vw !important;
-                        height: 100vh !important;
-                        max-width: none !important;
-                        max-height: none !important;
-                        
-                        /* Assicura contenimento */
-                        position: relative !important;
-                        overflow: hidden !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        
-                        /* Background */
-                        background-size: contain !important;
-                        background-position: center center !important;
-                        background-repeat: no-repeat !important;
-                        
-                        /* FALLBACK: se page non funziona, forza trasformazione */
-                        transform-origin: center center !important;
-                    }
-                    
-                    /* APPROCCIO 2: Dimensioni specifiche come fallback */
-                    @supports not (page: landscape-forced) {
-                        .text-editor-background[data-orientation="landscape"] {
-                            width: ${dims.height}mm !important;
-                            height: ${dims.width}mm !important;
-                            transform: rotate(90deg) !important;
-                            transform-origin: center center !important;
-                        }
-                    }
-                    
-                    /* Portrait normale */
-                    .text-editor-background[data-orientation="portrait"] {
-                        page: portrait-forced !important;
-                        page-break-after: always !important;
-                        page-break-inside: avoid !important;
-                        
-                        width: 100vw !important;
-                        height: 100vh !important;
-                        max-width: none !important;
-                        max-height: none !important;
-                        
-                        position: relative !important;
-                        overflow: hidden !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        
-                        background-size: contain !important;
-                        background-position: center center !important;
-                        background-repeat: no-repeat !important;
-                    }
-                    
-                    /* Text editor universale */
-                    .text-editor-background .custom-text-editor {
-                        width: 100% !important;
-                        height: 100% !important;
-                        margin: 0 !important;
-                        box-sizing: border-box !important;
-                        position: relative !important;
-                    }
-                    
-                    /* Ultima pagina senza page break */
-                    .text-editor-background:last-child {
-                        page-break-after: avoid !important;
-                    }
-                }
-            `;
-        }
 
 
         $('#start-button').click(function () {
