@@ -128,7 +128,7 @@ wp_enqueue_style('manifesto-text-editor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL
                                             <button type="button" data-command="bold"><b>B</b></button>
                                             <button type="button" data-command="italic"><i>I</i></button>
                                             <button type="button" data-command="underline"><u>U</u></button>
-                                            <select id="font-size-selector" class="font-size-selector">
+                                            <select id="font-size-selector" class="font-size-selector" title="Seleziona del testo per cambiare la dimensione solo di quella selezione, oppure applica a tutto il testo">
                                                 <option value="small">Piccolo</option>
                                                 <option value="medium" selected>Medio</option>
                                                 <option value="large">Grande</option>
