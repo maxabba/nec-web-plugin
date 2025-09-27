@@ -217,110 +217,225 @@
             // quindi non serve ricalcolarlo qui
             console.log('Opening print popup with pre-set orientations...');
             
-            // Opzionale: verifica che tutti i manifesti abbiano l'orientamento impostato
+            // Verifica e log degli orientamenti
+            let landscapeCount = 0;
+            let portraitCount = 0;
+            
             container.find('.text-editor-background').each(function(index, element) {
-                if (!$(element).attr('data-orientation')) {
+                const orientation = $(element).attr('data-orientation');
+                const bgImage = $(element).css('background-image');
+                
+                if (!orientation) {
                     console.warn(`Missing orientation for manifesto ${index}, defaulting to portrait`);
                     $(element).attr('data-orientation', 'portrait');
+                    portraitCount++;
+                } else {
+                    console.log(`Manifesto ${index}: orientation=${orientation}, bg=${bgImage ? 'present' : 'missing'}`);
+                    if (orientation === 'landscape') landscapeCount++;
+                    else portraitCount++;
                 }
             });
             
-            var printContents = container.html();
+            console.log(`Print summary: ${landscapeCount} landscape, ${portraitCount} portrait manifesti`);
+            
+            // Prepara contenuti con wrapper per forzare orientamento
+            var processedContents = '';
+            var currentOrientation = null;
+            var pageGroup = [];
+            
+            container.find('.text-editor-background').each(function(index, element) {
+                const orientation = $(element).attr('data-orientation');
+                const elementHtml = element.outerHTML;
+                
+                // Se cambia orientamento o è il primo elemento, crea nuovo gruppo
+                if (orientation !== currentOrientation) {
+                    // Chiudi gruppo precedente se esiste
+                    if (pageGroup.length > 0) {
+                        processedContents += '<div class="print-group-' + currentOrientation + '">' + pageGroup.join('') + '</div>';
+                        pageGroup = [];
+                    }
+                    currentOrientation = orientation;
+                }
+                
+                pageGroup.push(elementHtml);
+            });
+            
+            // Chiudi ultimo gruppo
+            if (pageGroup.length > 0) {
+                processedContents += '<div class="print-group-' + currentOrientation + '">' + pageGroup.join('') + '</div>';
+            }
+            
             var printWindow = window.open('', '', 'height=600,width=800');
             printWindow.document.write('<html><head><title>Print Manifesti</title>');
             printWindow.document.write('<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function() { window.print(); }, 2000); });<\/script>');
             
             // Stili di stampa con formato e orientamento automatici
             var printStyles = generatePrintStyles();
-            printWindow.document.write('<style>body{font-family: Arial, sans-serif;} .text-editor-background{background-size: contain; background-position: center;}</style>');
+            printWindow.document.write('<style>body{font-family: Arial, sans-serif; margin: 0; padding: 0;}</style>');
 
             //add the ttf font to the print window
             printWindow.document.write('<style>@font-face {font-family: "PlayFair Display Mine"; src: url("' + my_ajax_object.plugin_url + 'assets/fonts/Playfair_Display/static/PlayfairDisplay-Regular.ttf") format("truetype");}</style>');
             printWindow.document.write('<link rel="stylesheet" type="text/css" href="' + my_ajax_object.plugin_url + 'assets/css/manifesto-print.css">');
             printWindow.document.write('<style>' + printStyles + '</style>');
+            
+            // Aggiungi stili specifici per forzare orientamento
+            const format = pageFormat.toLowerCase();
+            printWindow.document.write(`<style>
+                /* Forza orientamento landscape per i manifesti orizzontali */
+                @page landscape-page {
+                    size: ${format} landscape !important;
+                    margin: 0;
+                }
+                
+                @page portrait-page {
+                    size: ${format} portrait !important;
+                    margin: 0;
+                }
+                
+                @media print {
+                    /* Applica page rules ai gruppi */
+                    .print-group-landscape {
+                        page: landscape-page;
+                        page-break-before: always;
+                    }
+                    
+                    .print-group-portrait {
+                        page: portrait-page;
+                        page-break-before: always;
+                    }
+                    
+                    /* Forza ogni manifesto landscape a ruotare se necessario */
+                    .text-editor-background[data-orientation="landscape"] {
+                        size: landscape !important;
+                        page-orientation: rotate-right !important;
+                    }
+                }
+            </style>`);
+            
             printWindow.document.write('</head><body>');
-            printWindow.document.write(printContents);
+            printWindow.document.write(processedContents);
             printWindow.document.write('</body></html>');
             printWindow.document.close();
 
-            //reload current page
-            location.reload();
+            //reload current page - DISABLED FOR DEBUGGING
+            // location.reload();
         }
 
 
         function generatePrintStyles() {
             const format = pageFormat.toLowerCase();
             
+            // Dimensioni fisiche per i formati carta (in mm)
+            const formatDimensions = {
+                'a5': {width: 148, height: 210},
+                'a4': {width: 210, height: 297},
+                'a3': {width: 297, height: 420}
+            };
+            
+            const dims = formatDimensions[format] || formatDimensions['a4'];
+            
             return `
+                /* Configurazione base delle pagine con approccio aggressivo */
                 @page {
                     size: ${format};
                     margin: 0;
                 }
                 
-                @page landscape {
-                    size: ${format} landscape;
+                @page landscape-forced {
+                    size: ${format} landscape !important;
                     margin: 0;
                 }
                 
-                @page portrait {
-                    size: ${format} portrait;
+                @page portrait-forced {
+                    size: ${format} portrait !important;
                     margin: 0;
                 }
                 
-                .text-editor-background {
-                    break-inside: avoid;
-                    break-after: page;
-                }
-                
-                .text-editor-background[data-orientation="landscape"] {
-                    page: landscape;
-                    page-orientation: landscape;
-                }
-                
-                .text-editor-background[data-orientation="portrait"] {
-                    page: portrait;
-                    page-orientation: portrait;
-                }
-                
-                .text-editor-background:last-child {
-                    break-after: avoid;
-                }
-                
+                /* Reset globale per la stampa */
                 @media print {
-                    /* Forza l'orientamento landscape per manifesti orizzontali */
-                    .text-editor-background[data-orientation="landscape"] {
-                        max-width: 100%;
-                        max-height: 100%;
-                        width: 100vw !important;
-                        height: 100vh !important;
-                        background-repeat: no-repeat !important;
-                        background-size: contain !important;
-                        background-position: center center !important;
-                        display: block !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        position: relative !important;
-                        top: 0 !important;
-                        left: 0 !important;
-                        page: landscape !important;
-                        transform: rotate(0deg) !important;
+                    * {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
                     }
                     
-                    .text-editor-background[data-orientation="landscape"] .custom-text-editor {
+                    html, body {
+                        width: 100% !important;
+                        height: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+                    
+                    /* APPROCCIO 1: Forza dimensioni viewport per landscape */
+                    .text-editor-background[data-orientation="landscape"] {
+                        page: landscape-forced !important;
+                        page-break-after: always !important;
+                        page-break-inside: avoid !important;
+                        
+                        /* Forza viewport landscape */
+                        width: 100vw !important;
+                        height: 100vh !important;
+                        max-width: none !important;
+                        max-height: none !important;
+                        
+                        /* Assicura contenimento */
+                        position: relative !important;
+                        overflow: hidden !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        
+                        /* Background */
+                        background-size: contain !important;
+                        background-position: center center !important;
+                        background-repeat: no-repeat !important;
+                        
+                        /* FALLBACK: se page non funziona, forza trasformazione */
+                        transform-origin: center center !important;
+                    }
+                    
+                    /* APPROCCIO 2: Dimensioni specifiche come fallback */
+                    @supports not (page: landscape-forced) {
+                        .text-editor-background[data-orientation="landscape"] {
+                            width: ${dims.height}mm !important;
+                            height: ${dims.width}mm !important;
+                            transform: rotate(90deg) !important;
+                            transform-origin: center center !important;
+                        }
+                    }
+                    
+                    /* Portrait normale */
+                    .text-editor-background[data-orientation="portrait"] {
+                        page: portrait-forced !important;
+                        page-break-after: always !important;
+                        page-break-inside: avoid !important;
+                        
+                        width: 100vw !important;
+                        height: 100vh !important;
+                        max-width: none !important;
+                        max-height: none !important;
+                        
+                        position: relative !important;
+                        overflow: hidden !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        
+                        background-size: contain !important;
+                        background-position: center center !important;
+                        background-repeat: no-repeat !important;
+                    }
+                    
+                    /* Text editor universale */
+                    .text-editor-background .custom-text-editor {
                         width: 100% !important;
                         height: 100% !important;
                         margin: 0 !important;
                         box-sizing: border-box !important;
                         position: relative !important;
-                        top: 0 !important;
-                        left: 0 !important;
                     }
                     
-                    .text-editor-background[data-orientation="portrait"] {
-                        max-width: 100%;
-                        max-height: 100%;
-                        background-repeat: no-repeat !important;
-                        page: portrait !important;
+                    /* Ultima pagina senza page break */
+                    .text-editor-background:last-child {
+                        page-break-after: avoid !important;
                     }
                 }
             `;
@@ -376,24 +491,31 @@
                 
                 backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
                 const dimensions = pageFormatDimensions[pageFormat.toLowerCase()];
+                
+                // Dimensioni fisiche in mm per la stampa
+                const mmDimensions = {
+                    'a5': {width: 148, height: 210},
+                    'a4': {width: 210, height: 297},
+                    'a3': {width: 297, height: 420}
+                };
+                const mmDims = mmDimensions[pageFormat.toLowerCase()];
 
                 if (aspectRatio > 1) {
-                    // Landscape orientation
-                    const landscapeMaxWidth = dimensions.height;
-                    const landscapeMaxHeight = dimensions.width;
-                    const widthFromHeight = landscapeMaxHeight * aspectRatio;
+                    // Landscape orientation - usa mm per la stampa
+                    backgroundDiv.style.width = `${mmDims.height}mm`;
+                    backgroundDiv.style.height = `${mmDims.width}mm`;
                     
-                    if (widthFromHeight <= landscapeMaxWidth) {
-                        backgroundDiv.style.height = `${landscapeMaxHeight}px`;
-                        backgroundDiv.style.width = `${widthFromHeight}px`;
-                    } else {
-                        backgroundDiv.style.width = `${landscapeMaxWidth}px`;
-                        backgroundDiv.style.height = `${landscapeMaxWidth / aspectRatio}px`;
-                    }
+                    // Mantieni anche dimensioni in pixel per compatibilità display
+                    backgroundDiv.dataset.widthPx = dimensions.height;
+                    backgroundDiv.dataset.heightPx = dimensions.width;
                 } else {
-                    // Portrait orientation
-                    backgroundDiv.style.height = `${dimensions.height}px`;
-                    backgroundDiv.style.width = `${dimensions.height * aspectRatio}px`;
+                    // Portrait orientation - usa mm per la stampa
+                    backgroundDiv.style.width = `${mmDims.width}mm`;
+                    backgroundDiv.style.height = `${mmDims.height}mm`;
+                    
+                    // Mantieni anche dimensioni in pixel per compatibilità display
+                    backgroundDiv.dataset.widthPx = dimensions.width;
+                    backgroundDiv.dataset.heightPx = dimensions.height;
                 }
 
                 // Small timeout to ensure dimensions are applied
