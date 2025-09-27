@@ -532,37 +532,15 @@ class MonitorDisplay {
                     textEditor.style.paddingLeft = `${marginLeftPx}px`;
                     textEditor.style.textAlign = data.alignment || 'left';
                     
-                    // Calculate font-size proportional to background dimensions
+                    // Fixed font-size based on aspect ratio only
                     const currentWidth = parseInt(backgroundDiv.style.width);
                     const currentHeight = parseInt(backgroundDiv.style.height);
+                    const currentAspectRatio = currentWidth / currentHeight;
                     
-                    // Determine image orientation
-                    const isLandscape = currentWidth > currentHeight;
-                    const isPortrait = currentHeight > currentWidth;
-                    
-                    // Calculate consistent font-size based on image dimensions and orientation only
-                    let baseFontSize;
-                    let lineHeightMultiplier = 1.3; // default line-height multiplier
-                    
-                    // Use area-based calculation for more consistent results
-                    const area = currentWidth * currentHeight;
-
-                    // Base font size calculation using area
-                    let areaBasedFontSize = Math.sqrt(area) * 0.07; // Base calculation from area
-                    
-                    // Apply orientation-based adjustments
-                    if (isPortrait) {
-                        baseFontSize = areaBasedFontSize * 0.9; // Smaller font for portrait
-                        lineHeightMultiplier = 1.2; // Tighter line-height for portrait
-                    } else if (isLandscape) {
-                        baseFontSize = areaBasedFontSize * 1; // Same font for landscape
-                        lineHeightMultiplier = 1.2; // Same line-height for landscape
-                    } else {
-                        baseFontSize = areaBasedFontSize; // Square images use base calculation
-                    }
-                    
-                    textEditor.style.fontSize = `${baseFontSize}px`;
-                    textEditor.style.lineHeight = `${baseFontSize * lineHeightMultiplier}px`;
+                    // Simple fixed font size based on orientation
+                    const fontSize = currentAspectRatio > 1 ? '8cqh' : '4cqh'; // horizontal: 8cqh, vertical: 4cqh
+                    textEditor.style.fontSize = fontSize;
+                    textEditor.style.lineHeight = '1.2';
                     
                     // Ensure text is visible
                     textEditor.style.color = '#000';
@@ -574,31 +552,6 @@ class MonitorDisplay {
 
                     // Mostra il testo dopo che tutto è pronto
                     textEditor.classList.remove('loading');
-                    
-                    // Fallback: iteratively reduce font-size until content fits
-                    setTimeout(() => {
-                        let iterations = 0;
-                        const maxIterations = 10;
-                        
-                        while (textEditor.scrollHeight > textEditor.clientHeight && iterations < maxIterations) {
-                            const currentFontSize = parseFloat(textEditor.style.fontSize);
-                            const reductionFactor = Math.max(0.8, textEditor.clientHeight / textEditor.scrollHeight);
-                            const newFontSize = Math.max(6, currentFontSize * reductionFactor);
-                            const newLineHeight = newFontSize * lineHeightMultiplier;
-                            
-                            textEditor.style.fontSize = `${newFontSize}px`;
-                            textEditor.style.lineHeight = `${newLineHeight}px`;
-                            iterations++;
-                            
-                            if (iterations === 1) {
-                                console.log(`Font-size reduced from ${currentFontSize}px to fit content`);
-                            }
-                        }
-                        
-                        if (iterations >= maxIterations) {
-                            console.warn('Max iterations reached for font-size reduction');
-                        }
-                    }, 300);
                 })
                 .catch((error) => {
                     console.warn('Failed to load monitor background image:', error);
@@ -607,58 +560,16 @@ class MonitorDisplay {
                     textEditor.classList.remove('loading');
                 });
         } else {
-            // No background image - set default proportional font size
+            // No background image - use default aspect ratio and fixed font size
             backgroundDiv.style.backgroundImage = 'none';
-            // Assicurati che il testo sia visibile se non c'è sfondo
             textEditor.classList.remove('loading');
             
-            // For no-background manifesto, calculate font-size based on container dimensions
-            const containerHeight = containerElem.parentElement.clientHeight || window.innerHeight * 0.75;
-            const containerWidth = containerElem.parentElement.clientWidth || window.innerWidth;
-            
-            // Calculate font-size with small screen optimization (no background case)
-            const isSmallScreen = window.innerWidth < 768 || window.innerHeight < 600;
-            const isVerySmallScreen = window.innerWidth < 480 || window.innerHeight < 400;
-            
-            let baseFontSize;
-            if (isVerySmallScreen) {
-                baseFontSize = Math.max(8, Math.min(containerWidth * 0.015, containerWidth * 0.025));
-            } else if (isSmallScreen) {
-                baseFontSize = Math.max(10, Math.min(containerWidth * 0.02, containerWidth * 0.03));
-            } else {
-                baseFontSize = Math.max(14, Math.min(containerWidth * 0.025, containerWidth * 0.035));
-            }
-            
-            textEditor.style.fontSize = `${baseFontSize}px`;
-            
-            // Paragraph margins are now handled by CSS
+            // Default aspect ratio for no background (typically landscape)
+            const defaultAspectRatio = 16 / 9;
+            const fontSize = defaultAspectRatio > 1 ? '8cqh' : '4cqh';
+            textEditor.style.fontSize = fontSize;
+            textEditor.style.lineHeight = '1.2';
             textEditor.style.textAlign = data.alignment || 'center';
-            
-            // Fallback: iteratively reduce font-size until content fits
-            setTimeout(() => {
-                let iterations = 0;
-                const maxIterations = 10;
-                const defaultLineHeightMultiplier = 1.3; // Default line-height multiplier for no-background case
-
-                while (textEditor.scrollHeight > textEditor.clientHeight && iterations < maxIterations) {
-                    const currentFontSize = parseFloat(textEditor.style.fontSize);
-                    const reductionFactor = Math.max(0.8, textEditor.clientHeight / textEditor.scrollHeight);
-                    const newFontSize = Math.max(6, currentFontSize * reductionFactor);
-                    const newLineHeight = newFontSize * defaultLineHeightMultiplier;
-                    
-                    textEditor.style.fontSize = `${newFontSize}px`;
-                    textEditor.style.lineHeight = `${newLineHeight}px`;
-                    iterations++;
-                    
-                    if (iterations === 1) {
-                        console.log(`Font-size reduced from ${currentFontSize}px to fit content (no background)`);
-                    }
-                }
-                
-                if (iterations >= maxIterations) {
-                    console.warn('Max iterations reached for font-size reduction (no background)');
-                }
-            }, 300);
         }
     }
 

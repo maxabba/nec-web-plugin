@@ -1,60 +1,23 @@
 (function ($) {
     'use strict';
 
-    // Configuration with all magic numbers extracted
+    // Configuration - simplified for fixed font system
     const CONFIG = {
         CONTAINER_SIZE: 0.95,
-        MAX_FONT_SIZE: 20, // Hard limit in px
-        MIN_FONT_SIZE: 8,  // Minimum readable size
         LINE_HEIGHT_RATIO: 1.2,
-
-        // Font scaling factors for different text types
-        FONT_SCALING: {
-            SHORT_TEXT_FACTOR: 0.6,
-            LONG_TEXT_FACTOR: 2.2,
-            WIDE_TEXT_FACTOR_UNDER_100: 0.5,
-            WIDE_TEXT_FACTOR_OVER_100: 0.4,
-            MEDIUM_TEXT_FACTOR: 0.4,
-            HEIGHT_FACTOR: 3.5
-        },
-
-        // Text classification thresholds
-        TEXT_THRESHOLDS: {
-            SHORT_TEXT_CHARS: 100,
-            SHORT_TEXT_LINES: 10,
-            WIDE_TEXT_CHARS: 100
-        },
-
-        // Optimization settings
-        OPTIMIZATION: {
-            MAX_ITERATIONS: 25,
-            FONT_INCREMENT: 0.5,
-            RESIZE_DEBOUNCE: 50,
-            INITIAL_SETUP_DELAY: 100,
-            // Mobile-specific delays
-            MOBILE_SETUP_DELAY: 300,
-            MOBILE_RECHECK_DELAY: 500,
-            MOBILE_FORCE_REFLOW_DELAY: 50
-        },
 
         // Layout settings
         LAYOUT: {
             DEFAULT_ASPECT_RATIO: '16 / 9',
             MAX_HEIGHT: '80vh',
-            NO_BACKGROUND_PADDING: '5%',
-            // Firefox-specific fixes
-            FIREFOX_HEIGHT_FALLBACK: '75vh' // Slightly smaller for Firefox compatibility
+            NO_BACKGROUND_PADDING: '5%'
         }
     };
 
-    // Module state - encapsulated variables
+    // Module state - simplified
     const ModuleState = {
         imageCache: new Map(),
         manifestiData: new Map(),
-        textAnalysisCache: new Map(),
-        resizeTimeouts: new Map(),
-        // New: Store initial sizing states for proportional scaling
-        initialSizingStates: new Map(),
         // Batch optimization: cache batch background info
         batchCache: new Map(), // containerId -> { backgroundUrl, batchId, preloadedImage }
         currentBatchId: null
@@ -158,703 +121,33 @@
     }
 
 
-    // TextAnalyzer class - encapsulates all text analysis logic
-    class TextAnalyzer {
-        constructor() {
-            this.cache = ModuleState.textAnalysisCache;
-        }
 
-        generateTextId(textEditor) {
-            if (!textEditor) return null;
-
-            const text = textEditor.textContent || textEditor.innerText || '';
-            const html = textEditor.innerHTML || '';
-
-            // Create simple hash of content for unique ID
-            let hash = 0;
-            const content = text + html;
-            for (let i = 0; i < content.length; i++) {
-                const char = content.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash; // Convert to 32-bit integer
-            }
-
-            return `text_${Math.abs(hash)}`;
-        }
-
-        parseTextStructure(textEditor) {
-            if (!textEditor) return null;
-
-            const text = textEditor.textContent || textEditor.innerText || '';
-            const divElements = textEditor.querySelectorAll('div');
-
-            return {
-                text,
-                totalLength: text.length,
-                divElements,
-                divCount: divElements.length
-            };
-        }
-
-        calculateTextMetrics(structure) {
-            if (!structure) return null;
-
-            const {text, divElements} = structure;
-            let actualLines = 0;
-            let longestLineLength = 0;
-            let longestLineNumber = 0;
-            let currentLine = 0;
-
-            if (divElements.length > 0) {
-                // Analyze each div and count internal lines (br, \n)
-                divElements.forEach((div) => {
-                    const htmlDiv = div.innerHTML;
-                    const textDiv = div.textContent || div.innerText || '';
-
-                    // Count <br> tags and \n characters inside this div
-                    const brCount = (htmlDiv.match(/<br\s*\/?>/gi) || []).length;
-                    const nlCount = (textDiv.match(/\n/g) || []).length;
-                    const linesInDiv = Math.max(1, brCount + nlCount + 1); // +1 for base line of div
-
-                    actualLines += linesInDiv;
-
-                    // For longest line, split div content by br/\n
-                    const subLines = textDiv.split(/\n/);
-                    subLines.forEach((subLine) => {
-                        currentLine++;
-                        if (subLine.length > longestLineLength) {
-                            longestLineLength = subLine.length;
-                            longestLineNumber = currentLine;
-                        }
-                    });
-                });
-            } else {
-                // Fallback: if no divs, analyze lines separated by \n or <br>
-                const linesArray = text.split(/\n|<br\s*\/?>/i);
-                actualLines = linesArray.length;
-
-                linesArray.forEach((line, index) => {
-                    if (line.length > longestLineLength) {
-                        longestLineLength = line.length;
-                        longestLineNumber = index + 1;
-                    }
-                });
-            }
-
-            const lines = Math.max(actualLines, 1); // Minimum 1 line
-
-            return {
-                totalLength: structure.totalLength,
-                longestLineLength,
-                longestLineNumber,
-                lines,
-                divCount: structure.divCount
-            };
-        }
-
-        categorizeText(metrics) {
-            if (!metrics) return null;
-
-            return {
-                isShortText: metrics.longestLineLength <= CONFIG.TEXT_THRESHOLDS.SHORT_TEXT_CHARS && metrics.lines <= CONFIG.TEXT_THRESHOLDS.SHORT_TEXT_LINES,
-                isLongText: metrics.lines > CONFIG.TEXT_THRESHOLDS.SHORT_TEXT_LINES,
-                isWideText: metrics.longestLineLength > CONFIG.TEXT_THRESHOLDS.WIDE_TEXT_CHARS
-            };
-        }
-
-        cacheAnalysis(textId, analysis) {
-            if (!textId || !analysis) return;
-
-            this.cache.set(textId, {
-                ...analysis,
-                timestamp: Date.now()
-            });
-
-            console.log(`💾 Cached analysis for ID: ${textId} (${analysis.lines} lines, max line: ${analysis.longestLineLength})`);
-        }
-
-        getCachedAnalysis(textId) {
-            return this.cache.get(textId) || null;
-        }
-
-        hasCachedAnalysis(textId) {
-            return this.cache.has(textId);
-        }
-
-        analyzeText(textEditor, forceRecalculate = false) {
-            if (!textEditor) {
-                console.error('❌ Invalid textEditor provided to analyzeText');
-                return null;
-            }
-
-            const textId = this.generateTextId(textEditor);
-            if (!textId) {
-                console.error('❌ Could not generate textId');
-                return null;
-            }
-
-            // Check if we already have the analysis in cache
-            if (!forceRecalculate && this.hasCachedAnalysis(textId)) {
-                const cachedAnalysis = this.getCachedAnalysis(textId);
-                console.log(`💾 Cache hit for text ID: ${textId}`);
-                return cachedAnalysis;
-            }
-
-            console.log(`🔍 Text analysis for ID: ${textId}`);
-
-            try {
-                const structure = this.parseTextStructure(textEditor);
-                if (!structure) {
-                    throw new Error('Failed to parse text structure');
-                }
-
-                const metrics = this.calculateTextMetrics(structure);
-                if (!metrics) {
-                    throw new Error('Failed to calculate text metrics');
-                }
-
-                const categories = this.categorizeText(metrics);
-                if (!categories) {
-                    throw new Error('Failed to categorize text');
-                }
-
-                const analysis = {
-                    id: textId,
-                    totalLength: metrics.totalLength,
-                    longestLineLength: metrics.longestLineLength,
-                    longestLineNumber: metrics.longestLineNumber,
-                    lines: metrics.lines,
-                    divCount: metrics.divCount,
-                    isShortText: categories.isShortText,
-                    isLongText: categories.isLongText,
-                    isWideText: categories.isWideText,
-                    timestamp: Date.now()
-                };
-
-                // Cache the analysis
-                this.cacheAnalysis(textId, analysis);
-
-                // Associate the ID with the element for future reference
-                textEditor.dataset.textAnalysisId = textId;
-
-                return analysis;
-
-            } catch (error) {
-                console.error(`❌ Error analyzing text: ${error.message}`);
-                return null;
-            }
-        }
-    }
-
-    // Create global text analyzer instance
-    const textAnalyzer = new TextAnalyzer();
-
-    // Mobile detection and utilities
-    const MobileUtils = {
-        isMobile() {
-            return window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        },
+    // Simple font size application based on aspect ratio only
+    function applyFontSize(textEditor, data) {
+        if (!textEditor) return;
         
-        isIOS() {
-            return /iPad|iPhone|iPod/.test(navigator.userAgent);
-        },
+        // Get aspect ratio from background container
+        const backgroundDiv = textEditor.closest('.text-editor-background') || textEditor.parentElement;
+        const aspectRatio = backgroundDiv ? backgroundDiv.clientWidth / backgroundDiv.clientHeight : 1;
         
-        forceReflow(element) {
-            if (element) {
-                // Multiple reflow triggers for mobile
-                void element.offsetHeight;
-                void element.offsetWidth;
-                void element.scrollHeight;
-                void element.scrollWidth;
-            }
-        },
-        
-        waitForStableSize(element, callback, maxAttempts = 10) {
-            if (!element || !callback) return;
-            
-            let attempts = 0;
-            let lastWidth = 0;
-            let lastHeight = 0;
-            
-            const checkSize = () => {
-                attempts++;
-                const currentWidth = element.clientWidth;
-                const currentHeight = element.clientHeight;
-                
-                if ((currentWidth === lastWidth && currentHeight === lastHeight && currentWidth > 0) || attempts >= maxAttempts) {
-                    console.log(`📱 Size stable after ${attempts} attempts: ${currentWidth}x${currentHeight}`);
-                    callback();
-                    return;
-                }
-                
-                lastWidth = currentWidth;
-                lastHeight = currentHeight;
-                setTimeout(checkSize, CONFIG.OPTIMIZATION.MOBILE_FORCE_REFLOW_DELAY);
-            };
-            
-            checkSize();
-        }
-    };
-
-    // Backward compatibility function - use TextAnalyzer instance
-    function analyzeText(textEditor, forceRecalculate = false) {
-        return textAnalyzer.analyzeText(textEditor, forceRecalculate);
-    }
-
-    // Ultra-fast proportional scaling for resize
-    function scaleFontSizeProportionally(textEditor, backgroundDiv, containerId) {
-        if (!textEditor || !backgroundDiv || !containerId) return false;
-
-        // Get initial state
-        const initialState = ModuleState.initialSizingStates.get(containerId);
-        if (!initialState) {
-            console.log(`⚠️ No initial state for container: ${containerId}`);
-            return false;
-        }
-
-        // Check if text content has changed (optional validation)
-        const currentTextId = textEditor.dataset.textAnalysisId;
-        if (initialState.textHash && currentTextId && initialState.textHash !== currentTextId) {
-            console.log(`🔄 Text content changed, clearing state for: ${containerId}`);
-            clearInitialSizingState(containerId);
-            return false; // Force recalculation
-        }
-
-        // Get current dimensions
-        const currentWidth = backgroundDiv.clientWidth;
-        const currentHeight = backgroundDiv.clientHeight;
-
-        // Calculate scale factor (use the smaller scale to maintain proportions)
-        const scaleX = currentWidth / initialState.width;
-        const scaleY = currentHeight / initialState.height;
-        const scaleFactor = Math.min(scaleX, scaleY);
-
-        // Apply proportional scaling
-        let newFontSize = initialState.fontSize * scaleFactor;
-
-        // Apply limits
-        newFontSize = Math.max(CONFIG.MIN_FONT_SIZE, Math.min(CONFIG.MAX_FONT_SIZE, newFontSize));
-
-        // Apply to element
-        textEditor.style.fontSize = newFontSize + 'px';
-        textEditor.style.lineHeight = CONFIG.LINE_HEIGHT_RATIO;
-
-        // Log only if significant change (reduce console noise)
-        const fontChange = Math.abs(newFontSize - initialState.fontSize * scaleFactor);
-        if (fontChange > 0.5 || CONFIG.OPTIMIZATION.RESIZE_DEBOUNCE) {
-            console.log(`⚡ Scale: ${newFontSize.toFixed(1)}px (${scaleFactor.toFixed(2)}x) | ${currentWidth}x${currentHeight}`);
-        }
-
-        return true;
-    }
-
-    // Store initial sizing state for future scaling
-    function storeInitialSizingState(containerId, fontSize, width, height, textHash = null) {
-        if (!containerId) return;
-
-        const state = {
-            fontSize: fontSize,
-            width: width,
-            height: height,
-            aspectRatio: width / height,
-            textHash: textHash, // To detect content changes
-            timestamp: Date.now()
-        };
-
-        ModuleState.initialSizingStates.set(containerId, state);
-        console.log(`📏 Stored initial state for ${containerId}: ${fontSize.toFixed(1)}px @ ${width}x${height}`);
-    }
-
-    // Clear initial state (useful when content changes)
-    function clearInitialSizingState(containerId) {
-        if (ModuleState.initialSizingStates.has(containerId)) {
-            ModuleState.initialSizingStates.delete(containerId);
-            console.log(`🗎️ Cleared initial state for ${containerId}`);
-        }
-    }
-
-    // FontSizeCalculator class with strategy pattern
-    class FontSizeCalculator {
-        constructor(config) {
-            this.config = config;
-        }
-
-        calculateFromAnalysis(analysis, maxWidth, maxHeight) {
-            if (!analysis || !maxWidth || !maxHeight) {
-                console.error('❌ Invalid parameters for font size calculation');
-                return this.config.MIN_FONT_SIZE;
-            }
-
-            let fontSize;
-
-            if (analysis.isShortText) {
-                fontSize = this.calculateShortTextStrategy(analysis, maxWidth);
-            } else if (analysis.isLongText) {
-                fontSize = this.calculateLongTextStrategy(analysis, maxHeight);
-            } else if (analysis.isWideText) {
-                fontSize = this.calculateWideTextStrategy(analysis, maxWidth, maxHeight);
-            } else {
-                fontSize = this.calculateMediumTextStrategy(analysis, maxWidth, maxHeight);
-            }
-
-            return this.applyLimits(fontSize);
-        }
-
-        calculateShortTextStrategy(analysis, maxWidth) {
-            const lineFactor = Math.max(analysis.longestLineLength, 1);
-            return maxWidth / (lineFactor * this.config.FONT_SCALING.SHORT_TEXT_FACTOR);
-        }
-
-        calculateLongTextStrategy(analysis, maxHeight) {
-            return maxHeight / (analysis.lines * this.config.FONT_SCALING.LONG_TEXT_FACTOR);
-        }
-
-        calculateWideTextStrategy(analysis, maxWidth, maxHeight) {
-            const lineFactor = analysis.longestLineLength;
-
-            if (lineFactor < this.config.TEXT_THRESHOLDS.WIDE_TEXT_CHARS) {
-                return Math.min(
-                    maxWidth / (lineFactor * this.config.FONT_SCALING.WIDE_TEXT_FACTOR_UNDER_100),
-                    maxHeight / (analysis.lines * this.config.FONT_SCALING.HEIGHT_FACTOR)
-                );
-            } else {
-                return Math.max(
-                    maxWidth / (lineFactor * this.config.FONT_SCALING.WIDE_TEXT_FACTOR_OVER_100),
-                    maxHeight / (analysis.lines * this.config.FONT_SCALING.HEIGHT_FACTOR)
-                );
-            }
-        }
-
-        calculateMediumTextStrategy(analysis, maxWidth, maxHeight) {
-            return Math.min(
-                maxWidth / (analysis.longestLineLength * this.config.FONT_SCALING.MEDIUM_TEXT_FACTOR),
-                maxHeight / (analysis.lines * this.config.FONT_SCALING.HEIGHT_FACTOR)
-            );
-        }
-
-        applyLimits(fontSize) {
-            return Math.max(this.config.MIN_FONT_SIZE, Math.min(this.config.MAX_FONT_SIZE, fontSize));
-        }
-
-        optimizeIteratively(textEditor, initialFontSize, analysis, maxWidth, maxHeight) {
-            if (!textEditor) return initialFontSize;
-
-            let fontSize = initialFontSize;
-            let iterations = 0;
-            const maxIterations = this.config.OPTIMIZATION.MAX_ITERATIONS;
-
-            // Apply initial font size
-            textEditor.style.fontSize = fontSize + 'px';
-            textEditor.style.lineHeight = this.config.LINE_HEIGHT_RATIO;
-
-            // First phase: reduce if doesn't fit
-            while (
-                (textEditor.scrollHeight > maxHeight || textEditor.scrollWidth > maxWidth)
-                && fontSize > this.config.MIN_FONT_SIZE
-                && iterations < maxIterations
-                ) {
-                fontSize -= this.config.OPTIMIZATION.FONT_INCREMENT;
-                textEditor.style.fontSize = fontSize + 'px';
-                iterations++;
-                void textEditor.offsetHeight; // Force reflow
-            }
-
-            // Second phase: for short texts, try to increase if there's space
-            if (analysis.isShortText && iterations < maxIterations) {
-                let testFontSize = fontSize;
-                while (
-                    textEditor.scrollHeight <= maxHeight &&
-                    textEditor.scrollWidth <= maxWidth &&
-                    testFontSize < this.config.MAX_FONT_SIZE &&
-                    iterations < maxIterations
-                    ) {
-                    fontSize = testFontSize;
-                    testFontSize += this.config.OPTIMIZATION.FONT_INCREMENT;
-                    textEditor.style.fontSize = testFontSize + 'px';
-                    iterations++;
-                    void textEditor.offsetHeight; // Force reflow
-                }
-                // Return to last valid size
-                textEditor.style.fontSize = fontSize + 'px';
-            }
-
-            return fontSize;
-        }
-
-        optimizeIterativelyMobile(textEditor, initialFontSize, analysis, maxWidth, maxHeight) {
-            if (!textEditor) return initialFontSize;
-
-            let fontSize = initialFontSize;
-            let iterations = 0;
-            const maxIterations = this.config.OPTIMIZATION.MAX_ITERATIONS;
-
-            // Apply initial font size with forced reflow
-            textEditor.style.fontSize = fontSize + 'px';
-            textEditor.style.lineHeight = this.config.LINE_HEIGHT_RATIO;
-            MobileUtils.forceReflow(textEditor);
-
-            console.log(`📱 Starting mobile optimization from ${fontSize}px`);
-
-            // First phase: reduce if doesn't fit (with extra checks for mobile)
-            while (
-                (textEditor.scrollHeight > maxHeight || textEditor.scrollWidth > maxWidth)
-                && fontSize > this.config.MIN_FONT_SIZE
-                && iterations < maxIterations
-                ) {
-                fontSize -= this.config.OPTIMIZATION.FONT_INCREMENT;
-                textEditor.style.fontSize = fontSize + 'px';
-                
-                // Extra reflow for mobile reliability
-                MobileUtils.forceReflow(textEditor);
-                
-                iterations++;
-                console.log(`📱 Iteration ${iterations}: reduced to ${fontSize}px (scroll: ${textEditor.scrollHeight}/${maxHeight}, width: ${textEditor.scrollWidth}/${maxWidth})`);
-            }
-
-            // Second phase: for short texts, try to increase if there's space (mobile-adapted)
-            if (analysis.isShortText && iterations < maxIterations) {
-                let testFontSize = fontSize;
-                while (
-                    textEditor.scrollHeight <= maxHeight &&
-                    textEditor.scrollWidth <= maxWidth &&
-                    testFontSize < this.config.MAX_FONT_SIZE &&
-                    iterations < maxIterations
-                    ) {
-                    fontSize = testFontSize;
-                    testFontSize += this.config.OPTIMIZATION.FONT_INCREMENT;
-                    textEditor.style.fontSize = testFontSize + 'px';
-                    
-                    // Mobile-specific reflow
-                    MobileUtils.forceReflow(textEditor);
-                    
-                    iterations++;
-                    console.log(`📱 Expansion iteration ${iterations}: testing ${testFontSize}px`);
-                }
-                // Return to last valid size
-                textEditor.style.fontSize = fontSize + 'px';
-                MobileUtils.forceReflow(textEditor);
-            }
-
-            console.log(`📱 Mobile optimization completed: ${fontSize}px after ${iterations} iterations`);
-            return fontSize;
-        }
-    }
-
-    // Create global font calculator instance
-    const fontCalculator = new FontSizeCalculator(CONFIG);
-
-    // Backward compatibility function
-    function calculateFontSizeFromAnalysis(analysis, maxWidth, maxHeight) {
-        return fontCalculator.calculateFromAnalysis(analysis, maxWidth, maxHeight);
-    }
-
-    // Adapt font size intelligently based on content (complete) with mobile optimizations
-    function adaptFontSize(textEditor, backgroundDiv, forceRecalculate = false) {
-        if (!textEditor || !backgroundDiv) return;
-
-        // Mobile-specific handling
-        if (MobileUtils.isMobile()) {
-            console.log('📱 Mobile device detected, using enhanced font sizing');
-            adaptFontSizeMobile(textEditor, backgroundDiv, forceRecalculate);
-            return;
-        }
-
-        const maxHeight = backgroundDiv.clientHeight;
-        const maxWidth = backgroundDiv.clientWidth;
-        const analysis = analyzeText(textEditor, forceRecalculate);
-        if (!analysis) {
-            console.error('❌ Failed to analyze text, aborting font size calculation');
-            return;
-        }
-
-        // Font sizing strategy based on content
-        const initialFontSize = fontCalculator.calculateFromAnalysis(analysis, maxWidth, maxHeight);
-
-        // Log strategy for debugging
-        let strategy = 'MEDIUM TEXT - intelligent balancing';
-        if (analysis.isShortText) {
-            strategy = `SHORT TEXT - optimize for width (longest line: ${analysis.longestLineLength} chars)`;
-        } else if (analysis.isLongText) {
-            strategy = `LONG TEXT - optimize for height (${analysis.lines} lines)`;
-        } else if (analysis.isWideText) {
-            strategy = `WIDE TEXT - balancing (longest line: ${analysis.longestLineLength} chars)`;
-        }
-        console.log(`Strategy: ${strategy}`);
-
-        // Iterative optimization for perfect fit
-        const fontSize = fontCalculator.optimizeIteratively(
-            textEditor,
-            initialFontSize,
-            analysis,
-            maxWidth,
-            maxHeight
-        );
-
-        // Detailed log for debugging
-        console.log(`Font optimized: ${fontSize}px | Analysis: ${analysis.lines} total lines (${analysis.divCount} divs), longest line: ${analysis.longestLineLength} chars (line #${analysis.longestLineNumber}) | Container: ${maxWidth}x${maxHeight}`);
-
-        // Store initial state for proportional scaling on resize
-        const containerElem = $(backgroundDiv).closest('.flex-item');
-        const containerId = containerElem.attr('id') || `container-${Date.now()}`;
-        if (!containerElem.attr('id')) {
-            containerElem.attr('id', containerId);
-        }
-        // Include text hash to detect content changes
-        const textHash = analysis ? analysis.id : null;
-        storeInitialSizingState(containerId, fontSize, maxWidth, maxHeight, textHash);
-    }
-
-    // Mobile-specific font sizing with enhanced reliability
-    function adaptFontSizeMobile(textEditor, backgroundDiv, forceRecalculate = false) {
-        if (!textEditor || !backgroundDiv) return;
-
-        console.log('📱 Starting mobile font adaptation');
-
-        // Wait for stable dimensions before calculating
-        MobileUtils.waitForStableSize(backgroundDiv, () => {
-            console.log('📱 Container size stabilized, proceeding with font calculation');
-            
-            // Force reflow to ensure accurate measurements
-            MobileUtils.forceReflow(backgroundDiv);
-            MobileUtils.forceReflow(textEditor);
-
-            const maxHeight = backgroundDiv.clientHeight;
-            const maxWidth = backgroundDiv.clientWidth;
-
-            if (maxWidth === 0 || maxHeight === 0) {
-                console.warn('📱 Container has zero dimensions, retrying...');
-                setTimeout(() => adaptFontSizeMobile(textEditor, backgroundDiv, forceRecalculate), CONFIG.OPTIMIZATION.MOBILE_RECHECK_DELAY);
-                return;
-            }
-
-            console.log(`📱 Mobile container dimensions: ${maxWidth}x${maxHeight}`);
-
-            const analysis = analyzeText(textEditor, forceRecalculate);
-            if (!analysis) {
-                console.error('❌ Failed to analyze text on mobile');
-                return;
-            }
-
-            // Use more conservative calculations for mobile
-            const initialFontSize = fontCalculator.calculateFromAnalysis(analysis, maxWidth, maxHeight);
-            
-            // Apply font with forced reflows
-            textEditor.style.fontSize = initialFontSize + 'px';
-            textEditor.style.lineHeight = CONFIG.LINE_HEIGHT_RATIO;
-            MobileUtils.forceReflow(textEditor);
-
-            // Mobile-specific iterative optimization with extra reflows
-            const fontSize = fontCalculator.optimizeIterativelyMobile(
-                textEditor,
-                initialFontSize,
-                analysis,
-                maxWidth,
-                maxHeight
-            );
-
-            console.log(`📱 Mobile font optimized: ${fontSize}px for ${maxWidth}x${maxHeight}`);
-
-            // Store initial state
-            const containerElem = $(backgroundDiv).closest('.flex-item');
-            const containerId = containerElem.attr('id') || `container-mobile-${Date.now()}`;
-            if (!containerElem.attr('id')) {
-                containerElem.attr('id', containerId);
-            }
-            const textHash = analysis ? analysis.id : null;
-            storeInitialSizingState(containerId, fontSize, maxWidth, maxHeight, textHash);
-        });
-    }
-
-    // Responsive system functions
-
-    function setupResponsiveFontSize(textEditor, backgroundDiv) {
-        if (!textEditor || !backgroundDiv) return;
-
-        const containerElem = $(backgroundDiv).closest('.flex-item');
-        const containerId = containerElem.attr('id') || `container-${Date.now()}`;
-        const isMobile = MobileUtils.isMobile();
-
-        // Recalculate font size with intelligent cache
-        function handleResize() {
-            // Clear previous timeout for this container
-            if (ModuleState.resizeTimeouts.has(containerId)) {
-                clearTimeout(ModuleState.resizeTimeouts.get(containerId));
-            }
-
-            // Mobile uses longer debounce for stability
-            const debounceTime = isMobile ? CONFIG.OPTIMIZATION.MOBILE_RECHECK_DELAY : CONFIG.OPTIMIZATION.RESIZE_DEBOUNCE;
-
-            // Set new timeout
-            ModuleState.resizeTimeouts.set(containerId, setTimeout(() => {
-                console.log(`🔄 Intelligent resize for container ${containerId} (mobile: ${isMobile})`);
-
-                if (isMobile) {
-                    // For mobile, always use enhanced sizing - no proportional scaling
-                    console.log(`📱 Mobile resize: using full recalculation`);
-                    adaptFontSize(textEditor, backgroundDiv);
-                } else {
-                    // Try ultra-fast proportional scaling first (desktop only)
-                    const usedScaling = scaleFontSizeProportionally(textEditor, backgroundDiv, containerId);
-
-                    if (!usedScaling) {
-                        // Fallback to complete calculation if no initial state
-                        console.log(`🐌 Fallback to complete calculation for container ${containerId}`);
-                        adaptFontSize(textEditor, backgroundDiv);
-                    }
-                }
-
-                ModuleState.resizeTimeouts.delete(containerId);
-            }, debounceTime));
-        }
-
-        // Enhanced observer system for mobile
-        if (window.ResizeObserver && !isMobile) {
-            // Desktop: use ResizeObserver
-            const resizeObserver = new ResizeObserver((entries) => {
-                for (const entry of entries) {
-                    if (entry.target === backgroundDiv) {
-                        handleResize();
-                        break;
-                    }
-                }
-            });
-
-            resizeObserver.observe(backgroundDiv);
-            backgroundDiv._fontResizeObserver = resizeObserver;
+        // Fixed font size based only on aspect ratio
+        let cssSize;
+        if (aspectRatio > 1) {
+            // Horizontal image - fixed large size
+            cssSize = '8cqh';
         } else {
-            // Mobile or no ResizeObserver: use multiple event listeners for reliability
-            const events = isMobile 
-                ? ['resize', 'orientationchange', 'load', 'DOMContentLoaded']
-                : ['resize'];
-            
-            events.forEach(eventName => {
-                $(window).on(`${eventName}.responsiveFont.${containerId}`, handleResize);
-            });
-
-            // Mobile-specific: also listen for viewport changes
-            if (isMobile && 'visualViewport' in window) {
-                window.visualViewport.addEventListener('resize', handleResize);
-            }
+            // Vertical image - fixed large size
+            cssSize = '4cqh';
         }
-
-        // Initial calculation with mobile-specific timing
-        const initialDelay = isMobile ? CONFIG.OPTIMIZATION.MOBILE_SETUP_DELAY : CONFIG.OPTIMIZATION.INITIAL_SETUP_DELAY;
         
-        setTimeout(() => {
-            console.log(`🚀 Initial font sizing for ${containerId} (mobile: ${isMobile})`);
-            adaptFontSize(textEditor, backgroundDiv);
-        }, initialDelay);
-
-        // Mobile: additional recheck after a longer delay to ensure everything is stable
-        if (isMobile) {
-            setTimeout(() => {
-                console.log(`📱 Mobile stability recheck for ${containerId}`);
-                adaptFontSize(textEditor, backgroundDiv, true); // Force recalculate
-            }, CONFIG.OPTIMIZATION.MOBILE_SETUP_DELAY + 500);
-        }
+        // Apply to the text editor directly
+        textEditor.style.fontSize = cssSize;
+        textEditor.style.lineHeight = CONFIG.LINE_HEIGHT_RATIO;
+        
+        console.log(`🔤 Applied fixed font size: ${cssSize} for aspect ratio: ${aspectRatio.toFixed(2)}`);
     }
 
-    // Apply manifesto styles - VERY SIMPLIFIED
+    // Apply manifesto styles - simplified
     function applyStyles(data, containerElem, img = null) {
         if (!data || !containerElem?.length) {
             console.error('❌ Invalid data or container provided to applyStyles');
@@ -876,8 +169,8 @@
                 setupNoBackground(backgroundDiv, textEditor, data);
             }
 
-            // Setup responsive system - recalculate on resize
-            setupResponsiveFontSize(textEditor, backgroundDiv);
+            // Apply font size based on user selection
+            applyFontSize(textEditor, data);
 
         } catch (error) {
             console.error(`❌ Error applying styles: ${error.message}`);
@@ -885,19 +178,17 @@
     }
 
     function setupBackground(backgroundDiv, textEditor, data, img) {
-        const aspectRatio = img.width / img.height;
-
         // Set background image
         backgroundDiv.style.backgroundImage = `url(${data.manifesto_background})`;
 
-        // CSS-based responsive sizing with aspect ratio (original simple approach)
+        // CSS-based responsive sizing with aspect ratio
         backgroundDiv.style.aspectRatio = `${img.width} / ${img.height}`;
         backgroundDiv.style.width = `${CONFIG.CONTAINER_SIZE * 100}%`;
         backgroundDiv.style.height = 'auto'; // Let CSS handle height via aspect-ratio
         backgroundDiv.style.maxWidth = '100%';
         backgroundDiv.style.maxHeight = CONFIG.LAYOUT.MAX_HEIGHT;
 
-        // Calculate margins as percentages of image dimensions (like old system)
+        // Calculate margins as percentages of image dimensions
         const marginTop = data.margin_top || 0;
         const marginRight = data.margin_right || 0;
         const marginBottom = data.margin_bottom || 0;
@@ -906,11 +197,7 @@
         // Apply margins as padding percentages - CSS will scale automatically
         textEditor.style.padding = `${marginTop}% ${marginRight}% ${marginBottom}% ${marginLeft}%`;
         textEditor.style.textAlign = data.alignment || 'left';
-
-        // Set CSS custom properties for responsive font sizing
-        backgroundDiv.style.setProperty('--max-font-size', `${CONFIG.MAX_FONT_SIZE}px`);
-        backgroundDiv.style.setProperty('--min-font-size', `${CONFIG.MIN_FONT_SIZE}px`);
-        backgroundDiv.style.setProperty('--line-height-ratio', CONFIG.LINE_HEIGHT_RATIO);
+        textEditor.style.lineHeight = CONFIG.LINE_HEIGHT_RATIO;
     }
 
     function setupNoBackground(backgroundDiv, textEditor, data) {
@@ -922,11 +209,7 @@
         // Simple padding for no-background case
         textEditor.style.padding = CONFIG.LAYOUT.NO_BACKGROUND_PADDING;
         textEditor.style.textAlign = data.alignment || 'center';
-
-        // Set CSS custom properties
-        backgroundDiv.style.setProperty('--max-font-size', `${CONFIG.MAX_FONT_SIZE}px`);
-        backgroundDiv.style.setProperty('--min-font-size', `${CONFIG.MIN_FONT_SIZE}px`);
-        backgroundDiv.style.setProperty('--line-height-ratio', CONFIG.LINE_HEIGHT_RATIO);
+        textEditor.style.lineHeight = CONFIG.LINE_HEIGHT_RATIO;
     }
 
     // Main function to update manifesto with batch optimization
@@ -1035,7 +318,6 @@
             PerformanceMonitor.logStats();
         }, 60000); // Every minute
 
-        // No mobile forcing necessary - CSS Grid handles everything automatically
 
         // Handle manifesto containers
         $('.manifesto-container').each(function () {
@@ -1045,7 +327,6 @@
             let offset = 0;
             let loading = false;
             let allDataLoaded = false;
-            let prevScrollPos = null;
 
             // Setup infinite scroll sentinel
             let $sentinel = container.siblings('.sentinel');
@@ -1061,11 +342,6 @@
 
             function loadManifesti(isInfiniteScroll = false) {
                 if (loading || allDataLoaded) return;
-
-                // Save current scroll position before loading new content
-                if (window.innerWidth <= 768 && isInfiniteScroll) {
-                    prevScrollPos = $(window).scrollTop();
-                }
 
                 loading = true;
                 $loader?.show();
@@ -1157,29 +433,6 @@
 
                         loading = false;
                         $loader && $loader.hide();
-
-
-                        // Con grid layout non è più necessario modificare justify-content
-                        // Il grid gestisce automaticamente il layout
-
-                        // Su mobile, ripristina la posizione precedente: l'ultimo del batch precedente resta visibile,
-                        // mentre i nuovi 5 vengono caricati offscreen
-                        if (window.innerWidth <= 768 && prevScrollPos !== null) {
-                            $(window).scrollTop(prevScrollPos);
-                        }
-
-                        // Forza un check dell'IntersectionObserver dopo il DOM update
-                        setTimeout(function () {
-                            if ($sentinel && $sentinel.length > 0 && !allDataLoaded) {
-                                var sentinelRect = $sentinel[0].getBoundingClientRect();
-                                var windowHeight = window.innerHeight;
-                                console.log('Sentinel position check:', {
-                                    sentinelTop: sentinelRect.top,
-                                    windowHeight: windowHeight,
-                                    isVisible: sentinelRect.top < windowHeight + 200
-                                });
-                            }
-                        }, 200);
 
                         // Auto-load for "top" type
                         if (tipoManifesto === 'top' && !isInfiniteScroll) {

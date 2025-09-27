@@ -469,7 +469,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                             <button type="button" data-command="italic"><i>I</i></button>
                             <button type="button" data-command="underline"><u>U</u></button>
                         </div>
-                        <div id="text-editor-background" class="text-editor-background" style="background-image: none;container-type: unset; ">
+                        <div id="text-editor-background" class="text-editor-background" style="background-image: none;container-type: size; ">
                             <div id="text-editor" contenteditable="true" class="custom-text-editor"></div>
                         </div>
 

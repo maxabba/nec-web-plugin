@@ -499,6 +499,7 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     background-repeat: no-repeat;
     overflow: hidden;
     margin: auto;
+    container-type: size;
 }
 
 .custom-text-editor {

@@ -43,6 +43,7 @@ if (!class_exists(__NAMESPACE__ . '\PrintManifestoClass')) {
 
             $args = array(
                 'post_type' => 'manifesto',
+                'post_status' => 'publish',
                 'meta_query' => array(
                     'relation' => 'AND',
                     array(
@@ -56,6 +57,9 @@ if (!class_exists(__NAMESPACE__ . '\PrintManifestoClass')) {
                         'compare' => 'IN',
                     ),
                 ),
+                'meta_key' => 'vendor_id',
+                'orderby' => 'meta_value_num',
+                'order' => 'ASC',
                 'fields' => 'ids',
             );
 
@@ -69,11 +73,10 @@ if (!class_exists(__NAMESPACE__ . '\PrintManifestoClass')) {
         function load_manifesti_print()
         {
             $post_id = intval($_POST['post_id']);
-            $offset = intval($_POST['offset']);
-            $limit = 5;
 
             $args = array(
                 'post_type' => 'manifesto',
+                'post_status' => 'publish',
                 'meta_query' => array(
                     'relation' => 'AND',
                     array(
@@ -87,8 +90,10 @@ if (!class_exists(__NAMESPACE__ . '\PrintManifestoClass')) {
                         'compare' => 'IN',
                     ),
                 ),
-                'posts_per_page' => $limit,
-                'offset' => $offset,
+                'meta_key' => 'vendor_id',
+                'orderby' => 'meta_value_num',
+                'order' => 'ASC',
+                'posts_per_page' => -1, // Get all posts at once
             );
 
             $manifesti = new WP_Query($args);

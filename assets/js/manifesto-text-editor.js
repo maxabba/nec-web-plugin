@@ -48,20 +48,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 textEditor.style.paddingLeft = `${marginLeftPx}px`;
                 textEditor.style.textAlign = data.alignment ? data.alignment : 'left';
                 
-                // Set dynamic font-size for paragraphs based on image orientation
-                const fontSize = aspectRatio > 1 ? '8cqh' : '4cqh'; // horizontal: 10cqh, vertical: 4cqh
-                const paragraphs = textEditor.querySelectorAll('p');
-                paragraphs.forEach(p => {
-                    p.style.fontSize = fontSize;
-                });
-                
-                // Set font-size for future paragraphs via CSS rule
-                const styleElement = document.getElementById('dynamic-paragraph-style') || document.createElement('style');
-                styleElement.id = 'dynamic-paragraph-style';
-                styleElement.innerHTML = `.custom-text-editor p { font-size: ${fontSize} !important; }`;
-                if (!document.getElementById('dynamic-paragraph-style')) {
-                    document.head.appendChild(styleElement);
-                }
+                // Set dynamic font-size directly on text editor based on image orientation
+                const fontSize = aspectRatio > 1 ? '8cqh' : '4cqh'; // horizontal: 8cqh, vertical: 4cqh
+                textEditor.style.fontSize = fontSize;
+                textEditor.style.lineHeight = '1.2';
             }
         } else {
             backgroundDiv.style.backgroundImage = 'none';
