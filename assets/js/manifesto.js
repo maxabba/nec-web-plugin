@@ -30,7 +30,11 @@
             MAX_ITERATIONS: 25,
             FONT_INCREMENT: 0.5,
             RESIZE_DEBOUNCE: 50,
-            INITIAL_SETUP_DELAY: 100
+            INITIAL_SETUP_DELAY: 100,
+            // Mobile-specific delays
+            MOBILE_SETUP_DELAY: 300,
+            MOBILE_RECHECK_DELAY: 500,
+            MOBILE_FORCE_REFLOW_DELAY: 50
         },
 
         // Layout settings
@@ -50,29 +54,88 @@
         textAnalysisCache: new Map(),
         resizeTimeouts: new Map(),
         // New: Store initial sizing states for proportional scaling
-        initialSizingStates: new Map()
+        initialSizingStates: new Map(),
+        // Batch optimization: cache batch background info
+        batchCache: new Map(), // containerId -> { backgroundUrl, batchId, preloadedImage }
+        currentBatchId: null
     };
 
-    // Load image with caching
+    // Batch cache optimization functions
+    function initializeBatch(containerId) {
+        ModuleState.currentBatchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        console.log(`🔄 Inizializing new batch: ${ModuleState.currentBatchId} for container: ${containerId}`);
+        return ModuleState.currentBatchId;
+    }
+
+    function setBatchBackground(containerId, backgroundUrl, batchId) {
+        if (!backgroundUrl || !containerId || !batchId) return false;
+        
+        // Pre-load the image for the entire batch
+        return loadImage(backgroundUrl).then(img => {
+            ModuleState.batchCache.set(containerId, {
+                backgroundUrl,
+                batchId,
+                preloadedImage: img,
+                timestamp: Date.now()
+            });
+            console.log(`📦 Batch background cached for container ${containerId}: ${backgroundUrl}`);
+            return img;
+        }).catch(error => {
+            console.error(`❌ Failed to cache batch background: ${error.message}`);
+            return null;
+        });
+    }
+
+    function getBatchBackground(containerId) {
+        const cached = ModuleState.batchCache.get(containerId);
+        if (cached && cached.preloadedImage) {
+            console.log(`⚡ Using cached batch background for container ${containerId}`);
+            PerformanceMonitor.recordBatchCacheHit();
+            return cached.preloadedImage;
+        }
+        return null;
+    }
+
+    function isSameBatchBackground(containerId, backgroundUrl) {
+        const cached = ModuleState.batchCache.get(containerId);
+        return cached && cached.backgroundUrl === backgroundUrl;
+    }
+
+    // Clean old batch cache entries (run periodically to prevent memory leaks)
+    function cleanupBatchCache(maxAge = 300000) { // 5 minutes default
+        const now = Date.now();
+        const toDelete = [];
+        
+        ModuleState.batchCache.forEach((value, key) => {
+            if (now - value.timestamp > maxAge) {
+                toDelete.push(key);
+            }
+        });
+        
+        toDelete.forEach(key => {
+            ModuleState.batchCache.delete(key);
+            console.log(`🧹 Cleaned old batch cache entry: ${key}`);
+        });
+        
+        if (toDelete.length > 0) {
+            console.log(`🧹 Cleaned ${toDelete.length} old batch cache entries`);
+        }
+    }
+
+    // Load image with caching and batch optimization
     function loadImage(url) {
         if (!url) {
             return Promise.reject(new Error('Invalid URL provided'));
         }
 
         if (ModuleState.imageCache.has(url)) {
+            PerformanceMonitor.recordCacheHit();
             return Promise.resolve(ModuleState.imageCache.get(url));
         }
 
+        PerformanceMonitor.recordCacheMiss();
         return new Promise((resolve, reject) => {
             const img = new Image();
-            img.onload = () => {
-                try {
-                    ModuleState.imageCache.set(url, img);
-                    resolve(img);
-                } catch (error) {
-                    reject(new Error(`Failed to cache image: ${error.message}`));
-                }
-            };
             img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
 
             // Set a timeout to prevent hanging
@@ -286,6 +349,53 @@
     // Create global text analyzer instance
     const textAnalyzer = new TextAnalyzer();
 
+    // Mobile detection and utilities
+    const MobileUtils = {
+        isMobile() {
+            return window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        },
+        
+        isIOS() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent);
+        },
+        
+        forceReflow(element) {
+            if (element) {
+                // Multiple reflow triggers for mobile
+                void element.offsetHeight;
+                void element.offsetWidth;
+                void element.scrollHeight;
+                void element.scrollWidth;
+            }
+        },
+        
+        waitForStableSize(element, callback, maxAttempts = 10) {
+            if (!element || !callback) return;
+            
+            let attempts = 0;
+            let lastWidth = 0;
+            let lastHeight = 0;
+            
+            const checkSize = () => {
+                attempts++;
+                const currentWidth = element.clientWidth;
+                const currentHeight = element.clientHeight;
+                
+                if ((currentWidth === lastWidth && currentHeight === lastHeight && currentWidth > 0) || attempts >= maxAttempts) {
+                    console.log(`📱 Size stable after ${attempts} attempts: ${currentWidth}x${currentHeight}`);
+                    callback();
+                    return;
+                }
+                
+                lastWidth = currentWidth;
+                lastHeight = currentHeight;
+                setTimeout(checkSize, CONFIG.OPTIMIZATION.MOBILE_FORCE_REFLOW_DELAY);
+            };
+            
+            checkSize();
+        }
+    };
+
     // Backward compatibility function - use TextAnalyzer instance
     function analyzeText(textEditor, forceRecalculate = false) {
         return textAnalyzer.analyzeText(textEditor, forceRecalculate);
@@ -470,6 +580,64 @@
 
             return fontSize;
         }
+
+        optimizeIterativelyMobile(textEditor, initialFontSize, analysis, maxWidth, maxHeight) {
+            if (!textEditor) return initialFontSize;
+
+            let fontSize = initialFontSize;
+            let iterations = 0;
+            const maxIterations = this.config.OPTIMIZATION.MAX_ITERATIONS;
+
+            // Apply initial font size with forced reflow
+            textEditor.style.fontSize = fontSize + 'px';
+            textEditor.style.lineHeight = this.config.LINE_HEIGHT_RATIO;
+            MobileUtils.forceReflow(textEditor);
+
+            console.log(`📱 Starting mobile optimization from ${fontSize}px`);
+
+            // First phase: reduce if doesn't fit (with extra checks for mobile)
+            while (
+                (textEditor.scrollHeight > maxHeight || textEditor.scrollWidth > maxWidth)
+                && fontSize > this.config.MIN_FONT_SIZE
+                && iterations < maxIterations
+                ) {
+                fontSize -= this.config.OPTIMIZATION.FONT_INCREMENT;
+                textEditor.style.fontSize = fontSize + 'px';
+                
+                // Extra reflow for mobile reliability
+                MobileUtils.forceReflow(textEditor);
+                
+                iterations++;
+                console.log(`📱 Iteration ${iterations}: reduced to ${fontSize}px (scroll: ${textEditor.scrollHeight}/${maxHeight}, width: ${textEditor.scrollWidth}/${maxWidth})`);
+            }
+
+            // Second phase: for short texts, try to increase if there's space (mobile-adapted)
+            if (analysis.isShortText && iterations < maxIterations) {
+                let testFontSize = fontSize;
+                while (
+                    textEditor.scrollHeight <= maxHeight &&
+                    textEditor.scrollWidth <= maxWidth &&
+                    testFontSize < this.config.MAX_FONT_SIZE &&
+                    iterations < maxIterations
+                    ) {
+                    fontSize = testFontSize;
+                    testFontSize += this.config.OPTIMIZATION.FONT_INCREMENT;
+                    textEditor.style.fontSize = testFontSize + 'px';
+                    
+                    // Mobile-specific reflow
+                    MobileUtils.forceReflow(textEditor);
+                    
+                    iterations++;
+                    console.log(`📱 Expansion iteration ${iterations}: testing ${testFontSize}px`);
+                }
+                // Return to last valid size
+                textEditor.style.fontSize = fontSize + 'px';
+                MobileUtils.forceReflow(textEditor);
+            }
+
+            console.log(`📱 Mobile optimization completed: ${fontSize}px after ${iterations} iterations`);
+            return fontSize;
+        }
     }
 
     // Create global font calculator instance
@@ -480,9 +648,16 @@
         return fontCalculator.calculateFromAnalysis(analysis, maxWidth, maxHeight);
     }
 
-    // Adapt font size intelligently based on content (complete)
+    // Adapt font size intelligently based on content (complete) with mobile optimizations
     function adaptFontSize(textEditor, backgroundDiv, forceRecalculate = false) {
         if (!textEditor || !backgroundDiv) return;
+
+        // Mobile-specific handling
+        if (MobileUtils.isMobile()) {
+            console.log('📱 Mobile device detected, using enhanced font sizing');
+            adaptFontSizeMobile(textEditor, backgroundDiv, forceRecalculate);
+            return;
+        }
 
         const maxHeight = backgroundDiv.clientHeight;
         const maxWidth = backgroundDiv.clientWidth;
@@ -529,6 +704,67 @@
         storeInitialSizingState(containerId, fontSize, maxWidth, maxHeight, textHash);
     }
 
+    // Mobile-specific font sizing with enhanced reliability
+    function adaptFontSizeMobile(textEditor, backgroundDiv, forceRecalculate = false) {
+        if (!textEditor || !backgroundDiv) return;
+
+        console.log('📱 Starting mobile font adaptation');
+
+        // Wait for stable dimensions before calculating
+        MobileUtils.waitForStableSize(backgroundDiv, () => {
+            console.log('📱 Container size stabilized, proceeding with font calculation');
+            
+            // Force reflow to ensure accurate measurements
+            MobileUtils.forceReflow(backgroundDiv);
+            MobileUtils.forceReflow(textEditor);
+
+            const maxHeight = backgroundDiv.clientHeight;
+            const maxWidth = backgroundDiv.clientWidth;
+
+            if (maxWidth === 0 || maxHeight === 0) {
+                console.warn('📱 Container has zero dimensions, retrying...');
+                setTimeout(() => adaptFontSizeMobile(textEditor, backgroundDiv, forceRecalculate), CONFIG.OPTIMIZATION.MOBILE_RECHECK_DELAY);
+                return;
+            }
+
+            console.log(`📱 Mobile container dimensions: ${maxWidth}x${maxHeight}`);
+
+            const analysis = analyzeText(textEditor, forceRecalculate);
+            if (!analysis) {
+                console.error('❌ Failed to analyze text on mobile');
+                return;
+            }
+
+            // Use more conservative calculations for mobile
+            const initialFontSize = fontCalculator.calculateFromAnalysis(analysis, maxWidth, maxHeight);
+            
+            // Apply font with forced reflows
+            textEditor.style.fontSize = initialFontSize + 'px';
+            textEditor.style.lineHeight = CONFIG.LINE_HEIGHT_RATIO;
+            MobileUtils.forceReflow(textEditor);
+
+            // Mobile-specific iterative optimization with extra reflows
+            const fontSize = fontCalculator.optimizeIterativelyMobile(
+                textEditor,
+                initialFontSize,
+                analysis,
+                maxWidth,
+                maxHeight
+            );
+
+            console.log(`📱 Mobile font optimized: ${fontSize}px for ${maxWidth}x${maxHeight}`);
+
+            // Store initial state
+            const containerElem = $(backgroundDiv).closest('.flex-item');
+            const containerId = containerElem.attr('id') || `container-mobile-${Date.now()}`;
+            if (!containerElem.attr('id')) {
+                containerElem.attr('id', containerId);
+            }
+            const textHash = analysis ? analysis.id : null;
+            storeInitialSizingState(containerId, fontSize, maxWidth, maxHeight, textHash);
+        });
+    }
+
     // Responsive system functions
 
     function setupResponsiveFontSize(textEditor, backgroundDiv) {
@@ -536,6 +772,7 @@
 
         const containerElem = $(backgroundDiv).closest('.flex-item');
         const containerId = containerElem.attr('id') || `container-${Date.now()}`;
+        const isMobile = MobileUtils.isMobile();
 
         // Recalculate font size with intelligent cache
         function handleResize() {
@@ -544,25 +781,35 @@
                 clearTimeout(ModuleState.resizeTimeouts.get(containerId));
             }
 
+            // Mobile uses longer debounce for stability
+            const debounceTime = isMobile ? CONFIG.OPTIMIZATION.MOBILE_RECHECK_DELAY : CONFIG.OPTIMIZATION.RESIZE_DEBOUNCE;
+
             // Set new timeout
             ModuleState.resizeTimeouts.set(containerId, setTimeout(() => {
-                console.log(`🔄 Intelligent resize for container ${containerId}`);
+                console.log(`🔄 Intelligent resize for container ${containerId} (mobile: ${isMobile})`);
 
-                // Try ultra-fast proportional scaling first
-                const usedScaling = scaleFontSizeProportionally(textEditor, backgroundDiv, containerId);
-
-                if (!usedScaling) {
-                    // Fallback to complete calculation if no initial state
-                    console.log(`🐌 Fallback to complete calculation for container ${containerId}`);
+                if (isMobile) {
+                    // For mobile, always use enhanced sizing - no proportional scaling
+                    console.log(`📱 Mobile resize: using full recalculation`);
                     adaptFontSize(textEditor, backgroundDiv);
+                } else {
+                    // Try ultra-fast proportional scaling first (desktop only)
+                    const usedScaling = scaleFontSizeProportionally(textEditor, backgroundDiv, containerId);
+
+                    if (!usedScaling) {
+                        // Fallback to complete calculation if no initial state
+                        console.log(`🐌 Fallback to complete calculation for container ${containerId}`);
+                        adaptFontSize(textEditor, backgroundDiv);
+                    }
                 }
 
                 ModuleState.resizeTimeouts.delete(containerId);
-            }, CONFIG.OPTIMIZATION.RESIZE_DEBOUNCE));
+            }, debounceTime));
         }
 
-        // Observer for text-editor-background dimension changes
-        if (window.ResizeObserver) {
+        // Enhanced observer system for mobile
+        if (window.ResizeObserver && !isMobile) {
+            // Desktop: use ResizeObserver
             const resizeObserver = new ResizeObserver((entries) => {
                 for (const entry of entries) {
                     if (entry.target === backgroundDiv) {
@@ -573,18 +820,38 @@
             });
 
             resizeObserver.observe(backgroundDiv);
-
-            // Store observer for future cleanup
             backgroundDiv._fontResizeObserver = resizeObserver;
         } else {
-            // Fallback for browsers without ResizeObserver - use window resize
-            $(window).on(`resize.responsiveFont.${containerId}`, handleResize);
+            // Mobile or no ResizeObserver: use multiple event listeners for reliability
+            const events = isMobile 
+                ? ['resize', 'orientationchange', 'load', 'DOMContentLoaded']
+                : ['resize'];
+            
+            events.forEach(eventName => {
+                $(window).on(`${eventName}.responsiveFont.${containerId}`, handleResize);
+            });
+
+            // Mobile-specific: also listen for viewport changes
+            if (isMobile && 'visualViewport' in window) {
+                window.visualViewport.addEventListener('resize', handleResize);
+            }
         }
 
-        // Initial calculation - same identical process
+        // Initial calculation with mobile-specific timing
+        const initialDelay = isMobile ? CONFIG.OPTIMIZATION.MOBILE_SETUP_DELAY : CONFIG.OPTIMIZATION.INITIAL_SETUP_DELAY;
+        
         setTimeout(() => {
+            console.log(`🚀 Initial font sizing for ${containerId} (mobile: ${isMobile})`);
             adaptFontSize(textEditor, backgroundDiv);
-        }, CONFIG.OPTIMIZATION.INITIAL_SETUP_DELAY);
+        }, initialDelay);
+
+        // Mobile: additional recheck after a longer delay to ensure everything is stable
+        if (isMobile) {
+            setTimeout(() => {
+                console.log(`📱 Mobile stability recheck for ${containerId}`);
+                adaptFontSize(textEditor, backgroundDiv, true); // Force recalculate
+            }, CONFIG.OPTIMIZATION.MOBILE_SETUP_DELAY + 500);
+        }
     }
 
     // Apply manifesto styles - VERY SIMPLIFIED
@@ -662,8 +929,8 @@
         backgroundDiv.style.setProperty('--line-height-ratio', CONFIG.LINE_HEIGHT_RATIO);
     }
 
-    // Main function to update manifesto
-    function updateManifesto(data, containerElem) {
+    // Main function to update manifesto with batch optimization
+    function updateManifesto(data, containerElem, parentContainerId = null, isFirstInBatch = false) {
         if (!data || !containerElem?.length) {
             console.error('❌ Invalid data or container provided to updateManifesto');
             return;
@@ -682,8 +949,25 @@
             if (data.manifesto_background) {
                 if (textEditor) textEditor.classList.add('loading');
 
+                // Batch optimization: check if this is the same background as cached
+                if (parentContainerId && isSameBatchBackground(parentContainerId, data.manifesto_background)) {
+                    // Use cached background immediately
+                    const cachedImg = getBatchBackground(parentContainerId);
+                    if (cachedImg) {
+                        applyStyles(data, containerElem, cachedImg);
+                        if (textEditor) textEditor.classList.remove('loading');
+                        return;
+                    }
+                }
+
+                // Load image (either new or not in batch cache)
                 loadImage(data.manifesto_background)
                     .then(img => {
+                        // If this is the first in batch, cache it for other elements
+                        if (isFirstInBatch && parentContainerId) {
+                            setBatchBackground(parentContainerId, data.manifesto_background, ModuleState.currentBatchId);
+                        }
+                        
                         applyStyles(data, containerElem, img);
                         if (textEditor) textEditor.classList.remove('loading');
                     })
@@ -703,8 +987,53 @@
     }
 
 
+    // Performance monitoring
+    const PerformanceMonitor = {
+        cacheHits: 0,
+        cacheMisses: 0,
+        batchCacheHits: 0,
+        imagesLoaded: 0,
+        
+        recordCacheHit() {
+            this.cacheHits++;
+        },
+        
+        recordCacheMiss() {
+            this.cacheMisses++;
+            this.imagesLoaded++;
+        },
+        
+        recordBatchCacheHit() {
+            this.batchCacheHits++;
+        },
+        
+        getStats() {
+            const total = this.cacheHits + this.cacheMisses;
+            const cacheRate = total > 0 ? ((this.cacheHits / total) * 100).toFixed(1) : 0;
+            return {
+                cacheHits: this.cacheHits,
+                cacheMisses: this.cacheMisses,
+                batchCacheHits: this.batchCacheHits,
+                imagesLoaded: this.imagesLoaded,
+                cacheRate: `${cacheRate}%`,
+                total
+            };
+        },
+        
+        logStats() {
+            const stats = this.getStats();
+            console.log(`📊 Cache Performance: ${stats.cacheHits}H/${stats.cacheMisses}M (${stats.cacheRate}) | Batch: ${stats.batchCacheHits}H | Images: ${stats.imagesLoaded}`);
+        }
+    };
+
     // Initialize on document ready
     $(document).ready(function () {
+
+        // Setup periodic cache cleanup and stats
+        setInterval(() => {
+            cleanupBatchCache();
+            PerformanceMonitor.logStats();
+        }, 60000); // Every minute
 
         // No mobile forcing necessary - CSS Grid handles everything automatically
 
@@ -716,6 +1045,7 @@
             let offset = 0;
             let loading = false;
             let allDataLoaded = false;
+            let prevScrollPos = null;
 
             // Setup infinite scroll sentinel
             let $sentinel = container.siblings('.sentinel');
@@ -731,6 +1061,11 @@
 
             function loadManifesti(isInfiniteScroll = false) {
                 if (loading || allDataLoaded) return;
+
+                // Save current scroll position before loading new content
+                if (window.innerWidth <= 768 && isInfiniteScroll) {
+                    prevScrollPos = $(window).scrollTop();
+                }
 
                 loading = true;
                 $loader?.show();
@@ -783,7 +1118,21 @@
                             return;
                         }
 
-                        manifesti.forEach(function (item) {
+                        // Initialize batch for this container
+                        const containerId = container.attr('id') || `container-${Date.now()}`;
+                        if (!container.attr('id')) {
+                            container.attr('id', containerId);
+                        }
+                        const batchId = initializeBatch(containerId);
+
+                        // Batch optimization: analyze first element for background caching
+                        let firstBackgroundUrl = null;
+                        if (manifesti.length > 0 && manifesti[0].vendor_data && manifesti[0].vendor_data.manifesto_background) {
+                            firstBackgroundUrl = manifesti[0].vendor_data.manifesto_background;
+                            console.log(`🎯 First element background detected: ${firstBackgroundUrl}`);
+                        }
+
+                        manifesti.forEach(function (item, index) {
                             if (!item || !item.html) return;
 
                             var newElement = $(item.html);
@@ -792,9 +1141,9 @@
                             // Rende visibile il manifesto_divider per la sezione
                             container.parent().parent().parent().parent().find('.manifesto_divider').show();
 
-                            // Count only real manifesti, not dividers - check both vendor_data and HTML content
-
-                            updateManifesto(item.vendor_data, newElement);
+                            // Batch optimization: pass container info and first element flag
+                            const isFirstInBatch = index === 0;
+                            updateManifesto(item.vendor_data, newElement, containerId, isFirstInBatch);
 
                         });
 
