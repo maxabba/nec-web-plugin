@@ -213,26 +213,16 @@
         }
 
         function openPrintPopup() {
-            // Assegna orientamento basato sull'aspect ratio delle immagini (non delle dimensioni DOM)
+            // L'attributo data-orientation è già stato impostato in updateEditorBackground
+            // quindi non serve ricalcolarlo qui
+            console.log('Opening print popup with pre-set orientations...');
+            
+            // Opzionale: verifica che tutti i manifesti abbiano l'orientamento impostato
             container.find('.text-editor-background').each(function(index, element) {
-                const postId = $(element).data('postid');
-                const vendorId = $(element).data('vendorid');
-                
-                // Trova l'aspect ratio dall'immagine di background utilizzando la cache
-                let aspectRatio = 1;
-                const bgImage = $(element).css('background-image');
-                if (bgImage && bgImage !== 'none') {
-                    const urlMatch = bgImage.match(/url\(['"]?([^'")]+)['"]?\)/);
-                    if (urlMatch && urlMatch[1]) {
-                        const cachedData = imageCache.get(urlMatch[1]);
-                        if (cachedData) {
-                            aspectRatio = cachedData.aspectRatio;
-                        }
-                    }
+                if (!$(element).attr('data-orientation')) {
+                    console.warn(`Missing orientation for manifesto ${index}, defaulting to portrait`);
+                    $(element).attr('data-orientation', 'portrait');
                 }
-                
-                const orientation = aspectRatio > 1 ? 'landscape' : 'portrait';
-                $(element).attr('data-orientation', orientation);
             });
             
             var printContents = container.html();
@@ -257,17 +247,6 @@
             location.reload();
         }
 
-        function addPageBreaks() {
-            // Aggiungi solo la classe per la stampa, senza div aggiuntivi
-            container.find('.text-editor-background').each(function(index, element) {
-                $(element).addClass('print-page');
-                // Determina orientamento specifico per ogni manifesto
-                const width = $(element).outerWidth();
-                const height = $(element).outerHeight();
-                const orientation = width > height ? 'landscape' : 'portrait';
-                $(element).attr('data-orientation', orientation);
-            });
-        }
 
         function generatePrintStyles() {
             const format = pageFormat.toLowerCase();
@@ -347,24 +326,6 @@
             `;
         }
 
-        function detectOrientation() {
-            let landscapeCount = 0;
-            let portraitCount = 0;
-            
-            container.find('.text-editor-background').each(function() {
-                const width = $(this).outerWidth();
-                const height = $(this).outerHeight();
-                
-                if (width > height) {
-                    landscapeCount++;
-                } else {
-                    portraitCount++;
-                }
-            });
-            
-            // Restituisce l'orientamento più comune
-            return landscapeCount > portraitCount ? 'landscape' : 'portrait';
-        }
 
         $('#start-button').click(function () {
             pageFormat = $('#page-format').val();
@@ -407,6 +368,11 @@
                 const aspectRatio = cachedImageData.aspectRatio;
                 const imageWidth = cachedImageData.width;
                 const imageHeight = cachedImageData.height;
+                
+                // IMPORTANTE: Imposta l'orientamento qui, subito dopo aver ottenuto l'aspect ratio
+                const orientation = aspectRatio > 1 ? 'landscape' : 'portrait';
+                backgroundDiv.setAttribute('data-orientation', orientation);
+                console.log(`Manifesto orientation set: ${orientation} (AR: ${aspectRatio.toFixed(2)})`);
                 
                 backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
                 const dimensions = pageFormatDimensions[pageFormat.toLowerCase()];
