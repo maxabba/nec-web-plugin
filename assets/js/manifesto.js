@@ -11,33 +11,87 @@ function debounce(func, wait) {
 }
 
 (function ($) {
-    // Cache globale per le immagini di sfondo
-    const imageCache = new Map();
+    // === INIZIALIZZAZIONE CACHE ===
+    // Cache globale per le immagini di sfondo con struttura migliorata
+    var imageCache = new Map();
+    // Struttura: URL -> {image, width, height, aspectRatio}
 
-    // Funzione per caricare immagini con cache
-    function loadImageWithCache(url) {
-        return new Promise((resolve, reject) => {
-            if (imageCache.has(url)) {
-                // Immagine già in cache, restituisci immediatamente
-                console.log('🟢 CACHE HIT for:', url);
-                const cachedImg = imageCache.get(url);
-                resolve(cachedImg);
-            } else {
-                // Carica l'immagine e mettila in cache
-                console.log('🔴 CACHE MISS for:', url);
-                const img = new Image();
-                img.onload = function() {
-                    console.log('✅ Image loaded and cached:', url);
-                    imageCache.set(url, img);
-                    resolve(img);
-                };
-                img.onerror = function() {
-                    console.log('❌ Failed to load image:', url);
-                    reject(new Error('Failed to load image: ' + url));
-                };
-                img.src = url;
+    // === ANALISI URL UNIVOCI ===
+    // Funzione per analizzare e raggruppare gli URL delle immagini di sfondo
+    function analyzeBackgroundUrls(manifesti) {
+        var urlToIndices = new Map(); // URL -> array di indici dei manifesti
+        var uniqueUrls = new Set();
+        
+        manifesti.forEach(function(manifesto, index) {
+            if (manifesto.vendor_data && manifesto.vendor_data.manifesto_background) {
+                var url = manifesto.vendor_data.manifesto_background;
+                uniqueUrls.add(url);
+                
+                if (!urlToIndices.has(url)) {
+                    urlToIndices.set(url, []);
+                }
+                urlToIndices.get(url).push(index);
             }
         });
+        
+        console.log('📊 Analisi URL completata:', {
+            totalManifesti: manifesti.length,
+            urlUnivoci: uniqueUrls.size,
+            risparmioCache: manifesti.length - uniqueUrls.size
+        });
+        
+        return {
+            uniqueUrls: Array.from(uniqueUrls),
+            urlToIndices: urlToIndices
+        };
+    }
+
+    // === PRE-CARICAMENTO CON CACHE ===
+    // Funzione per pre-caricare solo le immagini uniche
+    function preloadUniqueImages(uniqueUrls) {
+        var promises = uniqueUrls.map(function(url) {
+            return new Promise(function(resolve) {
+                // 1. VERIFICA CACHE
+                if (imageCache.has(url)) {
+                    // Cache HIT - usa i dati già memorizzati
+                    console.log('🟢 CACHE HIT per:', url.substring(url.lastIndexOf('/') + 1));
+                    resolve(imageCache.get(url));
+                    return;
+                }
+                
+                // 2. CACHE MISS - CARICA IMMAGINE
+                console.log('🔴 CACHE MISS - Loading:', url.substring(url.lastIndexOf('/') + 1));
+                var img = new Image();
+                
+                img.onload = function() {
+                    // 3. MEMORIZZA IN CACHE con struttura completa
+                    var imageData = {
+                        image: img,
+                        width: img.width,
+                        height: img.height,
+                        aspectRatio: img.width / img.height
+                    };
+                    imageCache.set(url, imageData);
+                    console.log('✅ Cached:', url.substring(url.lastIndexOf('/') + 1), {
+                        width: img.width,
+                        height: img.height,
+                        ratio: imageData.aspectRatio.toFixed(2)
+                    });
+                    resolve(imageData);
+                };
+                
+                img.onerror = function() {
+                    // 4. RIMUOVI DA CACHE SE ERRORE
+                    console.log('❌ Failed to load:', url.substring(url.lastIndexOf('/') + 1));
+                    imageCache.delete(url);
+                    resolve(null);
+                };
+                
+                img.src = url;
+            });
+        });
+        
+        return Promise.all(promises);
     }
 
     $(document).ready(function () {
@@ -53,42 +107,6 @@ function debounce(func, wait) {
             // Author-aware pagination variables
             var currentAuthorId = null;
             var authorOffset = 0;
-
-            // Se non è la sezione "top" usiamo una sentinella per l'infinite scroll
-            var $sentinel = null;
-            if (tipo_manifesto !== 'top') {
-                var containerId = container.attr('id');
-                var instanceId = null;
-                
-                if (containerId) {
-                    var instanceMatch = containerId.match(/manifesto-container-(\d+)/);
-                    if (instanceMatch) {
-                        instanceId = instanceMatch[1];
-                    }
-                }
-
-                console.log('Searching for sentinel element:', {
-                    containerId: containerId,
-                    instanceId: instanceId,
-                    tipo_manifesto: tipo_manifesto
-                });
-
-                // Prova prima come sibling
-                $sentinel = container.siblings('.sentinel');
-                console.log('Found siblings .sentinel:', $sentinel.length);
-
-                // Se non trovato come sibling, prova nel parent
-                if ($sentinel.length === 0) {
-                    $sentinel = container.parent().find('.sentinel');
-                    console.log('Found in parent .sentinel:', $sentinel.length);
-                }
-
-                // Se ancora non trovato, prova con l'ID specifico
-                if ($sentinel.length === 0 && instanceId) {
-                    $sentinel = $('#sentinel-' + instanceId);
-                    console.log('Found by ID #sentinel-' + instanceId + ':', $sentinel.length);
-                }
-            }
             // Trova l'elemento loader con una strategia simile
             var $loader = container.siblings('.manifesto-loader');
             if ($loader.length === 0) {
@@ -104,9 +122,11 @@ function debounce(func, wait) {
                 }
             }
 
-            function updateEditorBackground(data, containerElem) {
+            // === UTILIZZO DELLA CACHE ===
+            function updateEditorBackground(data, containerElem, resolve) {
                 if (!data || !containerElem || !containerElem.length) {
                     console.warn('Missing data or container for updateEditorBackground');
+                    if (resolve) resolve();
                     return;
                 }
 
@@ -115,55 +135,85 @@ function debounce(func, wait) {
 
                 if (!backgroundDiv || !textEditor) {
                     console.warn('Required elements not found in container');
+                    if (resolve) resolve();
                     return;
                 }
 
                 if (data.manifesto_background) {
-                    // Nasconde il testo durante il caricamento
-                    textEditor.classList.add('loading');
-
-                    // Usa la cache per caricare l'immagine
-                    loadImageWithCache(data.manifesto_background)
-                        .then(function(img) {
-                            const aspectRatio = img.width / img.height;
-                            backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
-                            
-                            if (aspectRatio > 1) {
-                                backgroundDiv.style.width = '350px';
-                                backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
-                            } else {
-                                backgroundDiv.style.height = '350px';
-                                backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
-                            }
-
-                            const marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
-                            const marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
-                            const marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
-                            const marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
-
-                            textEditor.style.paddingTop = `${marginTopPx}px`;
-                            textEditor.style.paddingRight = `${marginRightPx}px`;
-                            textEditor.style.paddingBottom = `${marginBottomPx}px`;
-                            textEditor.style.paddingLeft = `${marginLeftPx}px`;
-                            textEditor.style.textAlign = data.alignment || 'left';
-
-                            // Mostra il testo dopo che tutto è pronto
-                            textEditor.classList.remove('loading');
-                        })
-                        .catch(function(error) {
-                            console.warn('Failed to load background image:', error);
+                    // Usa i dati dalla cache invece di caricare nuova immagine
+                    const cachedImageData = imageCache.get(data.manifesto_background);
+                    
+                    if (!cachedImageData) {
+                        // Fallback se non in cache (non dovrebbe succedere se pre-caricamento funziona)
+                        console.warn('⚠️ Image not in cache, loading now:', data.manifesto_background);
+                        // Nasconde il testo durante il caricamento
+                        textEditor.classList.add('loading');
+                        
+                        var img = new Image();
+                        img.onload = function() {
+                            // Memorizza in cache per usi futuri
+                            var imageData = {
+                                image: img,
+                                width: img.width,
+                                height: img.height,
+                                aspectRatio: img.width / img.height
+                            };
+                            imageCache.set(data.manifesto_background, imageData);
+                            applyBackgroundStyles(imageData);
+                        };
+                        img.onerror = function() {
+                            console.warn('Failed to load background image:', data.manifesto_background);
                             backgroundDiv.style.backgroundImage = 'none';
-                            // Mostra il testo anche in caso di errore
                             textEditor.classList.remove('loading');
-                        });
+                            if (resolve) resolve();
+                        };
+                        img.src = data.manifesto_background;
+                        return;
+                    }
+                    
+                    // Usa dimensioni dalla cache direttamente
+                    applyBackgroundStyles(cachedImageData);
+                    
+                    function applyBackgroundStyles(imageData) {
+                        const aspectRatio = imageData.aspectRatio;
+                        const imageWidth = imageData.width;
+                        const imageHeight = imageData.height;
+                        
+                        backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
+                        
+                        if (aspectRatio > 1) {
+                            backgroundDiv.style.width = '350px';
+                            backgroundDiv.style.height = `${backgroundDiv.clientWidth / aspectRatio}px`;
+                        } else {
+                            backgroundDiv.style.height = '350px';
+                            backgroundDiv.style.width = `${backgroundDiv.clientHeight * aspectRatio}px`;
+                        }
+
+                        const marginTopPx = (data.margin_top / 100) * backgroundDiv.clientHeight;
+                        const marginRightPx = (data.margin_right / 100) * backgroundDiv.clientWidth;
+                        const marginBottomPx = (data.margin_bottom / 100) * backgroundDiv.clientHeight;
+                        const marginLeftPx = (data.margin_left / 100) * backgroundDiv.clientWidth;
+
+                        textEditor.style.paddingTop = `${marginTopPx}px`;
+                        textEditor.style.paddingRight = `${marginRightPx}px`;
+                        textEditor.style.paddingBottom = `${marginBottomPx}px`;
+                        textEditor.style.paddingLeft = `${marginLeftPx}px`;
+                        textEditor.style.textAlign = data.alignment || 'left';
+
+                        // Mostra il testo dopo che tutto è pronto (nessun ritardo perché cache)
+                        textEditor.classList.remove('loading');
+                        
+                        if (resolve) resolve();
+                    }
                 } else {
                     backgroundDiv.style.backgroundImage = 'none';
                     // Assicurati che il testo sia visibile se non c'è sfondo
                     textEditor.classList.remove('loading');
+                    if (resolve) resolve();
                 }
             }
 
-            function loadManifesti(isInfiniteScroll = false) {
+            function loadManifesti() {
                 if (loading || allDataLoaded) return;
 
                 // Su mobile: registra la posizione dell'ultimo elemento del batch precedente
@@ -200,7 +250,6 @@ function debounce(func, wait) {
                     success: function (response) {
                         if (!response.success || !response.data) {
                             allDataLoaded = true;
-                            $sentinel && $sentinel.remove();
                             $loader && $loader.hide();
                             return;
                         }
@@ -220,7 +269,6 @@ function debounce(func, wait) {
                                 && pagination['offset'] === -1
                                 && pagination['is_finished_current_author'] === true) {
                                     allDataLoaded = true;
-                                    $sentinel && $sentinel.remove();
                                     $loader && $loader.hide();
                                     return;
                                 }
@@ -231,64 +279,64 @@ function debounce(func, wait) {
                         // Check if we have manifesti to display
                         if (!manifesti || manifesti.length === 0) {
                             allDataLoaded = true;
-                            $sentinel && $sentinel.remove();
                             $loader && $loader.hide();
                             return;
                         }
 
-                        manifesti.forEach(function (item) {
-                            if (!item || !item.html) return;
-
-                            var newElement = $(item.html);
-                            container.append(newElement);
-
-                            // Rende visibile il manifesto_divider per la sezione
-                            container.parent().parent().parent().parent().find('.manifesto_divider').show();
-
-                            // Count only real manifesti, not dividers - check both vendor_data and HTML content
-
-                            updateEditorBackground(item.vendor_data, newElement);
-
-                        });
-
-                        offset = pagination['offset'];
-
-                        if(pagination['is_finished_current_author'] == true)
-                        {
-                            var divider = $('<div class="col-12" style="width: 90%;"><hr class="manifesto_divider" style="margin: 30px 0;"></div>');
-                            container.append(divider);
-                        }
-
-
-
-                        totalManifesti += pagination['offset'];
-                        loading = false;
-                        $loader && $loader.hide();
+                        // === FLUSSO DI ESECUZIONE ===
+                        // 1. Analizza tutti gli URL per trovare quelli unici
+                        var analysisResult = analyzeBackgroundUrls(manifesti);
                         
+                        // 2. Pre-carica solo le immagini uniche nella cache
+                        preloadUniqueImages(analysisResult.uniqueUrls).then(function() {
+                            console.log('🎯 Pre-caricamento completato, applicazione manifesti...');
+                            
+                            // 3. Processa tutti i manifesti usando la cache
+                            var updatePromises = [];
+                            
+                            manifesti.forEach(function (item) {
+                                if (!item || !item.html) return;
 
-                        // Con grid layout non è più necessario modificare justify-content
-                        // Il grid gestisce automaticamente il layout
+                                var newElement = $(item.html);
+                                container.append(newElement);
 
-                        // Su mobile, ripristina la posizione precedente: l'ultimo del batch precedente resta visibile,
-                        // mentre i nuovi 5 vengono caricati offscreen
-                        if (window.innerWidth <= 768 && prevScrollPos !== null) {
-                            $(window).scrollTop(prevScrollPos);
-                        }
+                                // Rende visibile il manifesto_divider per la sezione
+                                container.parent().parent().parent().parent().find('.manifesto_divider').show();
 
-                        // Forza un check dell'IntersectionObserver dopo il DOM update
-                        setTimeout(function() {
-                            if ($sentinel && $sentinel.length > 0 && !allDataLoaded) {
-                                var sentinelRect = $sentinel[0].getBoundingClientRect();
-                                var windowHeight = window.innerHeight;
-                                console.log('Sentinel position check:', {
-                                    sentinelTop: sentinelRect.top,
-                                    windowHeight: windowHeight,
-                                    isVisible: sentinelRect.top < windowHeight + 200
-                                });
-                            }
-                        }, 200);
+                                // 4. Nessun caricamento duplicato - massima efficienza
+                                // Wrappa l'update in una Promise per tracking
+                                updatePromises.push(new Promise(function(resolve) {
+                                    updateEditorBackground(item.vendor_data, newElement, resolve);
+                                }));
+                            });
+                            
+                            // Attendi che tutti gli aggiornamenti siano completati
+                            Promise.all(updatePromises).then(function() {
+                                console.log('✨ Tutti i manifesti aggiornati con successo');
+                                
+                                // Gestione post-caricamento dopo che tutti i manifesti sono pronti
+                                offset = pagination['offset'];
 
+                                if(pagination['is_finished_current_author'] == true)
+                                {
+                                    var divider = $('<div class="col-12" style="width: 90%;"><hr class="manifesto_divider" style="margin: 30px 0;"></div>');
+                                    container.append(divider);
+                                }
 
+                                totalManifesti += pagination['offset'];
+                                loading = false;
+                                $loader && $loader.hide();
+                                
+                                // Con grid layout non è più necessario modificare justify-content
+                                // Il grid gestisce automaticamente il layout
+
+                                // Su mobile, ripristina la posizione precedente: l'ultimo del batch precedente resta visibile,
+                                // mentre i nuovi 5 vengono caricati offscreen
+                                if (window.innerWidth <= 768 && prevScrollPos !== null) {
+                                    $(window).scrollTop(prevScrollPos);
+                                }
+                            });
+                        });
                     },
                     error: function (jqXHR, textStatus, errorThrown) {
                         console.error("Error during loading:", textStatus, errorThrown);
@@ -299,81 +347,43 @@ function debounce(func, wait) {
             }
 
             if (tipo_manifesto === 'top') {
+                // Per i top: caricamento continuo fino a completamento
                 loadManifesti();
             } else {
-                // Usa l'infinite scroll osservando la sentinella
-// Modifica la sezione dell'IntersectionObserver nel tuo codice
-                if ($sentinel && $sentinel.length > 0) {
-                    // Configurazione ottimizzata per mobile
-                    var isMobile = window.innerWidth <= 768;
-
-                    // Debounce per evitare chiamate multiple
-                    var debouncedLoad = debounce(function () {
-                        if (!loading && !allDataLoaded) {
-                            console.log('🔄 Triggering infinite scroll load');
-                            loadManifesti(true);
-                        }
-                    }, isMobile ? 500 : 300);
-
-                    var observer = new IntersectionObserver(function (entries) {
-                        entries.forEach(function (entry) {
-                            console.log('Sentinel intersection:', {
-                                isIntersecting: entry.isIntersecting,
-                                loading: loading,
-                                allDataLoaded: allDataLoaded,
-                                offset: offset
-                            });
-
-                            if (entry.isIntersecting) {
-                                // Usa il debounced load su mobile
-                                if (isMobile) {
-                                    debouncedLoad();
-                                } else if (!loading && !allDataLoaded) {
-                                    loadManifesti(true);
-                                }
-                            }
-                        });
-                    }, {
-                        root: null,
-                        // Pre-carica prima su mobile per evitare lag
-                        rootMargin: isMobile ? '50px' : '0px',
-                        threshold: isMobile ? 0.1 : 0.1
-                    });
-
-                    observer.observe($sentinel[0]);
-
-                    // Ottimizzazioni mobile aggiuntive
-                    if (isMobile) {
-                        // Previeni scroll durante il caricamento su mobile
-                        var originalScrollPos;
-                        $(document).on('ajaxStart', function () {
-                            if (loading) {
-                                originalScrollPos = $(window).scrollTop();
-                            }
-                        });
-
-                        // Smooth scroll per mobile
-                        container.css({
-                            '-webkit-overflow-scrolling': 'touch',
-                            'will-change': 'transform'
-                        });
+                // Per gli altri tipi: usa un timer ogni 2 secondi
+                var loadInterval = null;
+                
+                // Funzione per controllare se caricare più manifesti
+                function checkAndLoad() {
+                    if (!loading && !allDataLoaded) {
+                        console.log('⏰ Timer check: caricamento manifesti...');
+                        // Mostra il loader prima di iniziare il caricamento
+                        $loader && $loader.show();
+                        loadManifesti();
+                    } else if (allDataLoaded && loadInterval) {
+                        // Se abbiamo finito, ferma il timer e nasconde il loader
+                        console.log('✅ Tutti i manifesti caricati, timer fermato');
+                        $loader && $loader.hide();
+                        clearInterval(loadInterval);
+                        loadInterval = null;
                     }
-
-                    // Carica il primo batch
-                    loadManifesti(true);
-                } else {
-                    console.warn('Sentinel element not found for infinite scroll.', {
-                        container: container,
-                        containerId: container.attr('id'),
-                        tipo_manifesto: tipo_manifesto,
-                        siblings: container.siblings().length,
-                        siblingClasses: container.siblings().map(function () {
-                            return this.className;
-                        }).get()
-                    });
-                    // Carica il primo batch anche se non c'è la sentinella
-                    loadManifesti(true);
                 }
+                
+                // Carica il primo batch immediatamente
+                loadManifesti();
+                
+                // Poi attiva il timer per controllare ogni 2 secondi
+                loadInterval = setInterval(checkAndLoad, 2000);
+                
+                // Pulizia quando la pagina viene lasciata
+                $(window).on('beforeunload', function() {
+                    if (loadInterval) {
+                        clearInterval(loadInterval);
+                    }
+                });
+                
+                // Log per debug
+                console.log('📅 Timer attivato per tipo:', tipo_manifesto, 'Container:', container.attr('id'));
             }
         });
     });
