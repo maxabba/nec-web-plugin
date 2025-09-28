@@ -57,7 +57,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             $post_type = get_post_type();
             //if type post is annuncio_di_morte
             if ($post_type === 'annuncio-di-morte') {
-                wp_enqueue_script('my-manifesto-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/manifesto.js', array('jquery'), '3.0.0', true);
+                wp_enqueue_script('my-manifesto-script', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/js/manifesto.js', array('jquery'), '3.0.1', true);
                 wp_localize_script('my-manifesto-script', 'my_ajax_object', array(
                     'ajax_url' => admin_url('admin-ajax.php')
                 ));

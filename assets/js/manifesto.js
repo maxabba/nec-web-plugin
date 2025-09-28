@@ -199,15 +199,6 @@ function debounce(func, wait) {
             function loadManifesti() {
                 if (loading || allDataLoaded) return;
 
-                // Su mobile: registra la posizione dell'ultimo elemento del batch precedente
-                var prevScrollPos = null;
-                if (window.innerWidth <= 768) {
-                    var lastChild = container.children().last();
-                    if (lastChild.length) {
-                        prevScrollPos = lastChild.offset().top + lastChild.outerHeight();
-                    }
-                }
-
                 loading = true;
                 $loader && $loader.show();
 
@@ -306,15 +297,6 @@ function debounce(func, wait) {
                                     $loader && $loader.hide();
                                 }
                                 // Per gli altri tipi, il loader resta visibile durante l'attesa del timer
-                                
-                                // Con grid layout non è più necessario modificare justify-content
-                                // Il grid gestisce automaticamente il layout
-
-                                // Su mobile, ripristina la posizione precedente: l'ultimo del batch precedente resta visibile,
-                                // mentre i nuovi 5 vengono caricati offscreen
-                                if (window.innerWidth <= 768 && prevScrollPos !== null) {
-                                    $(window).scrollTop(prevScrollPos);
-                                }
                             });
                         });
                     },
