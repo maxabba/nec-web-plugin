@@ -1,150 +1,161 @@
 (function ($) {
     'use strict';
 
-    // Configuration - simplified for fixed font system
+    // Configuration
     const CONFIG = {
         CONTAINER_SIZE: 0.95,
         LINE_HEIGHT_RATIO: 1.2,
-
-        // Layout settings
         LAYOUT: {
             DEFAULT_ASPECT_RATIO: '16 / 9',
             MAX_HEIGHT: '80vh',
             NO_BACKGROUND_PADDING: '5%'
-        }
+        },
+        // Timer settings
+        TIMER_INTERVAL: 2000, // Check every 2 seconds
+        CACHE_CLEANUP_INTERVAL: 60000, // Clean cache every minute
+        IMAGE_LOAD_TIMEOUT: 10000
     };
 
-    // Module state - simplified
+    // Module state con cache avanzata
     const ModuleState = {
-        imageCache: new Map(),
+        imageCache: new Map(), // URL -> Image object
         manifestiData: new Map(),
-        // Batch optimization: cache batch background info
-        batchCache: new Map(), // containerId -> { backgroundUrl, batchId, preloadedImage }
-        currentBatchId: null
+        uniqueImages: new Set(), // Track unique image URLs
+        imageDimensions: new Map(), // URL -> {width, height, aspectRatio}
+        preloadPromises: new Map(), // URL -> Promise
+        loadTimer: null,
+        isPreloading: false
     };
 
-    // Batch cache optimization functions
-    function initializeBatch(containerId) {
-        ModuleState.currentBatchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        console.log(`🔄 Inizializing new batch: ${ModuleState.currentBatchId} for container: ${containerId}`);
-        return ModuleState.currentBatchId;
-    }
-
-    function setBatchBackground(containerId, backgroundUrl, batchId) {
-        if (!backgroundUrl || !containerId || !batchId) return false;
+    // Sistema di cache avanzato per immagini
+    function analyzeManifestiImages(manifesti) {
+        if (!manifesti || !Array.isArray(manifesti)) return;
         
-        // Pre-load the image for the entire batch
-        return loadImage(backgroundUrl).then(img => {
-            ModuleState.batchCache.set(containerId, {
-                backgroundUrl,
-                batchId,
-                preloadedImage: img,
-                timestamp: Date.now()
-            });
-            console.log(`📦 Batch background cached for container ${containerId}: ${backgroundUrl}`);
-            return img;
-        }).catch(error => {
-            console.error(`❌ Failed to cache batch background: ${error.message}`);
-            return null;
-        });
-    }
-
-    function getBatchBackground(containerId) {
-        const cached = ModuleState.batchCache.get(containerId);
-        if (cached && cached.preloadedImage) {
-            console.log(`⚡ Using cached batch background for container ${containerId}`);
-            PerformanceMonitor.recordBatchCacheHit();
-            return cached.preloadedImage;
-        }
-        return null;
-    }
-
-    function isSameBatchBackground(containerId, backgroundUrl) {
-        const cached = ModuleState.batchCache.get(containerId);
-        return cached && cached.backgroundUrl === backgroundUrl;
-    }
-
-    // Clean old batch cache entries (run periodically to prevent memory leaks)
-    function cleanupBatchCache(maxAge = 300000) { // 5 minutes default
-        const now = Date.now();
-        const toDelete = [];
-        
-        ModuleState.batchCache.forEach((value, key) => {
-            if (now - value.timestamp > maxAge) {
-                toDelete.push(key);
+        manifesti.forEach(item => {
+            if (item?.vendor_data?.manifesto_background) {
+                const url = item.vendor_data.manifesto_background;
+                if (!ModuleState.uniqueImages.has(url)) {
+                    ModuleState.uniqueImages.add(url);
+                }
             }
         });
+    }
+
+    // Pre-carica tutte le immagini uniche
+    async function preloadUniqueImages() {
+        if (ModuleState.isPreloading) return;
+        ModuleState.isPreloading = true;
         
-        toDelete.forEach(key => {
-            ModuleState.batchCache.delete(key);
-            console.log(`🧹 Cleaned old batch cache entry: ${key}`);
-        });
+        const promises = [];
+        for (const url of ModuleState.uniqueImages) {
+            if (!ModuleState.preloadPromises.has(url)) {
+                const promise = loadImage(url);
+                ModuleState.preloadPromises.set(url, promise);
+                promises.push(promise);
+            }
+        }
         
-        if (toDelete.length > 0) {
-            console.log(`🧹 Cleaned ${toDelete.length} old batch cache entries`);
+        try {
+            await Promise.all(promises);
+        } finally {
+            ModuleState.isPreloading = false;
         }
     }
 
-    // Load image with caching and batch optimization
+    // Load image con cache intelligente
     function loadImage(url) {
         if (!url) {
             return Promise.reject(new Error('Invalid URL provided'));
         }
 
+        // Check cache esistente
         if (ModuleState.imageCache.has(url)) {
             PerformanceMonitor.recordCacheHit();
             return Promise.resolve(ModuleState.imageCache.get(url));
         }
 
-        PerformanceMonitor.recordCacheMiss();
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+        // Check promise pendente
+        if (ModuleState.preloadPromises.has(url)) {
+            return ModuleState.preloadPromises.get(url);
+        }
 
-            // Set a timeout to prevent hanging
+        PerformanceMonitor.recordCacheMiss();
+        const promise = new Promise((resolve, reject) => {
+            const img = new Image();
+            
+            img.onerror = () => {
+                ModuleState.preloadPromises.delete(url);
+                reject(new Error(`Failed to load image: ${url}`));
+            };
+
             const timeout = setTimeout(() => {
+                ModuleState.preloadPromises.delete(url);
                 reject(new Error(`Image load timeout: ${url}`));
-            }, 10000);
+            }, CONFIG.IMAGE_LOAD_TIMEOUT);
 
             img.onload = () => {
                 clearTimeout(timeout);
                 try {
+                    // Cache immagine e dimensioni
                     ModuleState.imageCache.set(url, img);
+                    ModuleState.imageDimensions.set(url, {
+                        width: img.width,
+                        height: img.height,
+                        aspectRatio: img.width / img.height
+                    });
                     resolve(img);
                 } catch (error) {
                     reject(new Error(`Failed to cache image: ${error.message}`));
+                } finally {
+                    ModuleState.preloadPromises.delete(url);
                 }
             };
 
             img.src = url;
         });
+        
+        ModuleState.preloadPromises.set(url, promise);
+        return promise;
     }
 
+    // Pulizia cache periodica
+    function cleanupCache() {
+        // Mantieni solo le immagini usate di recente
+        if (ModuleState.imageCache.size > 50) {
+            const toKeep = Array.from(ModuleState.uniqueImages).slice(-30);
+            const newCache = new Map();
+            const newDimensions = new Map();
+            
+            toKeep.forEach(url => {
+                if (ModuleState.imageCache.has(url)) {
+                    newCache.set(url, ModuleState.imageCache.get(url));
+                }
+                if (ModuleState.imageDimensions.has(url)) {
+                    newDimensions.set(url, ModuleState.imageDimensions.get(url));
+                }
+            });
+            
+            ModuleState.imageCache = newCache;
+            ModuleState.imageDimensions = newDimensions;
+        }
+    }
 
-
-    // Simple font size application based on aspect ratio only
+    // Font size semplificato
     function applyFontSize(textEditor, data) {
         if (!textEditor) return;
         
-        // Get aspect ratio from background container
         const backgroundDiv = textEditor.closest('.text-editor-background') || textEditor.parentElement;
         const aspectRatio = backgroundDiv ? backgroundDiv.clientWidth / backgroundDiv.clientHeight : 1;
         
-        // Fixed font size based only on aspect ratio
         let cssSize;
         if (aspectRatio > 1) {
-            // Horizontal image - fixed large size
             cssSize = '8cqh';
         } else {
-            // Vertical image - fixed large size
             cssSize = '4cqh';
         }
         
-        // Apply to the text editor directly
         textEditor.style.fontSize = cssSize;
         textEditor.style.lineHeight = CONFIG.LINE_HEIGHT_RATIO;
-        
-        console.log(`🔤 Applied fixed font size: ${cssSize} for aspect ratio: ${aspectRatio.toFixed(2)}`);
     }
 
     // Apply manifesto styles - simplified
@@ -212,15 +223,11 @@
         textEditor.style.lineHeight = CONFIG.LINE_HEIGHT_RATIO;
     }
 
-    // Main function to update manifesto with batch optimization
-    function updateManifesto(data, containerElem, parentContainerId = null, isFirstInBatch = false) {
-        if (!data || !containerElem?.length) {
-            console.error('❌ Invalid data or container provided to updateManifesto');
-            return;
-        }
+    // Funzione principale aggiornata con cache intelligente
+    function updateManifesto(data, containerElem) {
+        if (!data || !containerElem?.length) return;
 
         try {
-            // Store for potential future use
             const manifestoId = containerElem.attr('id') || `manifesto-${Date.now()}`;
             if (!containerElem.attr('id')) {
                 containerElem.attr('id', manifestoId);
@@ -232,30 +239,13 @@
             if (data.manifesto_background) {
                 if (textEditor) textEditor.classList.add('loading');
 
-                // Batch optimization: check if this is the same background as cached
-                if (parentContainerId && isSameBatchBackground(parentContainerId, data.manifesto_background)) {
-                    // Use cached background immediately
-                    const cachedImg = getBatchBackground(parentContainerId);
-                    if (cachedImg) {
-                        applyStyles(data, containerElem, cachedImg);
-                        if (textEditor) textEditor.classList.remove('loading');
-                        return;
-                    }
-                }
-
-                // Load image (either new or not in batch cache)
+                // Usa cache intelligente - instant se già caricata
                 loadImage(data.manifesto_background)
                     .then(img => {
-                        // If this is the first in batch, cache it for other elements
-                        if (isFirstInBatch && parentContainerId) {
-                            setBatchBackground(parentContainerId, data.manifesto_background, ModuleState.currentBatchId);
-                        }
-                        
                         applyStyles(data, containerElem, img);
                         if (textEditor) textEditor.classList.remove('loading');
                     })
                     .catch(error => {
-                        console.error(`❌ Error loading background image: ${error.message}`);
                         applyStyles(data, containerElem);
                         if (textEditor) textEditor.classList.remove('loading');
                     });
@@ -265,16 +255,14 @@
             }
 
         } catch (error) {
-            console.error(`❌ Error updating manifesto: ${error.message}`);
+            // Error handling
         }
     }
 
-
-    // Performance monitoring
+    // Performance monitoring semplificato
     const PerformanceMonitor = {
         cacheHits: 0,
         cacheMisses: 0,
-        batchCacheHits: 0,
         imagesLoaded: 0,
         
         recordCacheHit() {
@@ -286,40 +274,28 @@
             this.imagesLoaded++;
         },
         
-        recordBatchCacheHit() {
-            this.batchCacheHits++;
-        },
-        
         getStats() {
             const total = this.cacheHits + this.cacheMisses;
             const cacheRate = total > 0 ? ((this.cacheHits / total) * 100).toFixed(1) : 0;
             return {
                 cacheHits: this.cacheHits,
                 cacheMisses: this.cacheMisses,
-                batchCacheHits: this.batchCacheHits,
                 imagesLoaded: this.imagesLoaded,
                 cacheRate: `${cacheRate}%`,
                 total
             };
-        },
-        
-        logStats() {
-            const stats = this.getStats();
-            console.log(`📊 Cache Performance: ${stats.cacheHits}H/${stats.cacheMisses}M (${stats.cacheRate}) | Batch: ${stats.batchCacheHits}H | Images: ${stats.imagesLoaded}`);
         }
     };
 
     // Initialize on document ready
     $(document).ready(function () {
 
-        // Setup periodic cache cleanup and stats
+        // Setup pulizia cache periodica
         setInterval(() => {
-            cleanupBatchCache();
-            PerformanceMonitor.logStats();
-        }, 60000); // Every minute
+            cleanupCache();
+        }, CONFIG.CACHE_CLEANUP_INTERVAL);
 
-
-        // Handle manifesto containers
+        // Handle manifesto containers con nuovo sistema
         $('.manifesto-container').each(function () {
             const container = $(this);
             const postId = container.data('postid');
@@ -328,141 +304,118 @@
             let loading = false;
             let allDataLoaded = false;
 
-            // Setup infinite scroll sentinel
-            let $sentinel = container.siblings('.sentinel');
-            if ($sentinel.length === 0) {
-                $sentinel = container.parent().find('.sentinel');
-            }
-
-            // Setup loader
+            // Setup loader - sempre visibile durante caricamento progressivo
             let $loader = container.siblings('.manifesto-loader');
             if ($loader.length === 0) {
                 $loader = container.parent().find('.manifesto-loader');
             }
 
-            function loadManifesti(isInfiniteScroll = false) {
+            // Funzione di caricamento ottimizzata
+            async function loadManifesti() {
                 if (loading || allDataLoaded) return;
 
                 loading = true;
-                $loader?.show();
+                if ($loader) $loader.show();
 
-                $.ajax({
-                    url: my_ajax_object.ajax_url,
-                    type: 'POST',
-                    data: {
-                        action: 'load_more_manifesti',
-                        post_id: postId,
-                        tipo_manifesto: tipoManifesto,
-                        offset: offset
-                    },
-                    success(response) {
-                        if (!response.success || !response.data.manifesti?.length) {
-                            allDataLoaded = true;
-                            $sentinel && $sentinel.remove();
-                            $loader && $loader.hide();
-                            return;
-                        }
-
-                        // Handle new response structure with pagination metadata
-                        var manifesti = null;
-                        var pagination = null;
-
-                        // Check if response contains pagination metadata (new structure)
-                        if (response.data.manifesti && response.data.pagination) {
-                            manifesti = response.data.manifesti;
-                            pagination = response.data.pagination;
-                            console.log('Received manifesti:', manifesti.length);
-
-                            //se response.data.manifesti è vuoto e pagination offset e -1 e is_finished_current_author true, significa che abbiamo finito tutto
-                            if ((!manifesti || manifesti.length === 0) && pagination['offset']
-                                && pagination['offset'] === -1
-                                && pagination['is_finished_current_author'] === true) {
-                                allDataLoaded = true;
-                                $sentinel && $sentinel.remove();
-                                $loader && $loader.hide();
-                                return;
-                            }
-                        } else {
-                            console.log('Struttura della risposta non riconosciuta. Contatta l\'amministratore del sito.');
-                        }
-
-                        // Check if we have manifesti to display
-                        if (!manifesti || manifesti.length === 0) {
-                            allDataLoaded = true;
-                            $sentinel && $sentinel.remove();
-                            $loader && $loader.hide();
-                            return;
-                        }
-
-                        // Initialize batch for this container
-                        const containerId = container.attr('id') || `container-${Date.now()}`;
-                        if (!container.attr('id')) {
-                            container.attr('id', containerId);
-                        }
-                        const batchId = initializeBatch(containerId);
-
-                        // Batch optimization: analyze first element for background caching
-                        let firstBackgroundUrl = null;
-                        if (manifesti.length > 0 && manifesti[0].vendor_data && manifesti[0].vendor_data.manifesto_background) {
-                            firstBackgroundUrl = manifesti[0].vendor_data.manifesto_background;
-                            console.log(`🎯 First element background detected: ${firstBackgroundUrl}`);
-                        }
-
-                        manifesti.forEach(function (item, index) {
-                            if (!item || !item.html) return;
-
-                            var newElement = $(item.html);
-                            container.append(newElement);
-
-                            // Rende visibile il manifesto_divider per la sezione
-                            container.parent().parent().parent().parent().find('.manifesto_divider').show();
-
-                            // Batch optimization: pass container info and first element flag
-                            const isFirstInBatch = index === 0;
-                            updateManifesto(item.vendor_data, newElement, containerId, isFirstInBatch);
-
-                        });
-
-                        offset = pagination['offset'];
-
-                        if (pagination['is_finished_current_author'] == true) {
-                            var divider = $('<div class="col-12" style="width: 90%;"><hr class="manifesto_divider" style="margin: 30px 0;"></div>');
-                            container.append(divider);
-                        }
-
-
-                        loading = false;
-                        $loader && $loader.hide();
-
-                        // Auto-load for "top" type
-                        if (tipoManifesto === 'top' && !isInfiniteScroll) {
-                            loadManifesti();
-                        }
-                    },
-                    error() {
-                        loading = false;
-                        $loader?.hide();
-                    }
-                });
-            }
-
-            // Initialize loading
-            if (tipoManifesto === 'top') {
-                loadManifesti();
-            } else if ($sentinel?.length) {
-                // Setup intersection observer for infinite scroll
-                const observer = new IntersectionObserver(entries => {
-                    entries.forEach(entry => {
-                        if (entry.isIntersecting && !loading && !allDataLoaded) {
-                            loadManifesti(true);
+                try {
+                    const response = await $.ajax({
+                        url: my_ajax_object.ajax_url,
+                        type: 'POST',
+                        data: {
+                            action: 'load_more_manifesti',
+                            post_id: postId,
+                            tipo_manifesto: tipoManifesto,
+                            offset: offset
                         }
                     });
-                }, {threshold: 0.1});
 
-                observer.observe($sentinel[0]);
-                loadManifesti(true);
+                    if (!response.success || !response.data.manifesti?.length) {
+                        allDataLoaded = true;
+                        if ($loader) $loader.hide();
+                        clearInterval(ModuleState.loadTimer);
+                        return;
+                    }
+
+                    const manifesti = response.data.manifesti;
+                    const pagination = response.data.pagination;
+
+                    // Check fine dati
+                    if ((!manifesti || manifesti.length === 0) && 
+                        pagination?.offset === -1 && 
+                        pagination?.is_finished_current_author === true) {
+                        allDataLoaded = true;
+                        if ($loader) $loader.hide();
+                        clearInterval(ModuleState.loadTimer);
+                        return;
+                    }
+
+                    if (!manifesti || manifesti.length === 0) {
+                        allDataLoaded = true;
+                        if ($loader) $loader.hide();
+                        clearInterval(ModuleState.loadTimer);
+                        return;
+                    }
+
+                    // SISTEMA CACHE AVANZATO: Analizza tutte le immagini prima del caricamento
+                    analyzeManifestiImages(manifesti);
+                    
+                    // Pre-carica le immagini uniche in parallelo
+                    await preloadUniqueImages();
+
+                    // Rendering veloce con cache
+                    manifesti.forEach(function (item) {
+                        if (!item || !item.html) return;
+
+                        const newElement = $(item.html);
+                        container.append(newElement);
+
+                        // Mostra divider
+                        container.parent().parent().parent().parent().find('.manifesto_divider').show();
+
+                        // Applicazione istantanea grazie alla cache
+                        updateManifesto(item.vendor_data, newElement);
+                    });
+
+                    offset = pagination.offset;
+
+                    if (pagination.is_finished_current_author === true) {
+                        const divider = $('<div class="col-12" style="width: 90%;"><hr class="manifesto_divider" style="margin: 30px 0;"></div>');
+                        container.append(divider);
+                    }
+
+                } catch (error) {
+                    // Error handling
+                } finally {
+                    loading = false;
+                    
+                    // Per tipo "top": caricamento continuo fino a completamento
+                    // Per altri tipi: solo se non tutto caricato, nascondi loader
+                    if (tipoManifesto !== 'top' && allDataLoaded) {
+                        if ($loader) $loader.hide();
+                        clearInterval(ModuleState.loadTimer);
+                    }
+                }
+            }
+
+            // Sistema di caricamento differenziato
+            if (tipoManifesto === 'top') {
+                // Caricamento completo immediato per "top"
+                (async function loadAllTop() {
+                    while (!allDataLoaded) {
+                        await loadManifesti();
+                    }
+                })();
             } else {
-                loadManifesti(true);
+                // Timer-based loading per altri tipi (sostituisce IntersectionObserver)
+                loadManifesti(); // Caricamento iniziale
+                
+                ModuleState.loadTimer = setInterval(() => {
+                    if (!allDataLoaded) {
+                        loadManifesti();
+                    } else {
+                        clearInterval(ModuleState.loadTimer);
+                    }
+                }, CONFIG.TIMER_INTERVAL);
             }
         });
     });
