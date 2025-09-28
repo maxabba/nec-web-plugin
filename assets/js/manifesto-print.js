@@ -238,28 +238,9 @@
             
             console.log(`Print summary: ${landscapeCount} landscape, ${portraitCount} portrait manifesti`);
             
-            // Applica classi CSS per il formato di pagina selezionato
-            const format = pageFormat.toLowerCase();
-            const formatSuffix = format !== 'a4' ? '-' + format : '';
-            
-            // Applica classi ai manifesti basate su formato e orientamento
-            container.find('.text-editor-background').each(function(index, element) {
-                const orientation = $(element).attr('data-orientation');
-                
-                // Rimuovi classi precedenti
-                $(element).removeClass('print-landscape print-portrait print-a3 print-a4 print-a5');
-                
-                // Aggiungi classi per formato e orientamento
-                $(element).addClass('print-' + format);
-                $(element).addClass('print-' + orientation);
-                
-                // Modifica la proprietà page CSS direttamente
-                if (orientation === 'landscape') {
-                    element.style.setProperty('page', 'landscape-forced' + formatSuffix, 'important');
-                } else {
-                    element.style.setProperty('page', 'portrait-forced' + formatSuffix, 'important');
-                }
-            });
+            // Le classi CSS gestiscono tutto: dimensioni E proprietà page
+            // Non serve più impostare nulla via JavaScript!
+            console.log('All styling handled by CSS classes - no JS intervention needed');
             
             var printContents = container.html();
             var printWindow = window.open('', '', 'height=600,width=800');
@@ -300,18 +281,11 @@
         });
 
         function updateEditorBackground(data, container, resolve) {
-            const pageFormatDimensions = {
-                'a5': {width: Math.round(148 * 3.78), height: Math.round(210 * 3.78)},
-                'a4': {width: Math.round(210 * 3.78), height: Math.round(297 * 3.78)},
-                'a3': {width: Math.round(297 * 3.78), height: Math.round(420 * 3.78)}
-            };
             const backgroundDiv = container.get(0);
             const textEditor = container.find('.custom-text-editor').get(0);
 
-            // Remove existing format classes
-            backgroundDiv.classList.remove('page-a3', 'page-a4', 'page-a5');
-            // Add selected format class
-            backgroundDiv.classList.add('page-' + pageFormat.toLowerCase());
+            // Remove existing format classes  
+            backgroundDiv.classList.remove('page-a3', 'page-a4', 'page-a5', 'page-a3-landscape', 'page-a4-landscape', 'page-a5-landscape', 'page-a3-portrait', 'page-a4-portrait', 'page-a5-portrait');
 
             if (data.manifesto_background) {
                 // Use cached image data instead of creating new Image
@@ -332,36 +306,16 @@
                 // IMPORTANTE: Imposta l'orientamento qui, subito dopo aver ottenuto l'aspect ratio
                 const orientation = aspectRatio > 1 ? 'landscape' : 'portrait';
                 backgroundDiv.setAttribute('data-orientation', orientation);
-                console.log(`Manifesto orientation set: ${orientation} (AR: ${aspectRatio.toFixed(2)})`);
+                
+                // Aggiungi la classe completa formato-orientamento
+                const formatClass = `page-${pageFormat.toLowerCase()}-${orientation}`;
+                backgroundDiv.classList.add(formatClass);
+                console.log(`Manifesto orientation set: ${orientation} (AR: ${aspectRatio.toFixed(2)}), class: ${formatClass}`);
                 
                 backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
-                const dimensions = pageFormatDimensions[pageFormat.toLowerCase()];
                 
-                // Dimensioni fisiche in mm per la stampa
-                const mmDimensions = {
-                    'a5': {width: 148, height: 210},
-                    'a4': {width: 210, height: 297},
-                    'a3': {width: 297, height: 420}
-                };
-                const mmDims = mmDimensions[pageFormat.toLowerCase()];
-
-                if (aspectRatio > 1) {
-                    // Landscape orientation - usa mm per la stampa
-                    backgroundDiv.style.width = `${mmDims.height}mm`;
-                    backgroundDiv.style.height = `${mmDims.width}mm`;
-                    
-                    // Mantieni anche dimensioni in pixel per compatibilità display
-                    backgroundDiv.dataset.widthPx = dimensions.height;
-                    backgroundDiv.dataset.heightPx = dimensions.width;
-                } else {
-                    // Portrait orientation - usa mm per la stampa
-                    backgroundDiv.style.width = `${mmDims.width}mm`;
-                    backgroundDiv.style.height = `${mmDims.height}mm`;
-                    
-                    // Mantieni anche dimensioni in pixel per compatibilità display
-                    backgroundDiv.dataset.widthPx = dimensions.width;
-                    backgroundDiv.dataset.heightPx = dimensions.height;
-                }
+                // Le dimensioni sono ora gestite dalle classi CSS
+                // Non serve più impostare width/height via JavaScript
 
                 // Small timeout to ensure dimensions are applied
                 setTimeout(() => {

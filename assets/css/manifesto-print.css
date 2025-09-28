@@ -3,41 +3,18 @@
     overflow: hidden;
 }
 
-/* Configurazione base delle pagine per A4 (default) */
+/* Configurazione base delle pagine */
 @page {
-    size: a4;
     margin: 0;
 }
 
-@page landscape-forced {
-    size: a4 landscape;
+@page landscape {
+    size: landscape;
     margin: 0;
 }
 
-@page portrait-forced {
-    size: a4 portrait;
-    margin: 0;
-}
-
-/* Versioni per A5 */
-@page landscape-forced-a5 {
-    size: a5 landscape;
-    margin: 0;
-}
-
-@page portrait-forced-a5 {
-    size: a5 portrait;
-    margin: 0;
-}
-
-/* Versioni per A3 */
-@page landscape-forced-a3 {
-    size: a3 landscape;
-    margin: 0;
-}
-
-@page portrait-forced-a3 {
-    size: a3 portrait;
+@page portrait {
+    size: portrait;
     margin: 0;
 }
 
@@ -113,20 +90,10 @@
         padding: 0 !important;
     }
     
-    /* Gruppi di orientamento */
-    .print-group-landscape {
-        page: landscape-forced;
-        page-break-before: always;
-    }
-    
-    .print-group-portrait {
-        page: portrait-forced;
-        page-break-before: always;
-    }
     
     /* LANDSCAPE - manifesti orizzontali */
     .text-editor-background[data-orientation="landscape"] {
-        page: landscape-forced !important;
+        page: landscape !important;
         page-break-after: always !important;
         page-break-inside: avoid !important;
         
@@ -153,7 +120,7 @@
     
     /* PORTRAIT - manifesti verticali */
     .text-editor-background[data-orientation="portrait"] {
-        page: portrait-forced !important;
+        page: portrait !important;
         page-break-after: always !important;
         page-break-inside: avoid !important;
         
@@ -195,8 +162,68 @@
     .text-editor-background:last-child {
         page-break-after: avoid !important;
     }
+    
+    /* === CLASSI PER ORIENTAMENTO STAMPA === */
+    
+    /* Portrait classes */
+    .page-a3-portrait {
+        page: portrait !important;
+    }
+    
+    .page-a4-portrait {
+        page: portrait !important;
+    }
+    
+    .page-a5-portrait {
+        page: portrait !important;
+    }
+    
+    /* Landscape classes */
+    .page-a3-landscape {
+        page: landscape !important;
+    }
+    
+    .page-a4-landscape {
+        page: landscape !important;
+    }
+    
+    .page-a5-landscape {
+        page: landscape !important;
+    }
 }
-/* Formati di pagina */
+/* Formati di pagina - Solo dimensioni (per display) */
+.page-a3-portrait {
+    width: 297mm;
+    height: 420mm;
+}
+
+.page-a4-portrait {
+    width: 210mm;
+    height: 297mm;
+}
+
+.page-a5-portrait {
+    width: 148mm;
+    height: 210mm;
+}
+
+/* Formati di pagina - Landscape (dimensioni invertite per display) */
+.page-a3-landscape {
+    width: 420mm;
+    height: 297mm;
+}
+
+.page-a4-landscape {
+    width: 297mm;
+    height: 210mm;
+}
+
+.page-a5-landscape {
+    width: 210mm;
+    height: 148mm;
+}
+
+/* Formati di pagina legacy (per compatibilità) */
 .page-a3 {
     width: 297mm;
     height: 420mm;
