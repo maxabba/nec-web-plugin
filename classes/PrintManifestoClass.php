@@ -108,10 +108,13 @@ if (!class_exists(__NAMESPACE__ . '\PrintManifestoClass')) {
                     // Get vendor data
                     $vendor_data = (new UtilsAMClass())->get_vendor_data_by_id($vendor_id);
 
+                    // Check se è un manifesto "old"
+                    $is_old = get_field('id_old') ? true : false;
+
                     ob_start();
                     ?>
                         <div class="text-editor-background" style="background-image: none"
-                             data-postid="<?php echo $post_id; ?>" data-vendorid="<?php echo $vendor_id; ?>">
+                             data-postid="<?php echo $post_id; ?>" data-vendorid="<?php echo $vendor_id; ?>"<?php echo $is_old ? ' data-info="is_old"' : ''; ?>>
                             <div class="custom-text-editor">
                                 <?php the_field('testo_manifesto'); ?>
                             </div>

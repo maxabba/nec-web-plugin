@@ -21,6 +21,12 @@ class MonitorDisplay {
         this.slideTimeout = this.config.slideInterval || 5000;
         this.pollingTimeout = this.config.pollingInterval || 15000;
         
+        // Font sizes per manifesti "old"
+        this.oldManifestoFonts = {
+            VERTICAL: '3cqh',    // Immagini verticali (aspect ratio < 1)
+            HORIZONTAL: '5cqh'   // Immagini orizzontali (aspect ratio >= 1)
+        };
+        
         // Infinite scroll configuration
         this.slideWidth = 102; // 100% + 2% gap between slides
         this.clonesCount = 2; // Number of clones on each side for infinite effect
@@ -532,13 +538,25 @@ class MonitorDisplay {
                     textEditor.style.paddingLeft = `${marginLeftPx}px`;
                     textEditor.style.textAlign = data.alignment || 'left';
                     
-                    // Fixed font-size based on aspect ratio only
+                    // Font-size con gestione manifesti "old"
                     const currentWidth = parseInt(backgroundDiv.style.width);
                     const currentHeight = parseInt(backgroundDiv.style.height);
                     const currentAspectRatio = currentWidth / currentHeight;
                     
-                    // Simple fixed font size based on orientation
-                    const fontSize = currentAspectRatio > 1 ? '8cqh' : '4cqh'; // horizontal: 8cqh, vertical: 4cqh
+                    // Check se è un manifesto "old"
+                    const isOld = backgroundDiv && backgroundDiv.getAttribute('data-info') === 'is_old';
+                    
+                    let fontSize;
+                    if (isOld) {
+                        // Usa font size specifici per manifesti "old"
+                        fontSize = currentAspectRatio >= 1 ? 
+                            this.oldManifestoFonts.HORIZONTAL : 
+                            this.oldManifestoFonts.VERTICAL;
+                    } else {
+                        // Font size standard per manifesti normali
+                        fontSize = currentAspectRatio > 1 ? '8cqh' : '4cqh';
+                    }
+                    
                     textEditor.style.fontSize = fontSize;
                     textEditor.style.lineHeight = '1.2';
                     
@@ -564,9 +582,23 @@ class MonitorDisplay {
             backgroundDiv.style.backgroundImage = 'none';
             textEditor.classList.remove('loading');
             
+            // Check se è un manifesto "old"
+            const isOld = backgroundDiv && backgroundDiv.getAttribute('data-info') === 'is_old';
+            
             // Default aspect ratio for no background (typically landscape)
             const defaultAspectRatio = 16 / 9;
-            const fontSize = defaultAspectRatio > 1 ? '8cqh' : '4cqh';
+            
+            let fontSize;
+            if (isOld) {
+                // Usa font size specifici per manifesti "old"
+                fontSize = defaultAspectRatio >= 1 ? 
+                    this.oldManifestoFonts.HORIZONTAL : 
+                    this.oldManifestoFonts.VERTICAL;
+            } else {
+                // Font size standard per manifesti normali
+                fontSize = defaultAspectRatio > 1 ? '8cqh' : '4cqh';
+            }
+            
             textEditor.style.fontSize = fontSize;
             textEditor.style.lineHeight = '1.2';
             textEditor.style.textAlign = data.alignment || 'center';

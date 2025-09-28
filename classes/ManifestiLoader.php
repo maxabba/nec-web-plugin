@@ -167,12 +167,15 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
             $testo_manifesto = get_field('testo_manifesto');
             $tipo_manifesto = get_field('tipo_manifesto');
 
+            // Check se è un manifesto "old"
+            $is_old = get_field('id_old') ? true : false;
+
             // Clean up the manifesto text for display
             $clean_text = $this->clean_manifesto_text($testo_manifesto);
             
             // Build HTML structure compatible with manifesto.js rendering
             $html = '<div class="manifesto-wrapper" data-post-id="' . $current_post_id . '">';
-            $html .= '<div class="text-editor-background">';
+            $html .= '<div class="text-editor-background"' . ($is_old ? ' data-info="is_old"' : '') . '>';
             $html .= '<div class="custom-text-editor">';
             $html .= $clean_text;
             $html .= '</div>';
@@ -246,9 +249,20 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
                 'meta_query' => $this->get_meta_query()
             ]);
 
-            $pagination_info['offset'] = $this->offset + $query->post_count;
-            $pagination_info['is_finished_current_author'] = false; // Not relevant for 'top' type
-
+            // Logica corretta per determinare se abbiamo finito
+            if ($this->offset == 0 && $query->post_count == 0) {
+                // Primo caricamento e nessun post: non ci sono post
+                $pagination_info['offset'] = -1; // No more content
+                $pagination_info['is_finished_current_author'] = true;
+            } elseif ($this->offset > 0 && $query->post_count == 0) {
+                // Caricamento successivo e nessun post: abbiamo finito
+                $pagination_info['offset'] = -1; // No more content  
+                $pagination_info['is_finished_current_author'] = true;
+            } else {
+                // Ci sono post da processare, continua
+                $pagination_info['offset'] = $this->offset + $query->post_count;
+                $pagination_info['is_finished_current_author'] = false;
+            }
 
             return [
                 'manifesti' => $this->process_query_results($query),
@@ -310,17 +324,6 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
             }
 
             $manifesti = $results;
-
-            // Calculate next pagination info
-/*            $pagination_info = $this->calculate_next_pagination_info(
-                $current_author_data,
-                $author_order,
-                $total_author_posts,
-                $current_position,
-                $next_author_info
-            );*/
-
-
 
             $pagination_info['offset'] = $this->offset + $query->post_count;
             $pagination_info['is_finished_current_author'] = $is_finished;
@@ -466,16 +469,19 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
             {
                 $vendor_data['manifesto_background'] = "https://necrologi.sciame.it/necrologi/".get_field('immagine_manifesto_old');
             }
+            // Check se è un manifesto "old"
+            $is_old = get_field('id_old') ? true : false;
 
             ob_start();
             ?>
             <div class="flex-item" style="margin-bottom: 25px;">
                 <div class="text-editor-background" style="background-image: none"
                      data-postid="<?php echo $current_post_id; ?>"
-                     data-vendorid="<?php echo $vendor_id; ?>">
+                     data-vendorid="<?php echo $vendor_id; ?>"<?php echo $is_old ? ' data-info="is_old"' : ''; ?>>
                     <div class="custom-text-editor">
                         <?php the_field('testo_manifesto'); ?>
                     </div>
+
                 </div>
             </div>
             <?php

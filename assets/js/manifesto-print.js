@@ -9,6 +9,12 @@
         
         // Image cache with dimensions: url -> {image, width, height, aspectRatio}
         var imageCache = new Map();
+        
+        // Font sizes per manifesti "old"
+        var oldManifestoFonts = {
+            VERTICAL: '3cqh',    // Immagini verticali (aspect ratio < 1)
+            HORIZONTAL: '5cqh'   // Immagini orizzontali (aspect ratio >= 1)
+        };
 
         function updateProgressBar(percentage) {
             $('#progress-bar').css('width', percentage + '%');
@@ -332,8 +338,21 @@
                     textEditor.style.paddingLeft = `${marginLeftPx}px`;
                     textEditor.style.textAlign = data.alignment || 'left';
 
-                    // Fixed font-size based on cached aspect ratio
-                    const fontSize = aspectRatio > 1 ? '8cqh' : '4cqh';
+                    // Font-size con gestione manifesti "old"
+                    // Check se è un manifesto "old"
+                    const isOld = backgroundDiv && backgroundDiv.getAttribute('data-info') === 'is_old';
+                    
+                    let fontSize;
+                    if (isOld) {
+                        // Usa font size specifici per manifesti "old"
+                        fontSize = aspectRatio >= 1 ? 
+                            oldManifestoFonts.HORIZONTAL : 
+                            oldManifestoFonts.VERTICAL;
+                    } else {
+                        // Font size standard per manifesti normali
+                        fontSize = aspectRatio > 1 ? '8cqh' : '4cqh';
+                    }
+                    
                     textEditor.style.fontSize = fontSize;
                     textEditor.style.lineHeight = '1.2';
 

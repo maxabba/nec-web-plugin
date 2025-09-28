@@ -13,7 +13,12 @@
         // Timer settings
         TIMER_INTERVAL: 2000, // Check every 2 seconds
         CACHE_CLEANUP_INTERVAL: 60000, // Clean cache every minute
-        IMAGE_LOAD_TIMEOUT: 10000
+        IMAGE_LOAD_TIMEOUT: 10000,
+        // Font sizes per manifesti "old"
+        OLD_MANIFESTO_FONTS: {
+            VERTICAL: '3cqh',    // Immagini verticali (aspect ratio < 1)
+            HORIZONTAL: '5cqh'   // Immagini orizzontali (aspect ratio >= 1)
+        }
     };
 
     // Module state con cache avanzata
@@ -23,7 +28,6 @@
         uniqueImages: new Set(), // Track unique image URLs
         imageDimensions: new Map(), // URL -> {width, height, aspectRatio}
         preloadPromises: new Map(), // URL -> Promise
-        loadTimer: null,
         isPreloading: false
     };
 
@@ -140,18 +144,25 @@
         }
     }
 
-    // Font size semplificato
+    // Font size con gestione manifesti "old"
     function applyFontSize(textEditor, data) {
         if (!textEditor) return;
         
         const backgroundDiv = textEditor.closest('.text-editor-background') || textEditor.parentElement;
         const aspectRatio = backgroundDiv ? backgroundDiv.clientWidth / backgroundDiv.clientHeight : 1;
         
+        // Check se è un manifesto "old"
+        const isOld = backgroundDiv && backgroundDiv.getAttribute('data-info') === 'is_old';
+        
         let cssSize;
-        if (aspectRatio > 1) {
-            cssSize = '8cqh';
+        if (isOld) {
+            // Usa font size specifici per manifesti "old"
+            cssSize = aspectRatio >= 1 ? 
+                CONFIG.OLD_MANIFESTO_FONTS.HORIZONTAL : 
+                CONFIG.OLD_MANIFESTO_FONTS.VERTICAL;
         } else {
-            cssSize = '4cqh';
+            // Font size standard per manifesti normali
+            cssSize = aspectRatio > 1 ? '8cqh' : '4cqh';
         }
         
         textEditor.style.fontSize = cssSize;
@@ -303,6 +314,7 @@
             let offset = 0;
             let loading = false;
             let allDataLoaded = false;
+            let containerTimer = null; // Timer locale per questo container
 
             // Setup loader - sempre visibile durante caricamento progressivo
             let $loader = container.siblings('.manifesto-loader');
@@ -329,30 +341,22 @@
                         }
                     });
 
-                    if (!response.success || !response.data.manifesti?.length) {
+                    // Check risposta non valida
+                    if (!response.success) {
                         allDataLoaded = true;
                         if ($loader) $loader.hide();
-                        clearInterval(ModuleState.loadTimer);
+                        if (containerTimer) clearInterval(containerTimer);
                         return;
                     }
 
                     const manifesti = response.data.manifesti;
                     const pagination = response.data.pagination;
 
-                    // Check fine dati
-                    if ((!manifesti || manifesti.length === 0) && 
-                        pagination?.offset === -1 && 
-                        pagination?.is_finished_current_author === true) {
+                    // FINE VERA: solo quando offset è -1 (TUTTI gli autori finiti)
+                    if (pagination?.offset === -1) {
                         allDataLoaded = true;
                         if ($loader) $loader.hide();
-                        clearInterval(ModuleState.loadTimer);
-                        return;
-                    }
-
-                    if (!manifesti || manifesti.length === 0) {
-                        allDataLoaded = true;
-                        if ($loader) $loader.hide();
-                        clearInterval(ModuleState.loadTimer);
+                        if (containerTimer) clearInterval(containerTimer);
                         return;
                     }
 
@@ -376,7 +380,9 @@
                         updateManifesto(item.vendor_data, newElement);
                     });
 
-                    offset = pagination.offset;
+                    if (pagination && typeof pagination.offset !== 'undefined') {
+                        offset = pagination.offset;
+                    }
 
                     if (pagination.is_finished_current_author === true) {
                         const divider = $('<div class="col-12" style="width: 90%;"><hr class="manifesto_divider" style="margin: 30px 0;"></div>');
@@ -388,11 +394,12 @@
                 } finally {
                     loading = false;
                     
-                    // Per tipo "top": caricamento continuo fino a completamento
-                    // Per altri tipi: solo se non tutto caricato, nascondi loader
-                    if (tipoManifesto !== 'top' && allDataLoaded) {
+                    // Nascondi loader se tutti i dati sono caricati
+                    if (allDataLoaded) {
                         if ($loader) $loader.hide();
-                        clearInterval(ModuleState.loadTimer);
+                        if (containerTimer) {
+                            clearInterval(containerTimer);
+                        }
                     }
                 }
             }
@@ -404,16 +411,19 @@
                     while (!allDataLoaded) {
                         await loadManifesti();
                     }
+                    // Assicura che il loader sia nascosto alla fine
+                    if ($loader) $loader.hide();
                 })();
             } else {
                 // Timer-based loading per altri tipi (sostituisce IntersectionObserver)
                 loadManifesti(); // Caricamento iniziale
                 
-                ModuleState.loadTimer = setInterval(() => {
+                containerTimer = setInterval(() => {
                     if (!allDataLoaded) {
                         loadManifesti();
                     } else {
-                        clearInterval(ModuleState.loadTimer);
+                        clearInterval(containerTimer);
+                        if ($loader) $loader.hide();
                     }
                 }, CONFIG.TIMER_INTERVAL);
             }
