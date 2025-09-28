@@ -34,11 +34,6 @@ function debounce(func, wait) {
             }
         });
         
-        console.log('📊 Analisi URL completata:', {
-            totalManifesti: manifesti.length,
-            urlUnivoci: uniqueUrls.size,
-            risparmioCache: manifesti.length - uniqueUrls.size
-        });
         
         return {
             uniqueUrls: Array.from(uniqueUrls),
@@ -54,13 +49,11 @@ function debounce(func, wait) {
                 // 1. VERIFICA CACHE
                 if (imageCache.has(url)) {
                     // Cache HIT - usa i dati già memorizzati
-                    console.log('🟢 CACHE HIT per:', url.substring(url.lastIndexOf('/') + 1));
                     resolve(imageCache.get(url));
                     return;
                 }
                 
                 // 2. CACHE MISS - CARICA IMMAGINE
-                console.log('🔴 CACHE MISS - Loading:', url.substring(url.lastIndexOf('/') + 1));
                 var img = new Image();
                 
                 img.onload = function() {
@@ -72,17 +65,11 @@ function debounce(func, wait) {
                         aspectRatio: img.width / img.height
                     };
                     imageCache.set(url, imageData);
-                    console.log('✅ Cached:', url.substring(url.lastIndexOf('/') + 1), {
-                        width: img.width,
-                        height: img.height,
-                        ratio: imageData.aspectRatio.toFixed(2)
-                    });
                     resolve(imageData);
                 };
                 
                 img.onerror = function() {
                     // 4. RIMUOVI DA CACHE SE ERRORE
-                    console.log('❌ Failed to load:', url.substring(url.lastIndexOf('/') + 1));
                     imageCache.delete(url);
                     resolve(null);
                 };
@@ -125,7 +112,6 @@ function debounce(func, wait) {
             // === UTILIZZO DELLA CACHE ===
             function updateEditorBackground(data, containerElem, resolve) {
                 if (!data || !containerElem || !containerElem.length) {
-                    console.warn('Missing data or container for updateEditorBackground');
                     if (resolve) resolve();
                     return;
                 }
@@ -134,7 +120,6 @@ function debounce(func, wait) {
                 const textEditor = containerElem.find('.custom-text-editor').get(0);
 
                 if (!backgroundDiv || !textEditor) {
-                    console.warn('Required elements not found in container');
                     if (resolve) resolve();
                     return;
                 }
@@ -145,7 +130,6 @@ function debounce(func, wait) {
                     
                     if (!cachedImageData) {
                         // Fallback se non in cache (non dovrebbe succedere se pre-caricamento funziona)
-                        console.warn('⚠️ Image not in cache, loading now:', data.manifesto_background);
                         // Nasconde il testo durante il caricamento
                         textEditor.classList.add('loading');
                         
@@ -162,7 +146,6 @@ function debounce(func, wait) {
                             applyBackgroundStyles(imageData);
                         };
                         img.onerror = function() {
-                            console.warn('Failed to load background image:', data.manifesto_background);
                             backgroundDiv.style.backgroundImage = 'none';
                             textEditor.classList.remove('loading');
                             if (resolve) resolve();
@@ -236,7 +219,6 @@ function debounce(func, wait) {
                     offset: offset
                 };
 
-                console.log ('Loading manifesti with data:', ajaxData);
                 // Add author pagination if available
                 if (currentAuthorId !== null) {
                     ajaxData.current_author_id = currentAuthorId;
@@ -250,6 +232,7 @@ function debounce(func, wait) {
                     success: function (response) {
                         if (!response.success || !response.data) {
                             allDataLoaded = true;
+                            // Nascondi il loader solo quando abbiamo veramente finito tutto
                             $loader && $loader.hide();
                             return;
                         }
@@ -262,7 +245,6 @@ function debounce(func, wait) {
                         if (response.data.manifesti && response.data.pagination) {
                             manifesti = response.data.manifesti;
                             pagination = response.data.pagination;
-                            console.log('Received manifesti:', manifesti.length);
 
                             //se response.data.manifesti è vuoto e pagination offset e -1 e is_finished_current_author true, significa che abbiamo finito tutto
                             if((!manifesti || manifesti.length === 0) && pagination['offset']
@@ -272,8 +254,6 @@ function debounce(func, wait) {
                                     $loader && $loader.hide();
                                     return;
                                 }
-                        }else {
-                            console.log('Struttura della risposta non riconosciuta. Contatta l\'amministratore del sito.');
                         }
 
                         // Check if we have manifesti to display
@@ -289,8 +269,6 @@ function debounce(func, wait) {
                         
                         // 2. Pre-carica solo le immagini uniche nella cache
                         preloadUniqueImages(analysisResult.uniqueUrls).then(function() {
-                            console.log('🎯 Pre-caricamento completato, applicazione manifesti...');
-                            
                             // 3. Processa tutti i manifesti usando la cache
                             var updatePromises = [];
                             
@@ -312,8 +290,6 @@ function debounce(func, wait) {
                             
                             // Attendi che tutti gli aggiornamenti siano completati
                             Promise.all(updatePromises).then(function() {
-                                console.log('✨ Tutti i manifesti aggiornati con successo');
-                                
                                 // Gestione post-caricamento dopo che tutti i manifesti sono pronti
                                 offset = pagination['offset'];
 
@@ -325,7 +301,11 @@ function debounce(func, wait) {
 
                                 totalManifesti += pagination['offset'];
                                 loading = false;
-                                $loader && $loader.hide();
+                                // NON nascondere il loader qui se non è tipo 'top' e non abbiamo finito tutto
+                                if (tipo_manifesto === 'top' || allDataLoaded) {
+                                    $loader && $loader.hide();
+                                }
+                                // Per gli altri tipi, il loader resta visibile durante l'attesa del timer
                                 
                                 // Con grid layout non è più necessario modificare justify-content
                                 // Il grid gestisce automaticamente il layout
@@ -339,9 +319,11 @@ function debounce(func, wait) {
                         });
                     },
                     error: function (jqXHR, textStatus, errorThrown) {
-                        console.error("Error during loading:", textStatus, errorThrown);
                         loading = false;
+                        // In caso di errore, nascondi sempre il loader
                         $loader && $loader.hide();
+                        // Ferma anche il timer in caso di errore grave
+                        allDataLoaded = true;
                     }
                 });
             }
@@ -353,23 +335,24 @@ function debounce(func, wait) {
                 // Per gli altri tipi: usa un timer ogni 2 secondi
                 var loadInterval = null;
                 
+                // Mostra il loader subito, resterà visibile durante tutto il processo
+                $loader && $loader.show();
+                
                 // Funzione per controllare se caricare più manifesti
                 function checkAndLoad() {
                     if (!loading && !allDataLoaded) {
-                        console.log('⏰ Timer check: caricamento manifesti...');
-                        // Mostra il loader prima di iniziare il caricamento
-                        $loader && $loader.show();
+                        // Il loader è già visibile, procedi con il caricamento
                         loadManifesti();
                     } else if (allDataLoaded && loadInterval) {
-                        // Se abbiamo finito, ferma il timer e nasconde il loader
-                        console.log('✅ Tutti i manifesti caricati, timer fermato');
+                        // Se abbiamo finito, ferma il timer e nasconde il loader definitivamente
                         $loader && $loader.hide();
                         clearInterval(loadInterval);
                         loadInterval = null;
                     }
+                    // Se sta ancora caricando (loading === true), mantieni il loader visibile
                 }
                 
-                // Carica il primo batch immediatamente
+                // Carica il primo batch immediatamente (il loader è già visibile)
                 loadManifesti();
                 
                 // Poi attiva il timer per controllare ogni 2 secondi
@@ -379,11 +362,10 @@ function debounce(func, wait) {
                 $(window).on('beforeunload', function() {
                     if (loadInterval) {
                         clearInterval(loadInterval);
+                        $loader && $loader.hide();
                     }
                 });
                 
-                // Log per debug
-                console.log('📅 Timer attivato per tipo:', tipo_manifesto, 'Container:', container.attr('id'));
             }
         });
     });
