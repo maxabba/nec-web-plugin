@@ -145,10 +145,10 @@ if (!class_exists(__NAMESPACE__ . 'Templates_MiscClass')) {
          * Renders an inline post status control for integration with ACF forms
          * Provides a seamless user experience without duplicate forms
          */
-        public function render_post_state_inline_control($post_id) {
+        public function render_post_state_inline_control($post_id, $default_status = 'draft') {
 
             
-            $current_status = get_post_status($post_id);
+            $current_status = ($post_id === 'new_post') ? $default_status : get_post_status($post_id);
             $post_title = get_the_title($post_id);
             
             ob_start(); 

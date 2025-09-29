@@ -110,15 +110,15 @@ wp_enqueue_style('manifesto-text-editor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL
                             <?php } else { ?>
                             
                             <!-- Post state control inline -->
-                            <?php echo $template_class->render_post_state_inline_control($post_id); ?>
+                            <?php echo $template_class->render_post_state_inline_control($post_id, 'publish'); ?>
                             
                             <!-- Custom Text Editor Form (AJAX) -->
                             <form id="manifesto-form" method="post" onsubmit="return false;">
                                 <input type="hidden" name="testo_manifesto" id="testo_manifesto_hidden">
                                 <?php 
                                 // Add the hidden field that the post state control expects
-                                // For new posts, default to 'draft' to match the select control
-                                $current_status = ($post_id !== 'new_post') ? get_post_status($post_id) : 'draft';
+                                // For new posts, default to 'publish' for manifesto creation
+                                $current_status = ($post_id !== 'new_post') ? get_post_status($post_id) : 'publish';
                                 ?>
                                 <input type="hidden" id="acf_post_status_control" name="acf_post_status_control" value="<?php echo esc_attr($current_status); ?>" data-original="<?php echo esc_attr($current_status); ?>">
                                 
