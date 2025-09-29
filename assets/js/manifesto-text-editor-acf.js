@@ -198,8 +198,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (event.key === 'Enter') {
             const containerHeight = getContainerHeight();
             const p = document.createElement('p');
-            p.id = 'p' + Math.floor(Math.random() * 1000000);
-            p.innerHTML = '<br>';
+            p.innerHTML = '&nbsp;';
             textEditor.appendChild(p);
 
             if (textEditor.scrollHeight > containerHeight) {
@@ -208,6 +207,8 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 textEditor.removeChild(p);
                 document.execCommand('formatBlock', false, 'p');
+                // Insert nbsp after creating the paragraph
+                document.execCommand('insertHTML', false, '&nbsp;');
             }
         }
     });
@@ -386,42 +387,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function syncContentToHiddenField() {
         const hiddenField = document.getElementById('testo_manifesto_hidden');
         if (hiddenField) {
-            const content = textEditor.innerHTML;
-
-            // Create temporary div for processing
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = content;
-            
-            // Keep style attributes for font sizes - removed the style cleaner
-            
-            // Convert empty paragraphs and divs to <br> tags (more compatible approach)
-            const allElements = tempDiv.querySelectorAll('p, div');
-            allElements.forEach(el => {
-                const textContent = el.textContent.trim();
-                const innerHTML = el.innerHTML.trim();
-                
-                // Check if element is effectively empty
-                const isEffectivelyEmpty = (
-                    textContent === '' ||                    // Completely empty
-                    innerHTML === '' ||                      // No HTML content
-                    innerHTML === '&nbsp;' ||               // Only non-breaking space
-                    innerHTML === '<br>' ||                 // Only line break
-                    innerHTML === '<br/>' ||                // Self-closing line break
-                    (el.children.length === 1 &&           // Only contains one <br> element
-                     el.children[0].tagName === 'BR' && 
-                     textContent === '')
-                );
-                
-                if (isEffectivelyEmpty) {
-                    const br = document.createElement('br');
-                    el.parentNode.replaceChild(br, el);
-                }
-            });
-
-            const cleanedContent = tempDiv.innerHTML;
-            hiddenField.value = cleanedContent;
-            console.log('Original content:', content);
-            console.log('Cleaned content (empty elements as br):', cleanedContent);
+            hiddenField.value = textEditor.innerHTML;
         } else {
             console.error('Hidden field not found: testo_manifesto_hidden');
         }

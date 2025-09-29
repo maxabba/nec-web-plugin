@@ -529,7 +529,32 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             // Get and validate data
             $post_id = isset($_POST['post_id']) ? sanitize_text_field($_POST['post_id']) : '';
             $post_id_annuncio = isset($_POST['post_id_annuncio']) ? intval($_POST['post_id_annuncio']) : null;
-            $testo_manifesto = isset($_POST['testo_manifesto']) ? wp_kses_post($_POST['testo_manifesto']) : '';
+            // Sanitize manifesto content while preserving structure and styles
+            $raw_testo_manifesto = isset($_POST['testo_manifesto']) ? $_POST['testo_manifesto'] : '';
+            
+            // Custom sanitization for manifesto HTML - allow specific tags and attributes
+            $allowed_html = array(
+                'p' => array(
+                    'style' => array(),
+                    'class' => array(),
+                ),
+                'br' => array(),
+                'span' => array(
+                    'style' => array(),
+                    'class' => array(),
+                ),
+                'b' => array(),
+                'strong' => array(),
+                'i' => array(),
+                'em' => array(),
+                'u' => array(),
+            );
+            
+            // Use wp_kses with entity preservation
+            $testo_manifesto = wp_kses($raw_testo_manifesto, $allowed_html);
+            
+            // Ensure &nbsp; entities are preserved
+            $testo_manifesto = str_replace('&amp;nbsp;', '&nbsp;', $testo_manifesto);
             $post_status = isset($_POST['post_status']) ? sanitize_text_field($_POST['post_status']) : 'publish';
             
             if (!$post_id_annuncio || !$testo_manifesto) {
