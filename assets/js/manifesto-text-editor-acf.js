@@ -5,6 +5,26 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
     
+    // Font size configuration - unified mapping for all functions
+    const FONT_SIZE_CONFIG = {
+        horizontal: {
+            small: '5cqh',
+            medium: '6cqh', // default
+            large: '7cqh'
+        },
+        vertical: {
+            small: '2.5cqh',
+            medium: '3cqh', // default
+            large: '4cqh'
+        }
+    };
+    
+    // Helper function to get font size based on aspect ratio and size
+    function getFontSize(aspectRatio, size = 'medium') {
+        const orientation = aspectRatio > 1 ? 'horizontal' : 'vertical';
+        return FONT_SIZE_CONFIG[orientation][size] || FONT_SIZE_CONFIG[orientation].medium;
+    }
+    
     // Copy most functionality from manifesto-text-editor.js but adapted for form integration
     var marginTopPx = 0;
     var marginRightPx = 0;
@@ -132,34 +152,8 @@ document.addEventListener('DOMContentLoaded', function () {
         
         let fontSize;
         
-        // Define font sizes based on selection and orientation
-        if (aspectRatio > 1) {
-            // Horizontal image
-            switch (selectedSize) {
-                case 'small':
-                    fontSize = '6cqh';
-                    break;
-                case 'large':
-                    fontSize = '8cqh';
-                    break;
-                case 'medium':
-                default:
-                    fontSize = '7cqh';
-            }
-        } else {
-            // Vertical image
-            switch (selectedSize) {
-                case 'small':
-                    fontSize = '3cqh';
-                    break;
-                case 'large':
-                    fontSize = '4cqh';
-                    break;
-                case 'medium':
-                default:
-                    fontSize = '3.5cqh';
-            }
-        }
+        // Use unified font size configuration
+        fontSize = getFontSize(aspectRatio, selectedSize);
         
         // Apply font size to all paragraphs
         const paragraphs = textEditor.querySelectorAll('p');
@@ -335,17 +329,12 @@ document.addEventListener('DOMContentLoaded', function () {
             
             let selectorValue = 'medium'; // default
             
-            if (aspectRatio > 1) {
-                // Horizontal image
-                if (fontSize === '6cqh') selectorValue = 'small';
-                else if (fontSize === '8cqh') selectorValue = 'large';
-                else if (fontSize === '7cqh') selectorValue = 'medium';
-            } else {
-                // Vertical image
-                if (fontSize === '3cqh') selectorValue = 'small';
-                else if (fontSize === '4cqh') selectorValue = 'large';
-                else if (fontSize === '3.5cqh') selectorValue = 'medium';
-            }
+            const orientation = aspectRatio > 1 ? 'horizontal' : 'vertical';
+            const config = FONT_SIZE_CONFIG[orientation];
+            
+            if (fontSize === config.small) selectorValue = 'small';
+            else if (fontSize === config.large) selectorValue = 'large';
+            else if (fontSize === config.medium) selectorValue = 'medium';
             
             // Update selector without triggering the change event
             const currentValue = selector.value;
@@ -637,33 +626,8 @@ document.addEventListener('DOMContentLoaded', function () {
             // Define font sizes based on selection and orientation
             let fontSize;
             
-            if (aspectRatio > 1) {
-                // Horizontal image
-                switch (selectedSize) {
-                    case 'small':
-                        fontSize = '6cqh';
-                        break;
-                    case 'large':
-                        fontSize = '8cqh';
-                        break;
-                    case 'medium':
-                    default:
-                        fontSize = '7cqh';
-                }
-            } else {
-                // Vertical image
-                switch (selectedSize) {
-                    case 'small':
-                        fontSize = '3cqh';
-                        break;
-                    case 'large':
-                        fontSize = '4cqh';
-                        break;
-                    case 'medium':
-                    default:
-                        fontSize = '3.5cqh';
-                }
-            }
+            // Use unified font size configuration
+            fontSize = getFontSize(aspectRatio, selectedSize);
             
             if (selection.rangeCount > 0 && !selection.isCollapsed) {
                 // Apply font size to selected text using spans for word-level control
@@ -808,7 +772,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const text = textNode.textContent;
             // Check if text looks like CSS (contains { } and style properties)
             if (text.includes('{') && text.includes('}') && 
-                (text.includes('margin:') || text.includes('font:') || text.includes('px'))) {
+                (text.includes('margin:') || text.includes('font:') || text.includes('px') || text.includes('cqh'))) {
                 textNode.remove();
             }
         });
@@ -822,23 +786,23 @@ document.addEventListener('DOMContentLoaded', function () {
     function extractFontSizes(container) {
         const fontSizes = [];
         
-        // First, parse CSS definitions in text content to extract font sizes
+        // Parse CSS definitions for cqh font sizes only
         const textContent = container.textContent || container.innerText || '';
-        const cssMatches = textContent.match(/font:\s*(\d+(?:\.\d+)?)px/g);
+        const cssMatches = textContent.match(/font:\s*(\d+(?:\.\d+)?)cqh/g);
         if (cssMatches) {
             cssMatches.forEach(match => {
-                const size = parseFloat(match.match(/(\d+(?:\.\d+)?)px/)[1]);
+                const size = parseFloat(match.match(/(\d+(?:\.\d+)?)cqh/)[1]);
                 if (size && size > 0) {
                     fontSizes.push(size);
                 }
             });
         }
         
-        // Also check for font-size property specifically
-        const fontSizeMatches = textContent.match(/font-size:\s*(\d+(?:\.\d+)?)px/g);
+        // Also check for font-size property specifically in cqh
+        const fontSizeMatches = textContent.match(/font-size:\s*(\d+(?:\.\d+)?)cqh/g);
         if (fontSizeMatches) {
             fontSizeMatches.forEach(match => {
-                const size = parseFloat(match.match(/(\d+(?:\.\d+)?)px/)[1]);
+                const size = parseFloat(match.match(/(\d+(?:\.\d+)?)cqh/)[1]);
                 if (size && size > 0) {
                     fontSizes.push(size);
                 }
@@ -848,25 +812,12 @@ document.addEventListener('DOMContentLoaded', function () {
         // Then check all elements for inline styles and computed styles
         const elementsWithFontSize = container.querySelectorAll('*');
         elementsWithFontSize.forEach(element => {
-            // Check inline styles first
-            if (element.style && element.style.fontSize) {
+            // Check inline styles for cqh units only
+            if (element.style && element.style.fontSize && element.style.fontSize.includes('cqh')) {
                 const fontSize = parseFloat(element.style.fontSize);
                 if (fontSize && fontSize > 0) {
                     fontSizes.push(fontSize);
                 }
-            }
-            
-            // Check computed styles
-            try {
-                const style = window.getComputedStyle ? window.getComputedStyle(element) : element.currentStyle;
-                if (style && style.fontSize) {
-                    const fontSize = parseFloat(style.fontSize);
-                    if (fontSize && fontSize > 0 && fontSize !== 16) { // Ignore default browser font size
-                        fontSizes.push(fontSize);
-                    }
-                }
-            } catch (e) {
-                // getComputedStyle might fail on detached elements
             }
         });
         
@@ -874,36 +825,14 @@ document.addEventListener('DOMContentLoaded', function () {
         return [...new Set(fontSizes)];
     }
     
-    // Calculate average and determine small/medium/large categories
+    // Simplified function since we always use standard cqh sizes
     function normalizeFontSizes(fontSizes) {
-        if (fontSizes.length === 0) {
-            return { small: [], medium: [], large: [] };
-        }
-        
-        // Calculate average font size
-        const average = fontSizes.reduce((sum, size) => sum + size, 0) / fontSizes.length;
-        
-        // Define thresholds based on average
-        const smallThreshold = average * 0.8;  // 20% below average
-        const largeThreshold = average * 1.2;  // 20% above average
-        
-        // Categorize font sizes
-        const categories = { small: [], medium: [], large: [] };
-        
-        fontSizes.forEach(size => {
-            if (size < smallThreshold) {
-                categories.small.push(size);
-            } else if (size > largeThreshold) {
-                categories.large.push(size);
-            } else {
-                categories.medium.push(size);
-            }
-        });
-        
+        // With standardized cqh units, we don't need complex normalization
+        // Just return empty structure since applyNormalizedSizes will use our standard sizes
         return {
-            smallSizes: [...new Set(categories.small)],
-            mediumSizes: [...new Set(categories.medium.concat(average))], // Include average in medium
-            largeSizes: [...new Set(categories.large)]
+            smallSizes: [],
+            mediumSizes: [],
+            largeSizes: []
         };
     }
     
@@ -1031,7 +960,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return tempDiv;
     }
     
-    // Apply normalized font sizes based on current editor orientation
+    // Apply standard cqh font sizes based on current editor orientation
     function applyNormalizedSizes(container, normalizedSizes) {
         // Always use medium as default for pasted content
         const selectedSize = 'medium';
@@ -1040,23 +969,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const backgroundDiv = document.getElementById('text-editor-background');
         const aspectRatio = backgroundDiv ? backgroundDiv.clientWidth / backgroundDiv.clientHeight : 1;
         
-        // Define our standard font sizes based on orientation and current selection
-        let defaultFontSize;
-        if (aspectRatio > 1) {
-            // Horizontal image
-            switch (selectedSize) {
-                case 'small': defaultFontSize = '6cqh'; break;
-                case 'large': defaultFontSize = '8cqh'; break;
-                default: defaultFontSize = '7cqh';
-            }
-        } else {
-            // Vertical image
-            switch (selectedSize) {
-                case 'small': defaultFontSize = '3cqh'; break;
-                case 'large': defaultFontSize = '4cqh'; break;
-                default: defaultFontSize = '3.5cqh';
-            }
-        }
+        // Use unified font size configuration
+        const defaultFontSize = getFontSize(aspectRatio, selectedSize);
         
         // Apply default font size to all paragraphs
         const allParagraphs = container.querySelectorAll('p');
