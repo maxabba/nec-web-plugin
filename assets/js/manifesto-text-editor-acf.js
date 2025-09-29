@@ -914,18 +914,18 @@ document.addEventListener('DOMContentLoaded', function () {
         const sizeMapping = {};
         
         // Determine size categories based on normalized sizes
-        if (normalizedSizes.smallSizes.length > 0) {
-            normalizedSizes.smallSizes.forEach(size => {
+        if (normalizedSizes.small && normalizedSizes.small.length > 0) {
+            normalizedSizes.small.forEach(size => {
                 sizeMapping[size] = sizes.small;
             });
         }
-        if (normalizedSizes.mediumSizes.length > 0) {
-            normalizedSizes.mediumSizes.forEach(size => {
+        if (normalizedSizes.medium && normalizedSizes.medium.length > 0) {
+            normalizedSizes.medium.forEach(size => {
                 sizeMapping[size] = sizes.medium;
             });
         }
-        if (normalizedSizes.largeSizes.length > 0) {
-            normalizedSizes.largeSizes.forEach(size => {
+        if (normalizedSizes.large && normalizedSizes.large.length > 0) {
+            normalizedSizes.large.forEach(size => {
                 sizeMapping[size] = sizes.large;
             });
         }

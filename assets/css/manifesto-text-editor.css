@@ -40,7 +40,7 @@
     box-sizing: border-box;
     outline: none;
     overflow: visible;
-
+    container-type: size;
     /*font-size: clamp(1.6rem, 5cqh , 7cqh); /* Dimensione del font reattiva e leggermente più piccola di 16px */
     font-family: var(--e-global-typography-text-font-family), Sans-serif;
     font-weight: var(--e-global-typography-text-font-weight);
