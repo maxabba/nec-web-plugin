@@ -162,7 +162,7 @@
                 CONFIG.OLD_MANIFESTO_FONTS.VERTICAL;
         } else {
             // Font size standard per manifesti normali
-            cssSize = aspectRatio > 1 ? '8cqh' : '4cqh';
+            cssSize = aspectRatio > 1 ? '6cqh' : '3cqh';
         }
         
         textEditor.style.fontSize = cssSize;

@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 textEditor.style.textAlign = data.alignment ? data.alignment : 'left';
                 
                 // Set dynamic font-size directly on text editor based on image orientation
-                const fontSize = aspectRatio > 1 ? '7cqh' : '3.5cqh'; // horizontal: 8cqh, vertical: 4cqh
+                const fontSize = aspectRatio > 1 ? '6cqh' : '3cqh'; // horizontal: 8cqh, vertical: 4cqh
                 textEditor.style.fontSize = fontSize;
                 textEditor.style.lineHeight = '1.2';
             }

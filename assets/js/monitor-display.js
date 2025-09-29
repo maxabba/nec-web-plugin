@@ -576,7 +576,7 @@ class MonitorDisplay {
                             this.oldManifestoFonts.VERTICAL;
                     } else {
                         // Font size standard per manifesti normali
-                        fontSize = currentAspectRatio > 1 ? '8cqh' : '4cqh';
+                        fontSize = currentAspectRatio > 1 ? '6cqh' : '3cqh';
                     }
                     
                     textEditor.style.fontSize = fontSize;
