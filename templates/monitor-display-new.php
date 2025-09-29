@@ -82,7 +82,8 @@ $js_monitor_data = [
     'ajaxUrl' => admin_url('admin-ajax.php'),
     'nonce' => wp_create_nonce('monitor_nonce'),
     'pollingInterval' => 15000,
-    'slideInterval' => 10000
+    'slideInterval' => 15000,
+    'pauseInterval' => 25000  // Time to pause slideshow after user interaction (in milliseconds)
 ];
 
 // Handle different layout types
