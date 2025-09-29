@@ -4,6 +4,7 @@ namespace Dokan_Mods;
 
 use SimpleXMLElement;
 use WP_Error;
+use WP_Query;
 use WP_REST_Response;
 
 if (!defined('ABSPATH')) {
@@ -415,8 +416,11 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
 
 
                 //get count of all post type manifesto with metakey annuncio_di_morte_relativo and value $necrologio->ID
-                $manifesti = get_posts(array(
+                //get count of all post type manifesto with metakey annuncio_di_morte_relativo and value $necrologio->ID
+                $count_query = new WP_Query(array(
                     'post_type' => 'manifesto',
+                    'post_status' => 'publish',
+                    'fields' => 'ids',
                     'meta_query' => array(
                         array(
                             'key' => 'annuncio_di_morte_relativo',
@@ -426,7 +430,7 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                     )
                 ));
 
-                $totale_manifesti = count($manifesti);
+                $totale_manifesti = $count_query->found_posts;
 
                 $necrologi_data[] = [
                     'agenzia' => $agenzia,
