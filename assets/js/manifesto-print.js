@@ -223,9 +223,9 @@
             // quindi non serve ricalcolarlo qui
             console.log('Opening print popup with pre-set orientations...');
             
-            // Verifica e log degli orientamenti
-            let landscapeCount = 0;
-            let portraitCount = 0;
+            // Separa i manifesti per orientamento
+            let landscapeManifesti = [];
+            let portraitManifesti = [];
             
             container.find('.text-editor-background').each(function(index, element) {
                 const orientation = $(element).attr('data-orientation');
@@ -234,41 +234,75 @@
                 if (!orientation) {
                     console.warn(`Missing orientation for manifesto ${index}, defaulting to portrait`);
                     $(element).attr('data-orientation', 'portrait');
-                    portraitCount++;
+                    portraitManifesti.push(element.outerHTML);
                 } else {
                     console.log(`Manifesto ${index}: orientation=${orientation}, bg=${bgImage ? 'present' : 'missing'}`);
-                    if (orientation === 'landscape') landscapeCount++;
-                    else portraitCount++;
+                    if (orientation === 'landscape') {
+                        landscapeManifesti.push(element.outerHTML);
+                    } else {
+                        portraitManifesti.push(element.outerHTML);
+                    }
                 }
             });
             
-            console.log(`Print summary: ${landscapeCount} landscape, ${portraitCount} portrait manifesti`);
+            console.log(`Print summary: ${landscapeManifesti.length} landscape, ${portraitManifesti.length} portrait manifesti`);
             
-            // Le classi CSS gestiscono tutto: dimensioni E proprietà page
-            // Non serve più impostare nulla via JavaScript!
-            console.log('All styling handled by CSS classes - no JS intervention needed');
-            
-            var printContents = container.html();
-            var printWindow = window.open('', '', 'height=600,width=800');
-            printWindow.document.write('<html><head><title>Print Manifesti</title>');
-            printWindow.document.write('<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function() { window.print(); }, 2000); });<\/script>');
-            
-            // Stili base
-            printWindow.document.write('<style>body{font-family: Arial, sans-serif; margin: 0; padding: 0;}</style>');
+            // Funzione helper per creare una finestra di stampa
+            function createPrintWindow(manifesti, orientationType) {
+                if (manifesti.length === 0) {
+                    console.log(`No ${orientationType} manifesti to print`);
+                    return null;
+                }
+                
+                var printWindow = window.open('', '', 'height=600,width=800');
+                printWindow.document.write('<html><head><title>Print Manifesti - ' + orientationType + '</title>');
+                printWindow.document.write('<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function() { window.print(); window.close(); }, 2000); });<\/script>');
+                
+                // Stili base
+                printWindow.document.write('<style>body{font-family: Arial, sans-serif; margin: 0; padding: 0;}</style>');
 
-            //add the ttf font to the print window
-            printWindow.document.write('<style>@font-face {font-family: "PlayFair Display Mine"; src: url("' + my_ajax_object.plugin_url + 'assets/fonts/Playfair_Display/static/PlayfairDisplay-Regular.ttf") format("truetype");}</style>');
+                // Aggiungi il font TTF
+                printWindow.document.write('<style>@font-face {font-family: "PlayFair Display Mine"; src: url("' + my_ajax_object.plugin_url + 'assets/fonts/Playfair_Display/static/PlayfairDisplay-Regular.ttf") format("truetype");}</style>');
+                
+                // Aggiungi CSS specifico per l'orientamento
+                if (orientationType === 'landscape') {
+                    printWindow.document.write('<style>@page { size: landscape; margin: 0; } @media print { body { margin: 0; } }</style>');
+                } else {
+                    printWindow.document.write('<style>@page { size: portrait; margin: 0; } @media print { body { margin: 0; } }</style>');
+                }
+                
+                // Il CSS principale con tutte le regole
+                printWindow.document.write('<link rel="stylesheet" type="text/css" href="' + my_ajax_object.plugin_url + 'assets/css/manifesto-print.css">');
+                
+                printWindow.document.write('</head><body>');
+                printWindow.document.write(manifesti.join(''));
+                printWindow.document.write('</body></html>');
+                printWindow.document.close();
+                
+                return printWindow;
+            }
             
-            // Il CSS principale con tutte le regole
-            printWindow.document.write('<link rel="stylesheet" type="text/css" href="' + my_ajax_object.plugin_url + 'assets/css/manifesto-print.css">');
-            
-            printWindow.document.write('</head><body>');
-            printWindow.document.write(printContents);
-            printWindow.document.write('</body></html>');
-            printWindow.document.close();
+            // Crea finestra per manifesti orizzontali
+            if (landscapeManifesti.length > 0) {
+                console.log('Creating landscape print window...');
+                let landscapeWindow = createPrintWindow(landscapeManifesti, 'landscape');
+                
+                // Attendi che la finestra landscape sia completata prima di aprire portrait
+                setTimeout(function() {
+                    if (portraitManifesti.length > 0) {
+                        console.log('Creating portrait print window...');
+                        createPrintWindow(portraitManifesti, 'portrait');
+                    }
+                }, 3000); // Ritardo di 3 secondi tra le due finestre
+            } else if (portraitManifesti.length > 0) {
+                console.log('Creating portrait print window...');
+                createPrintWindow(portraitManifesti, 'portrait');
+            }
 
-            //reload current page - DISABLED FOR DEBUGGING
-            // location.reload();
+            // Ricarica la pagina dopo un delay per assicurarsi che le finestre di stampa siano aperte
+            setTimeout(function() {
+                location.reload();
+            }, 6000);
         }
 
 

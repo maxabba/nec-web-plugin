@@ -59,13 +59,13 @@
         overflow: visible;
         font-family: "PlayFair Display Mine", serif;
         font-weight: 400;
-        
+
         /* Flex properties for vertical centering */
         display: flex;
         flex-direction: column;
         justify-content: center;
     }
-    
+
     /* Margini per i paragrafi in stampa */
     .custom-text-editor p {
         margin-block-start: 0 !important;
@@ -73,77 +73,77 @@
         margin-top: 0 !important;
         margin-bottom: .3em !important;
     }
-    
+
     /* === STILI DI STAMPA AVANZATI === */
-    
+
     /* Reset globale per la stampa */
     * {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
         color-adjust: exact !important;
     }
-    
+
     html, body {
         width: 100% !important;
         height: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
     }
-    
-    
+
+
     /* LANDSCAPE - manifesti orizzontali */
     .text-editor-background[data-orientation="landscape"] {
         page: landscape !important;
         page-break-after: always !important;
         page-break-inside: avoid !important;
-        
+
         /* Forza viewport landscape - occupa tutta la pagina */
         width: 100vw !important;
         height: 100vh !important;
         max-width: none !important;
         max-height: none !important;
-        
+
         /* Assicura contenimento */
         position: relative !important;
         overflow: hidden !important;
         margin: 0 !important;
         padding: 0 !important;
-        
+
         /* Background - mantieni aspect ratio corretto */
         background-size: contain !important;
         background-position: center center !important;
         background-repeat: no-repeat !important;
-        
+
         /* Container query support */
         container-type: size !important;
     }
-    
+
     /* PORTRAIT - manifesti verticali */
     .text-editor-background[data-orientation="portrait"] {
         page: portrait !important;
         page-break-after: always !important;
         page-break-inside: avoid !important;
-        
+
         /* Forza viewport portrait - occupa tutta la pagina */
         width: 100vw !important;
         height: 100vh !important;
         max-width: none !important;
         max-height: none !important;
-        
+
         position: relative !important;
         overflow: hidden !important;
         margin: 0 !important;
         padding: 0 !important;
-        
+
         /* Background - mantieni aspect ratio corretto */
         background-size: contain !important;
         background-position: center center !important;
         background-repeat: no-repeat !important;
-        
+
         /* Container query support */
         container-type: size !important;
     }
-    
+
     /* Text editor universale per stampa */
     .text-editor-background .custom-text-editor {
         width: 100% !important;
@@ -151,42 +151,42 @@
         margin: 0 !important;
         box-sizing: border-box !important;
         position: relative !important;
-        
+
         /* Flex per centratura verticale */
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
     }
-    
+
     /* Ultima pagina senza page break */
     .text-editor-background:last-child {
         page-break-after: avoid !important;
     }
-    
+
     /* === CLASSI PER ORIENTAMENTO STAMPA === */
-    
+
     /* Portrait classes */
     .page-a3-portrait {
         page: portrait !important;
     }
-    
+
     .page-a4-portrait {
         page: portrait !important;
     }
-    
+
     .page-a5-portrait {
         page: portrait !important;
     }
-    
+
     /* Landscape classes */
     .page-a3-landscape {
         page: landscape !important;
     }
-    
+
     .page-a4-landscape {
         page: landscape !important;
     }
-    
+
     .page-a5-landscape {
         page: landscape !important;
     }
@@ -272,7 +272,7 @@
     overflow: visible;
     font-family: "PlayFair Display Mine", serif;
     font-weight: 400;
-    
+
     /* Flex properties for vertical centering */
     display: flex;
     flex-direction: column;
