@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function initializeEditorStyling(textEditor, backgroundDiv, data, aspectRatio) {
         // Use responsive sizing based on viewport
-        const maxHeight = window.innerWidth <= 1024 ? '70vh' : '80vh';
+        const maxHeight = window.innerWidth <= 1024 ? '70%' : '80%';
         const maxWidth = '100%';
         
         // Set CSS properties for responsive behavior
@@ -129,55 +129,58 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateFontSizeFromSelector(aspectRatio) {
         const selector = document.getElementById('font-size-selector');
         const selectedSize = selector ? selector.value : 'medium';
-        const backgroundDiv = document.getElementById('text-editor-background');
-        const containerHeight = backgroundDiv.clientHeight;
         
-        let fontSizeCqh;
-        let fontSizePixels;
+        let fontSize;
         
         // Define font sizes based on selection and orientation
         if (aspectRatio > 1) {
             // Horizontal image
             switch (selectedSize) {
                 case 'small':
-                    fontSizeCqh = 6;
+                    fontSize = '6cqh';
                     break;
                 case 'large':
-                    fontSizeCqh = 8;
+                    fontSize = '8cqh';
                     break;
                 case 'medium':
                 default:
-                    fontSizeCqh = 7;
+                    fontSize = '7cqh';
             }
         } else {
             // Vertical image
             switch (selectedSize) {
                 case 'small':
-                    fontSizeCqh = 3;
+                    fontSize = '3cqh';
                     break;
                 case 'large':
-                    fontSizeCqh = 4;
+                    fontSize = '4cqh';
                     break;
                 case 'medium':
                 default:
-                    fontSizeCqh = 3.5;
+                    fontSize = '3.5cqh';
             }
         }
-        
-        // Calculate pixel size based on container height
-        fontSizePixels = (containerHeight * fontSizeCqh) / 100;
         
         // Apply font size to all paragraphs
         const paragraphs = textEditor.querySelectorAll('p');
         paragraphs.forEach(p => {
-            p.style.fontSize = `${fontSizePixels}px`;
-            p.setAttribute('data-cqh-size', fontSizeCqh);
+            // Check if paragraph has spans with font sizes
+            const spans = p.querySelectorAll('span[style*="font-size"]');
+            if (spans.length > 0) {
+                // Update existing spans
+                spans.forEach(span => {
+                    span.style.fontSize = fontSize;
+                });
+            } else {
+                // Apply to entire paragraph
+                p.style.fontSize = fontSize;
+            }
         });
         
         // Update CSS rule for future paragraphs
         const styleElement = document.getElementById('dynamic-paragraph-style') || document.createElement('style');
         styleElement.id = 'dynamic-paragraph-style';
-        styleElement.innerHTML = `.custom-text-editor p { font-size: ${fontSizePixels}px !important; }`;
+        styleElement.innerHTML = `.custom-text-editor p { font-size: ${fontSize} !important; }`;
         if (!document.getElementById('dynamic-paragraph-style')) {
             document.head.appendChild(styleElement);
         }
@@ -281,6 +284,79 @@ document.addEventListener('DOMContentLoaded', function () {
                 button.classList.remove('active');
             }
         });
+        
+        // Update font-size selector based on current cursor position
+        updateFontSizeSelector();
+    }
+    
+    function updateFontSizeSelector() {
+        const selector = document.getElementById('font-size-selector');
+        if (!selector) return;
+        
+        const selection = window.getSelection();
+        if (selection.rangeCount === 0) return;
+        
+        const range = selection.getRangeAt(0);
+        let currentElement = range.startContainer;
+        
+        // If it's a text node, get its parent element
+        if (currentElement.nodeType === Node.TEXT_NODE) {
+            currentElement = currentElement.parentNode;
+        }
+        
+        // Look for font-size in the current element or its parents
+        let fontSize = null;
+        let element = currentElement;
+        
+        while (element && element !== textEditor) {
+            // Check if element has a font-size style
+            if (element.style && element.style.fontSize) {
+                fontSize = element.style.fontSize;
+                break;
+            }
+            element = element.parentNode;
+        }
+        
+        // If no font-size found in spans, check the paragraph
+        if (!fontSize) {
+            let paragraph = currentElement;
+            while (paragraph && paragraph.tagName !== 'P' && paragraph !== textEditor) {
+                paragraph = paragraph.parentNode;
+            }
+            if (paragraph && paragraph.style && paragraph.style.fontSize) {
+                fontSize = paragraph.style.fontSize;
+            }
+        }
+        
+        // Convert font-size to selector value
+        if (fontSize) {
+            const backgroundDiv = document.getElementById('text-editor-background');
+            const aspectRatio = backgroundDiv ? backgroundDiv.clientWidth / backgroundDiv.clientHeight : 1;
+            
+            let selectorValue = 'medium'; // default
+            
+            if (aspectRatio > 1) {
+                // Horizontal image
+                if (fontSize === '6cqh') selectorValue = 'small';
+                else if (fontSize === '8cqh') selectorValue = 'large';
+                else if (fontSize === '7cqh') selectorValue = 'medium';
+            } else {
+                // Vertical image
+                if (fontSize === '3cqh') selectorValue = 'small';
+                else if (fontSize === '4cqh') selectorValue = 'large';
+                else if (fontSize === '3.5cqh') selectorValue = 'medium';
+            }
+            
+            // Update selector without triggering the change event
+            const currentValue = selector.value;
+            if (currentValue !== selectorValue) {
+                // Temporarily remove event listener to avoid infinite loop
+                const changeHandler = selector.onchange;
+                selector.onchange = null;
+                selector.value = selectorValue;
+                selector.onchange = changeHandler;
+            }
+        }
     }
 
     document.querySelectorAll('.editor-toolbar button').forEach(button => {
@@ -305,8 +381,11 @@ document.addEventListener('DOMContentLoaded', function () {
         let pastedData = clipboardData.getData('text/html');
         const plainText = clipboardData.getData('text/plain');
         
-        // If no HTML data or it's from WhatsApp, use plain text and convert line breaks to paragraphs
-        if (!pastedData || pastedData.includes('WhatsApp') || plainText.includes('\n\n')) {
+        // Check if HTML is from our own editor (contains data-cqh-size)
+        const isFromOurEditor = pastedData && pastedData.includes('data-cqh-size');
+        
+        // If no HTML data, it's from WhatsApp, or it's from our own editor, use plain text
+        if (!pastedData || pastedData.includes('WhatsApp') || isFromOurEditor || plainText.includes('\n\n')) {
             // Convert plain text to HTML with proper paragraph structure
             pastedData = convertPlainTextToHTML(plainText);
         }
@@ -322,7 +401,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 
                 // Find the current paragraph containing the cursor
                 let currentParagraph = range.startContainer;
-                while (currentParagraph && currentParagraph.nodeType !== Node.ELEMENT_NODE || currentParagraph.tagName !== 'P') {
+                while (currentParagraph && (currentParagraph.nodeType !== Node.ELEMENT_NODE || currentParagraph.tagName !== 'P')) {
                     currentParagraph = currentParagraph.parentNode;
                     // If we reach the text editor without finding a P, break
                     if (currentParagraph === textEditor) {
@@ -551,84 +630,82 @@ document.addEventListener('DOMContentLoaded', function () {
             const selection = window.getSelection();
             const selectedSize = fontSizeSelector.value;
             
-            // Get current aspect ratio and container query size
+            // Get current aspect ratio
             const backgroundDiv = document.getElementById('text-editor-background');
-            const containerHeight = backgroundDiv.clientHeight;
             const aspectRatio = backgroundDiv.clientWidth / backgroundDiv.clientHeight;
             
-            // Calculate actual pixel size based on container query height
-            let fontSizePixels;
-            let fontSizeCqh;
+            // Define font sizes based on selection and orientation
+            let fontSize;
             
             if (aspectRatio > 1) {
                 // Horizontal image
                 switch (selectedSize) {
                     case 'small':
-                        fontSizeCqh = 6;
+                        fontSize = '6cqh';
                         break;
                     case 'large':
-                        fontSizeCqh = 8;
+                        fontSize = '8cqh';
                         break;
                     case 'medium':
                     default:
-                        fontSizeCqh = 7;
+                        fontSize = '7cqh';
                 }
             } else {
                 // Vertical image
                 switch (selectedSize) {
                     case 'small':
-                        fontSizeCqh = 3;
+                        fontSize = '3cqh';
                         break;
                     case 'large':
-                        fontSizeCqh = 4;
+                        fontSize = '4cqh';
                         break;
                     case 'medium':
                     default:
-                        fontSizeCqh = 3.5;
+                        fontSize = '3.5cqh';
                 }
             }
             
-            // Calculate pixel size based on container height
-            fontSizePixels = (containerHeight * fontSizeCqh) / 100;
-            
             if (selection.rangeCount > 0 && !selection.isCollapsed) {
-                // Apply font size to selected text
+                // Apply font size to selected text using spans for word-level control
+                const range = selection.getRangeAt(0);
+                
+                // Always use span-based approach for selections
+                // This maintains consistency and allows for word-level control
                 document.execCommand('fontSize', false, '7'); // Use a temporary size
                 
                 // Find and replace the font tags with spans having the correct size
-                const fontElements = textEditor.querySelectorAll('font[size="7"]');
+                const fontElements = textEditor.querySelectorAll('font[size=\"7\"]');
                 fontElements.forEach(font => {
                     const span = document.createElement('span');
-                    span.style.fontSize = `${fontSizePixels}px`;
-                    span.setAttribute('data-cqh-size', fontSizeCqh);
+                    span.style.fontSize = fontSize;
                     span.innerHTML = font.innerHTML;
                     font.parentNode.replaceChild(span, font);
                 });
                 
                 syncContentToHiddenField();
             } else {
-                // No selection - apply to all paragraphs
+                // No selection - apply to all paragraphs and clean up spans
                 const paragraphs = textEditor.querySelectorAll('p');
                 paragraphs.forEach(p => {
-                    // Check if paragraph has spans with font sizes
+                    // Remove all font-size spans inside this paragraph
                     const spans = p.querySelectorAll('span[style*="font-size"]');
-                    if (spans.length > 0) {
-                        // Update existing spans
-                        spans.forEach(span => {
-                            span.style.fontSize = `${fontSizePixels}px`;
-                            span.setAttribute('data-cqh-size', fontSizeCqh);
-                        });
-                    } else {
-                        // Apply to entire paragraph
-                        p.style.fontSize = `${fontSizePixels}px`;
-                        p.setAttribute('data-cqh-size', fontSizeCqh);
-                    }
+                    spans.forEach(span => {
+                        // Extract text content and replace span with text
+                        const textNode = document.createTextNode(span.textContent);
+                        span.parentNode.replaceChild(textNode, span);
+                    });
+                    
+                    // Apply new font size to the paragraph
+                    p.style.fontSize = fontSize;
+                    
+                    // Normalize the paragraph content to merge adjacent text nodes
+                    p.normalize();
                 });
                 
                 // Update CSS rule for future paragraphs
                 const styleElement = document.getElementById('dynamic-paragraph-style') || document.createElement('style');
                 styleElement.id = 'dynamic-paragraph-style';
-                styleElement.innerHTML = `.custom-text-editor p { font-size: ${fontSizePixels}px !important; }`;
+                styleElement.innerHTML = `.custom-text-editor p { font-size: ${fontSize} !important; }`;
                 if (!document.getElementById('dynamic-paragraph-style')) {
                     document.head.appendChild(styleElement);
                 }
@@ -642,8 +719,19 @@ document.addEventListener('DOMContentLoaded', function () {
     function convertPlainTextToHTML(plainText) {
         if (!plainText) return '';
         
-        // Split by double line breaks first (typical paragraph separators)
-        const paragraphs = plainText.split(/\n\n+/);
+        // First normalize line breaks (Windows \r\n to \n)
+        plainText = plainText.replace(/\r\n/g, '\n');
+        
+        // Check if text has double line breaks (typical paragraph separators)
+        let paragraphs;
+        if (plainText.includes('\n\n')) {
+            // Split by double line breaks for proper paragraphs
+            paragraphs = plainText.split(/\n\n+/);
+        } else {
+            // Split by single line breaks if no double breaks found
+            // This handles text copied from our own editor where each p is on a new line
+            paragraphs = plainText.split(/\n+/);
+        }
         
         // Process each paragraph
         const htmlParagraphs = paragraphs.map(para => {
@@ -651,9 +739,11 @@ document.addEventListener('DOMContentLoaded', function () {
             para = para.trim();
             if (!para) return '';
             
-            // Replace single line breaks with <br> within paragraphs
-            // But preserve the content for WhatsApp messages
-            para = para.replace(/\n/g, '<br>');
+            // Remove any &nbsp; entities and replace with regular space
+            para = para.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+            
+            // Skip empty paragraphs that only had nbsp
+            if (!para) return '';
             
             // Escape HTML entities to prevent injection
             para = para.replace(/&/g, '&amp;')
@@ -662,11 +752,13 @@ document.addEventListener('DOMContentLoaded', function () {
                       .replace(/"/g, '&quot;')
                       .replace(/'/g, '&#039;');
             
-            // Restore <br> tags
-            para = para.replace(/&lt;br&gt;/g, '<br>');
-            
-            return `<p>${para || '&nbsp;'}</p>`;
+            return `<p>${para}</p>`;
         }).filter(p => p); // Remove empty entries
+        
+        // If no paragraphs were created, return empty paragraph
+        if (htmlParagraphs.length === 0) {
+            return '<p>&nbsp;</p>';
+        }
         
         return htmlParagraphs.join('');
     }
@@ -841,13 +933,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else if (tagName === 'u') {
                     newElement = document.createElement('u');
                 } else if (tagName === 'span' || tagName === 'font') {
-                    // Keep spans and fonts for font size processing, but clean them
-                    newElement = document.createElement('span');
+                    // Skip spans entirely if they only have font-size or data-cqh-size
+                    const hasOnlyFontSize = node.style && node.style.fontSize && 
+                                          !node.style.fontWeight && 
+                                          !node.style.fontStyle && 
+                                          !node.style.textDecoration;
+                    const hasDataCqh = node.hasAttribute('data-cqh-size');
                     
-                    // Preserve font size information temporarily for processing
-                    if (node.style && node.style.fontSize) {
-                        newElement.setAttribute('data-original-font-size', node.style.fontSize);
+                    if (hasOnlyFontSize || hasDataCqh) {
+                        // Just process children without the span wrapper
+                        for (let child of node.childNodes) {
+                            processNode(child, parentElement);
+                        }
+                        return;
                     }
+                    
+                    // Keep span only if it has other formatting
+                    newElement = document.createElement('span');
                 } else if (tagName === 'p' || tagName === 'div') {
                     newElement = document.createElement('p');
                 } else if (tagName === 'br') {
@@ -861,7 +963,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 
                 if (newElement) {
-                    // Add formatting based on original styles
+                    // Add formatting based on original styles (but not font-size)
                     if ((node.style.fontWeight === 'bold' || node.style.fontWeight === '700') && newElement.tagName !== 'B') {
                         const boldElement = document.createElement('b');
                         newElement.appendChild(boldElement);
@@ -931,99 +1033,36 @@ document.addEventListener('DOMContentLoaded', function () {
     
     // Apply normalized font sizes based on current editor orientation
     function applyNormalizedSizes(container, normalizedSizes) {
+        // Always use medium as default for pasted content
+        const selectedSize = 'medium';
+        
         // Get current aspect ratio for font size determination
         const backgroundDiv = document.getElementById('text-editor-background');
         const aspectRatio = backgroundDiv ? backgroundDiv.clientWidth / backgroundDiv.clientHeight : 1;
-        const containerHeight = backgroundDiv ? backgroundDiv.clientHeight : 400;
         
-        // Define our standard font sizes based on orientation
-        let cqhSizes;
-        let pixelSizes;
+        // Define our standard font sizes based on orientation and current selection
+        let defaultFontSize;
         if (aspectRatio > 1) {
             // Horizontal image
-            cqhSizes = { small: 6, medium: 7, large: 8 };
+            switch (selectedSize) {
+                case 'small': defaultFontSize = '6cqh'; break;
+                case 'large': defaultFontSize = '8cqh'; break;
+                default: defaultFontSize = '7cqh';
+            }
         } else {
             // Vertical image
-            cqhSizes = { small: 3, medium: 3.5, large: 4 };
-        }
-        
-        // Convert to pixel sizes
-        pixelSizes = {
-            small: (containerHeight * cqhSizes.small) / 100,
-            medium: (containerHeight * cqhSizes.medium) / 100,
-            large: (containerHeight * cqhSizes.large) / 100
-        };
-        
-        // Create a mapping of original sizes to normalized categories
-        const sizeMapping = {};
-        
-        // Determine size categories based on normalized sizes
-        if (normalizedSizes.small && normalizedSizes.small.length > 0) {
-            normalizedSizes.small.forEach(size => {
-                sizeMapping[size] = sizes.small;
-            });
-        }
-        if (normalizedSizes.medium && normalizedSizes.medium.length > 0) {
-            normalizedSizes.medium.forEach(size => {
-                sizeMapping[size] = sizes.medium;
-            });
-        }
-        if (normalizedSizes.large && normalizedSizes.large.length > 0) {
-            normalizedSizes.large.forEach(size => {
-                sizeMapping[size] = sizes.large;
-            });
-        }
-        
-        // Find all elements with original font size data
-        const elementsWithSize = container.querySelectorAll('[data-original-font-size]');
-        
-        elementsWithSize.forEach(element => {
-            const originalSize = parseFloat(element.getAttribute('data-original-font-size'));
-            element.removeAttribute('data-original-font-size');
-            
-            // Determine which category this size belongs to
-            let targetPixelSize = pixelSizes.medium; // Default to medium
-            let targetCqhSize = cqhSizes.medium;
-            
-            if (normalizedSizes.smallSizes.some(size => Math.abs(size - originalSize) < 2)) {
-                targetPixelSize = pixelSizes.small;
-                targetCqhSize = cqhSizes.small;
-            } else if (normalizedSizes.largeSizes.some(size => Math.abs(size - originalSize) < 2)) {
-                targetPixelSize = pixelSizes.large;
-                targetCqhSize = cqhSizes.large;
+            switch (selectedSize) {
+                case 'small': defaultFontSize = '3cqh'; break;
+                case 'large': defaultFontSize = '4cqh'; break;
+                default: defaultFontSize = '3.5cqh';
             }
-            
-            // Apply the normalized size
-            element.style.fontSize = `${targetPixelSize}px`;
-            element.setAttribute('data-cqh-size', targetCqhSize);
-        });
+        }
         
-        // Handle paragraphs without explicit font size spans
-        // These should be treated as having the smallest font size from the extracted sizes
-        const paragraphsWithoutSpans = container.querySelectorAll('p');
-        paragraphsWithoutSpans.forEach(paragraph => {
-            const hasSpanWithSize = paragraph.querySelector('span[style*="font-size"]');
-            if (!hasSpanWithSize) {
-                // If this paragraph has no font size span, treat it as the smallest size
-                const span = document.createElement('span');
-                span.style.fontSize = `${pixelSizes.small}px`; // Default to small for paragraphs without explicit size
-                span.setAttribute('data-cqh-size', cqhSizes.small);
-                
-                // Wrap the paragraph content in the span
-                const content = paragraph.innerHTML;
-                paragraph.innerHTML = '';
-                span.innerHTML = content;
-                paragraph.appendChild(span);
-            }
-        });
-        
-        // For spans without specific font size, apply medium
-        const allSpans = container.querySelectorAll('span');
-        allSpans.forEach(span => {
-            if (!span.style.fontSize) {
-                span.style.fontSize = `${pixelSizes.medium}px`;
-                span.setAttribute('data-cqh-size', cqhSizes.medium);
-            }
+        // Apply default font size to all paragraphs
+        const allParagraphs = container.querySelectorAll('p');
+        allParagraphs.forEach(paragraph => {
+            // Apply default size directly to paragraph
+            paragraph.style.fontSize = defaultFontSize;
         });
     }
     
@@ -1032,6 +1071,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const allElements = container.querySelectorAll('*');
         
         allElements.forEach(element => {
+            // Remove ALL font-size styles and data-cqh-size attributes
+            element.style.fontSize = '';
+            element.removeAttribute('data-cqh-size');
+            
             // Remove text alignment styles
             element.style.textAlign = '';
             element.style.textIndent = '';
@@ -1063,8 +1106,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Remove font-family (let editor handle this)
             element.style.fontFamily = '';
             
-            // Keep only fontSize, fontWeight, fontStyle, textDecoration for our allowed formatting
-            const allowedStyles = ['fontSize'];
+            // Keep only fontWeight, fontStyle, textDecoration for our allowed formatting
             const computedStyle = window.getComputedStyle(element);
             
             // Preserve bold, italic, underline through proper HTML tags instead of styles
@@ -1097,48 +1139,11 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Function to recalculate font sizes on resize
+    // Function to recalculate font sizes on resize - not needed with cqh
     function recalculateFontSizes() {
-        const backgroundDiv = document.getElementById('text-editor-background');
-        if (!backgroundDiv) return;
-        
-        const containerHeight = backgroundDiv.clientHeight;
-        
-        // Update all elements with data-cqh-size attribute
-        const elementsWithCqh = textEditor.querySelectorAll('[data-cqh-size]');
-        elementsWithCqh.forEach(element => {
-            const cqhSize = parseFloat(element.getAttribute('data-cqh-size'));
-            if (cqhSize) {
-                const newPixelSize = (containerHeight * cqhSize) / 100;
-                element.style.fontSize = `${newPixelSize}px`;
-            }
-        });
-        
-        // Update dynamic stylesheet if it exists
-        const styleElement = document.getElementById('dynamic-paragraph-style');
-        if (styleElement) {
-            const selector = document.getElementById('font-size-selector');
-            const selectedSize = selector ? selector.value : 'medium';
-            const aspectRatio = backgroundDiv.clientWidth / backgroundDiv.clientHeight;
-            
-            let fontSizeCqh;
-            if (aspectRatio > 1) {
-                switch (selectedSize) {
-                    case 'small': fontSizeCqh = 6; break;
-                    case 'large': fontSizeCqh = 8; break;
-                    default: fontSizeCqh = 7;
-                }
-            } else {
-                switch (selectedSize) {
-                    case 'small': fontSizeCqh = 3; break;
-                    case 'large': fontSizeCqh = 4; break;
-                    default: fontSizeCqh = 3.5;
-                }
-            }
-            
-            const fontSizePixels = (containerHeight * fontSizeCqh) / 100;
-            styleElement.innerHTML = `.custom-text-editor p { font-size: ${fontSizePixels}px !important; }`;
-        }
+        // With cqh units, font sizes automatically adapt to container changes
+        // No manual recalculation needed
+        return;
     }
     
     // Add resize observer to recalculate font sizes when container changes
@@ -1163,6 +1168,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initialize everything
     initializeEditor();
     updateToolbarState();
+    
+    // Set initial font-size selector value
+    setTimeout(() => {
+        updateFontSizeSelector();
+    }, 100);
     
     // Sync initial content to hidden field
     syncContentToHiddenField();

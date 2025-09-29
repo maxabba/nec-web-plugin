@@ -212,9 +212,8 @@ $active_menu = '';
                                         <tr>
                                             <td><?php 
                                                 $testo = wp_strip_all_tags(get_field('testo_manifesto'));
-                                                $words = explode(' ', $testo);
-                                                if (count($words) > 5) {
-                                                    $testo_troncato = implode(' ', array_slice($words, 0, 5)) . '...';
+                                                if (mb_strlen($testo) > 30) {
+                                                    $testo_troncato = mb_substr($testo, 0, 30) . '...';
                                                 } else {
                                                     $testo_troncato = $testo;
                                                 }

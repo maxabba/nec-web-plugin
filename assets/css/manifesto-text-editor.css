@@ -72,3 +72,17 @@
     justify-content: left;
     /* justify-content sarà modificato dinamicamente con JavaScript in base al numero di manifesti */
 }
+
+/* Background del text editor */
+.text-editor-background,
+#text-editor-background {
+    position: relative;
+    width: 100%;
+    height: auto;
+    max-height: 80%;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    overflow: hidden;
+    margin-inline: auto;
+}

@@ -16,8 +16,8 @@ $vendor_data = $monitor_data['vendor_data'];
 ?>
 
 <div class="monitor-solo-annuncio">
-    <!-- Header with defunto basic info
-    <header class="solo-annuncio-header">
+    <!-- Header with defunto basic info -->
+    <!-- <header class="solo-annuncio-header">
         <div class="defunto-header-info">
             <?php if (!empty($defunto_data['fotografia'])): ?>
                 <?php 
@@ -46,8 +46,8 @@ $vendor_data = $monitor_data['vendor_data'];
                 <?php endif; ?>
             </div>
         </div>
-    </header>
-    -->
+    </header>-->
+
     <!-- Main content area -->
     <main class="solo-annuncio-main">
         
@@ -112,7 +112,7 @@ $vendor_data = $monitor_data['vendor_data'];
     --monitor-gap-large: 30px;
     
     /* Layout Heights */
-    --monitor-header-height: 15vh; /* Solo annuncio - header ridotto */
+    --monitor-header-height: 10vh; /* Solo annuncio - header ridotto */
     --monitor-body-height: 75vh;
     --monitor-footer-height: 10vh;
     
@@ -211,7 +211,7 @@ $vendor_data = $monitor_data['vendor_data'];
 
 /* Main Content */
 .solo-annuncio-main {
-    /*height: var(--monitor-body-height);*/
+    height: var(--monitor-body-height);
     display: flex;
     flex-direction: column;
     align-items: center;

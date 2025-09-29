@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 backgroundDiv.style.backgroundImage = 'url(' + data.manifesto_background + ')';
                 
                 // Use responsive sizing based on viewport instead of fixed 400px
-                const maxHeight = window.innerWidth <= 1024 ? '70vh' : '80vh';
+                const maxHeight = window.innerWidth <= 1024 ? '70%' : '80%';
                 const maxWidth = '100%';
                 
                 // Set CSS properties for responsive behavior
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 textEditor.style.textAlign = data.alignment ? data.alignment : 'left';
                 
                 // Set dynamic font-size directly on text editor based on image orientation
-                const fontSize = aspectRatio > 1 ? '8cqh' : '4cqh'; // horizontal: 8cqh, vertical: 4cqh
+                const fontSize = aspectRatio > 1 ? '7cqh' : '3.5cqh'; // horizontal: 8cqh, vertical: 4cqh
                 textEditor.style.fontSize = fontSize;
                 textEditor.style.lineHeight = '1.2';
             }

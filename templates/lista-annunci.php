@@ -137,7 +137,8 @@ $active_menu = 'annunci/lista-annunci';
 
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
-                            <a href="<?php echo home_url('dashboard/crea-annuncio/'); ?>" class="custom-widget-button" style="margin-bottom: 15px">
+                            <a href="<?php echo home_url('dashboard/crea-annuncio/'); ?>" 
+                               style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 15px;">
                                 <i class="fas fa-plus"></i> <?php _e('Aggiungi Annuncio', 'dokan-mod'); ?>
                             </a>
                             <form method="get" action="<?php echo esc_url(home_url('/dashboard/lista-annunci')); ?>"
@@ -437,22 +438,53 @@ $active_menu = 'annunci/lista-annunci';
         .table-responsive {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
+            position: relative;
         }
 
         .table-responsive table {
             min-width: 1200px;
             white-space: nowrap;
+            border-collapse: separate;
+            border-spacing: 0;
         }
 
         .table-responsive th,
         .table-responsive td {
             padding: 8px 12px;
             min-width: 100px;
+            background-color: white;
+            border-bottom: 1px solid #ddd;
         }
 
+        /* Prima colonna fissa */
         .table-responsive th:first-child,
         .table-responsive td:first-child {
-            min-width: 150px;
+            position: sticky;
+            left: 0;
+            z-index: 2;
+            min-width: 250px;
+            max-width: 300px;
+            white-space: normal;
+            word-break: break-word;
+            background-color: white;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+
+        .table-responsive th:first-child {
+            z-index: 3;
+            background-color: #f5f5f5;
+        }
+
+        .table-responsive thead th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .table-responsive thead th:first-child {
+            z-index: 4;
         }
     </style>
 
