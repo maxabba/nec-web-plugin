@@ -29,20 +29,35 @@ if (get_query_var('paged')) {
 
 
 
+// Get search term from URL parameter
+$search_term = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+
+$meta_query = array(
+    'relation' => 'AND',
+    array(
+        'key' => 'annuncio_di_morte_relativo',
+        'value' => $post_id_annuncio,
+        'compare' => '='
+    )
+);
+
+// If there's a search term, add it to the meta_query to search ONLY in testo_manifesto field
+if (!empty($search_term)) {
+    $meta_query[] = array(
+        'key' => 'testo_manifesto',
+        'value' => $search_term,
+        'compare' => 'LIKE'
+    );
+}
+
 $args = array(
     'post_type' => 'manifesto',
     'post_status' => 'publish, pending, draft, future, private',
     'author' => $user_id,
     'posts_per_page' => 10, // Change this to the number of posts you want per page
     'paged' => $paged,
-    's' => get_query_var('s'),
-    'meta_query' => array(
-        array(
-            'key' => 'annuncio_di_morte_relativo',
-            'value' => $post_id_annuncio,
-            'compare' => '='
-        )
-    ),
+    'meta_query' => $meta_query,
+    // Explicitly NOT including 's' parameter to avoid title/content search
 );
 
 // Execute the query
@@ -171,9 +186,10 @@ $active_menu = '';
 
                             <form method="get" action="<?php echo esc_url(home_url('/dashboard/lista-manifesti')); ?>"
                                   style="display: flex;">
-                                <input type="text" name="s" value="<?php echo get_query_var('s'); ?>"
-                                       placeholder="Search..." style="margin-right: 10px;">
-                                <input type="submit" value="Search">
+                                <input type="hidden" name="post_id_annuncio" value="<?php echo esc_attr($post_id_annuncio); ?>">
+                                <input type="text" name="s" value="<?php echo esc_attr($search_term); ?>"
+                                       placeholder="Cerca nel testo..." style="margin-right: 10px;">
+                                <input type="submit" value="Cerca">
                             </form>
                             <div class="table-responsive">
                                 <table>
@@ -231,6 +247,15 @@ $active_menu = '';
                                     <span class="displaying-num"><?php echo $query->found_posts; ?> elementi</span>
                                     <span class="pagination-links">
                                     <?php
+                                    // Preserve query parameters in pagination
+                                    $pagination_args = array();
+                                    if ($post_id_annuncio) {
+                                        $pagination_args['post_id_annuncio'] = $post_id_annuncio;
+                                    }
+                                    if (!empty($search_term)) {
+                                        $pagination_args['s'] = $search_term;
+                                    }
+                                    
                                     $paginate_links = paginate_links(array(
                                         'base' => str_replace(999999999, '%#%', esc_url(get_pagenum_link(999999999))),
                                         'total' => $query->max_num_pages,
@@ -242,7 +267,7 @@ $active_menu = '';
                                         'prev_next' => true,
                                         'prev_text' => '‹',
                                         'next_text' => '›',
-                                        'add_args' => false,
+                                        'add_args' => $pagination_args,
                                         'add_fragment' => '',
                                     ));
 
