@@ -82,7 +82,8 @@ $js_monitor_data = [
     'ajaxUrl' => admin_url('admin-ajax.php'),
     'nonce' => wp_create_nonce('monitor_nonce'),
     'pollingInterval' => 15000,
-    'slideInterval' => 10000
+    'slideInterval' => 10000,  // Base time per slide (milliseconds)
+    'pauseInterval' => 30000   // Base pause time after user interaction (milliseconds)
 ];
 
 // Handle different layout types

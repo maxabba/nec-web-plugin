@@ -9,7 +9,7 @@ class MonitorDisplay {
         this.currentSlide = 0;
         this.slideInterval = null;
         this.pollingInterval = null;
-        this.pauseTimeout = null;
+        this.pauseTimeoutId = null;
         this.isPlaying = true;
         this.lastUpdateTime = null;
         
@@ -18,8 +18,13 @@ class MonitorDisplay {
         
         // Configuration from PHP
         this.config = window.MonitorData || {};
-        this.slideTimeout = this.config.slideInterval || 5000;
+        this.baseSlideTimeout = this.config.slideInterval || 5000;
+        this.basePauseTimeout = this.config.pauseInterval || 30000;
         this.pollingTimeout = this.config.pollingInterval || 15000;
+        
+        // These will be adjusted based on grid configuration
+        this.slideTimeout = this.baseSlideTimeout;
+        this.pauseTimeout = this.basePauseTimeout;
         
         // Font sizes per manifesti "old"
         this.oldManifestoFonts = {
@@ -374,6 +379,15 @@ class MonitorDisplay {
             // Always start at first slide in grid mode
             this.currentSlide = 0;
             
+            // Adjust timeouts based on number of manifesti per slide in grid mode
+            const manifestiPerSlide = gridConfig.totalCells;
+            this.slideTimeout = this.baseSlideTimeout * manifestiPerSlide;
+            this.pauseTimeout = this.basePauseTimeout * manifestiPerSlide;
+            
+            console.log(`Grid mode: ${manifestiPerSlide} manifesti per slide`);
+            console.log(`Adjusted slide timeout: ${this.slideTimeout/1000}s (base: ${this.baseSlideTimeout/1000}s)`);
+            console.log(`Adjusted pause timeout: ${this.pauseTimeout/1000}s (base: ${this.basePauseTimeout/1000}s)`);
+            
             // Make first slide visible immediately
             setTimeout(() => {
                 const firstSlide = this.container.querySelector('.manifesto-slide');
@@ -391,6 +405,14 @@ class MonitorDisplay {
         this.container.innerHTML = '';
         
         this.realSlidesCount = this.manifesti.length;
+        
+        // Reset timeouts to base values for non-grid mode (1 manifesto per slide)
+        this.slideTimeout = this.baseSlideTimeout;
+        this.pauseTimeout = this.basePauseTimeout;
+        
+        console.log(`Non-grid mode: 1 manifesto per slide`);
+        console.log(`Slide timeout: ${this.slideTimeout/1000}s`);
+        console.log(`Pause timeout: ${this.pauseTimeout/1000}s`);
         
         // For infinite scroll, we need at least 2 clones on each side
         // But only if we have more than 1 slide
@@ -897,23 +919,23 @@ class MonitorDisplay {
     }
     
     pauseOnInteraction() {
-        console.log('Slideshow paused for 30 seconds due to user interaction');
+        console.log(`Slideshow paused for ${this.pauseTimeout/1000} seconds due to user interaction`);
         
         // Pause slideshow
         this.pauseSlideshow();
         
         // Clear any existing pause timeout
-        if (this.pauseTimeout) {
-            clearTimeout(this.pauseTimeout);
+        if (this.pauseTimeoutId) {
+            clearTimeout(this.pauseTimeoutId);
         }
         
-        // Set timeout to resume after 30 seconds
-        this.pauseTimeout = setTimeout(() => {
-            console.log('Resuming slideshow after 30 second pause');
+        // Set timeout to resume after configured pause time
+        this.pauseTimeoutId = setTimeout(() => {
+            console.log(`Resuming slideshow after ${this.pauseTimeout/1000} second pause`);
             this.resumeSlideshow();
             this.restartSlideshow(); // Restart the interval
-            this.pauseTimeout = null;
-        }, 30000); // 30 seconds
+            this.pauseTimeoutId = null;
+        }, this.pauseTimeout); // Use configured pause interval
     }
 
     showLoading(show) {
