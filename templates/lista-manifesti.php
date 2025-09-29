@@ -119,23 +119,51 @@ $active_menu = '';
 
                         <!-- if the vendor status is enabled show the form -->
                         <?php if (!$disable_form) { ?>
-                            <a href="<?php echo esc_url(home_url('/dashboard/crea-manifesto/?post_id_annuncio=' . $post_id_annuncio)); ?>"
-                               class="custom-widget-button" style="margin-bottom: 15px">
-                            <i class="fas fa-plus"></i> <?php _e('Aggiungi Partecipazione', 'dokan-mod'); ?>
-                            </a>
-
-                            <div style="display: flex; flex-direction: column; width: 300px; margin-bottom: 15px">
-                                <label for="page-format" style="margin-bottom: 5px;">Seleziona formato pagina:</label>
-                                <div style="display: flex; align-items: center; width: 100px;">
-                                    <select id="page-format" style="flex: 1; margin-right: 10px; width: 100px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <!-- Bottone Aggiungi Partecipazione a sinistra -->
+                                <a href="<?php echo esc_url(home_url('/dashboard/crea-manifesto/?post_id_annuncio=' . $post_id_annuncio)); ?>"
+                                   style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-size: 14px;">
+                                    <i class="fas fa-plus"></i> <?php _e('Aggiungi Partecipazione', 'dokan-mod'); ?>
+                                </a>
+                                
+                                <!-- Selettore formato e bottone stampa a destra -->
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <label for="page-format" style="margin: 0;">Formato:</label>
+                                    <select id="page-format" style="padding: 5px 10px;">
                                         <option value="A3">A3</option>
-                                        <option value="A4">A4</option>
+                                        <option value="A4" selected>A4</option>
                                         <option value="A5">A5</option>
                                     </select>
-                                    <button id="start-button">Stampa tutte le partecipazioni</button>
+                                    <button id="start-button" class="btn-print" title="Stampa tutte le partecipazioni" style="padding: 8px 12px; background: #0073aa; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                                        <i class="fas fa-print"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <div id="hidden-container" data-postid="<?php echo $post_id_annuncio; ?>" style="position: absolute; top: 100vh; left: -9999px; visibility: hidden;"></div>
+                            <!-- Modale per avviso stampa -->
+                            <div id="print-modal" class="modal" style="display: none;">
+                                <div class="modal-content">
+                                    <span class="close">&times;</span>
+                                    <h2 style="margin-bottom: 20px;">🖨️ Stampa Partecipazioni</h2>
+                                    <div id="modal-message">
+                                        <p>Verranno aperte due finestre di stampa separate:</p>
+                                        <ul style="list-style: none; padding-left: 0;">
+                                            <li style="margin: 10px 0;">📄 <strong>Finestra 1:</strong> Manifesti orizzontali (landscape)</li>
+                                            <li style="margin: 10px 0;">📃 <strong>Finestra 2:</strong> Manifesti verticali (portrait)</li>
+                                        </ul>
+                                        <p style="margin-top: 20px;">Assicurati di consentire i popup nel browser per procedere con la stampa.</p>
+                                    </div>
+                                    <div style="text-align: center; margin-top: 30px;">
+                                        <button id="proceed-print" style="padding: 10px 30px; background: #0073aa; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 16px;">
+                                            Procedi con la stampa
+                                        </button>
+                                        <button id="cancel-print" style="padding: 10px 30px; background: #666; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 16px; margin-left: 10px;">
+                                            Annulla
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="hidden-container" data-postid="<?php echo $post_id_annuncio; ?>" data-title="<?php echo esc_attr($title); ?>" style="position: absolute; top: 100vh; left: -9999px; visibility: hidden;"></div>
                             <div id="progress-bar-container" style="display: none; width: 100%; margin-top: 10px;">
                                 <div id="progress-bar" style="width: 0; height: 20px; background: green;"></div>
                             </div>
@@ -365,6 +393,47 @@ $active_menu = '';
 
         .paging-input a:hover {
             background-color: #009fd4;
+        }
+
+        /* Stili per il modale */
+        .modal {
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 30px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: #000;
+        }
+
+        .btn-print:hover {
+            opacity: 0.9;
         }
 
         form {

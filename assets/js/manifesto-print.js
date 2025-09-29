@@ -223,9 +223,10 @@
             // quindi non serve ricalcolarlo qui
             console.log('Opening print popup with pre-set orientations...');
             
-            // Separa i manifesti per orientamento
+            // Separa i manifesti per orientamento mantenendo l'ordine originale
             let landscapeManifesti = [];
             let portraitManifesti = [];
+            let firstOrientation = null;
             
             container.find('.text-editor-background').each(function(index, element) {
                 const orientation = $(element).attr('data-orientation');
@@ -235,8 +236,16 @@
                     console.warn(`Missing orientation for manifesto ${index}, defaulting to portrait`);
                     $(element).attr('data-orientation', 'portrait');
                     portraitManifesti.push(element.outerHTML);
+                    if (!firstOrientation) firstOrientation = 'portrait';
                 } else {
                     console.log(`Manifesto ${index}: orientation=${orientation}, bg=${bgImage ? 'present' : 'missing'}`);
+                    
+                    // Salva il primo orientamento trovato
+                    if (!firstOrientation) {
+                        firstOrientation = orientation;
+                        console.log(`First orientation detected: ${firstOrientation}`);
+                    }
+                    
                     if (orientation === 'landscape') {
                         landscapeManifesti.push(element.outerHTML);
                     } else {
@@ -246,6 +255,13 @@
             });
             
             console.log(`Print summary: ${landscapeManifesti.length} landscape, ${portraitManifesti.length} portrait manifesti`);
+            console.log(`First orientation: ${firstOrientation}`);
+            
+            // Se non c'è differenziazione (tutti dello stesso tipo), stampa direttamente
+            if ((landscapeManifesti.length === 0 && portraitManifesti.length > 0) || 
+                (portraitManifesti.length === 0 && landscapeManifesti.length > 0)) {
+                console.log('All manifesti have the same orientation, printing directly without modal');
+            }
             
             // Funzione helper per creare una finestra di stampa
             function createPrintWindow(manifesti, orientationType) {
@@ -254,8 +270,13 @@
                     return null;
                 }
                 
+                // Recupera il titolo dal container
+                var title = container.data('title') || 'Annuncio';
+                var orientationLabel = orientationType === 'landscape' ? 'orizzontale' : 'verticale';
+                var windowTitle = 'Partecipazioni - ' + title + ' (' + orientationLabel + ')';
+                
                 var printWindow = window.open('', '', 'height=600,width=800');
-                printWindow.document.write('<html><head><title>Print Manifesti - ' + orientationType + '</title>');
+                printWindow.document.write('<html><head><title>' + windowTitle + '</title>');
                 printWindow.document.write('<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function() { window.print(); window.close(); }, 2000); });<\/script>');
                 
                 // Stili base
@@ -282,20 +303,33 @@
                 return printWindow;
             }
             
-            // Crea finestra per manifesti orizzontali
-            if (landscapeManifesti.length > 0) {
-                console.log('Creating landscape print window...');
-                let landscapeWindow = createPrintWindow(landscapeManifesti, 'landscape');
-                
-                // Attendi che la finestra landscape sia completata prima di aprire portrait
-                setTimeout(function() {
-                    if (portraitManifesti.length > 0) {
+            // Determina l'ordine di stampa basato sul primo manifesto
+            if (landscapeManifesti.length > 0 && portraitManifesti.length > 0) {
+                // Ci sono entrambi i tipi, stampa nell'ordine del primo elemento
+                if (firstOrientation === 'landscape') {
+                    console.log('First manifesto is landscape, printing landscape first');
+                    createPrintWindow(landscapeManifesti, 'landscape');
+                    
+                    setTimeout(function() {
                         console.log('Creating portrait print window...');
                         createPrintWindow(portraitManifesti, 'portrait');
-                    }
-                }, 3000); // Ritardo di 3 secondi tra le due finestre
+                    }, 3000);
+                } else {
+                    console.log('First manifesto is portrait, printing portrait first');
+                    createPrintWindow(portraitManifesti, 'portrait');
+                    
+                    setTimeout(function() {
+                        console.log('Creating landscape print window...');
+                        createPrintWindow(landscapeManifesti, 'landscape');
+                    }, 3000);
+                }
+            } else if (landscapeManifesti.length > 0) {
+                // Solo landscape
+                console.log('Only landscape manifesti to print');
+                createPrintWindow(landscapeManifesti, 'landscape');
             } else if (portraitManifesti.length > 0) {
-                console.log('Creating portrait print window...');
+                // Solo portrait
+                console.log('Only portrait manifesti to print');
                 createPrintWindow(portraitManifesti, 'portrait');
             }
 
@@ -308,17 +342,100 @@
 
 
 
+        // Variabili per il modale e la gestione degli orientamenti
+        var hasLandscape = false;
+        var hasPortrait = false;
+        var firstOrientation = null;
+        
         $('#start-button').click(function () {
             pageFormat = $('#page-format').val();
+            
+            // Prima controlla se ci sono manifesti e quali orientamenti sono presenti
+            $.ajax({
+                url: my_ajax_object.ajax_url,
+                type: 'post',
+                data: {
+                    action: 'check_manifesti_orientations',
+                    post_id: container.data('postid')
+                },
+                success: function(response) {
+                    if (response.success && response.data) {
+                        hasLandscape = response.data.hasLandscape || false;
+                        hasPortrait = response.data.hasPortrait || false;
+                        firstOrientation = response.data.firstOrientation || 'portrait';
+                        
+                        console.log('Backend check:', {
+                            hasLandscape: hasLandscape,
+                            hasPortrait: hasPortrait,
+                            firstOrientation: firstOrientation
+                        });
+                        
+                        // Se ci sono entrambi gli orientamenti, mostra il modale con l'ordine corretto
+                        if (hasLandscape && hasPortrait) {
+                            updateModalContent(firstOrientation);
+                            $('#print-modal').show();
+                        } else {
+                            // Altrimenti procedi direttamente con la stampa
+                            startPrintProcess();
+                        }
+                    } else {
+                        // In caso di errore, procedi comunque con la stampa
+                        startPrintProcess();
+                    }
+                },
+                error: function() {
+                    // In caso di errore AJAX, procedi comunque con la stampa
+                    startPrintProcess();
+                }
+            });
+        });
+        
+        // Funzione per aggiornare il contenuto del modale in base all'ordine
+        function updateModalContent(firstOrient) {
+            var modalMessage = $('#modal-message');
+            
+            if (firstOrient === 'landscape') {
+                modalMessage.html(`
+                    <p>Verranno aperte due finestre di stampa separate nell'ordine:</p>
+                    <ul style="list-style: none; padding-left: 0;">
+                        <li style="margin: 10px 0;"><strong>1.</strong> 📄 Manifesti orizzontali (landscape)</li>
+                        <li style="margin: 10px 0;"><strong>2.</strong> 📃 Manifesti verticali (portrait)</li>
+                    </ul>
+                    <p style="margin-top: 20px;">Assicurati di consentire i popup nel browser per procedere con la stampa.</p>
+                `);
+            } else {
+                modalMessage.html(`
+                    <p>Verranno aperte due finestre di stampa separate nell'ordine:</p>
+                    <ul style="list-style: none; padding-left: 0;">
+                        <li style="margin: 10px 0;"><strong>1.</strong> 📃 Manifesti verticali (portrait)</li>
+                        <li style="margin: 10px 0;"><strong>2.</strong> 📄 Manifesti orizzontali (landscape)</li>
+                    </ul>
+                    <p style="margin-top: 20px;">Assicurati di consentire i popup nel browser per procedere con la stampa.</p>
+                `);
+            }
+        }
+        
+        // Gestione bottone Procedi nel modale
+        $('#proceed-print').click(function() {
+            $('#print-modal').hide();
+            startPrintProcess();
+        });
+        
+        // Gestione bottone Annulla nel modale
+        $('#cancel-print, .close').click(function() {
+            $('#print-modal').hide();
+        });
+        
+        // Funzione per avviare il processo di stampa
+        function startPrintProcess() {
             // Sposta il div nascosto alla fine del body e rende visibile
-            //
             $('body').append(container);
             // Blocca lo scroll
             $('body').addClass('no-scroll');
             //remove style display none
             container.css('display', 'block');
             getTotalPosts();
-        });
+        }
 
         function updateEditorBackground(data, container, resolve) {
             const backgroundDiv = container.get(0);
