@@ -462,6 +462,12 @@ $active_menu = '';
             padding: 8px 12px;
             min-width: 100px;
         }
+        /* Pre-caricamento font per le finestre di stampa */
+        @font-face {
+            font-family: "PlayFair Display Mine";
+            src: url("<?php echo DOKAN_SELECT_PRODUCTS_PLUGIN_URL; ?>assets/fonts/Playfair_Display/static/PlayfairDisplay-Regular.ttf") format("truetype");
+            font-display: swap;
+        }
     </style>
 
     <script>

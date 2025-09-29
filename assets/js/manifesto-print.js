@@ -277,13 +277,13 @@
                 
                 var printWindow = window.open('', '', 'height=600,width=800');
                 printWindow.document.write('<html><head><title>' + windowTitle + '</title>');
-                printWindow.document.write('<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function() { window.print(); window.close(); }, 2000); });<\/script>');
+                printWindow.document.write('<script>document.addEventListener("DOMContentLoaded", function() { setTimeout(function() { window.print(); window.close(); }, 1000); });<\/script>');
                 
                 // Stili base
                 printWindow.document.write('<style>body{font-family: Arial, sans-serif; margin: 0; padding: 0;}</style>');
 
-                // Aggiungi il font TTF
-                printWindow.document.write('<style>@font-face {font-family: "PlayFair Display Mine"; src: url("' + my_ajax_object.plugin_url + 'assets/fonts/Playfair_Display/static/PlayfairDisplay-Regular.ttf") format("truetype");}</style>');
+                // Aggiungi il font TTF con font-display swap per visualizzazione immediata
+                printWindow.document.write('<style>@font-face {font-family: "PlayFair Display Mine"; src: url("' + my_ajax_object.plugin_url + 'assets/fonts/Playfair_Display/static/PlayfairDisplay-Regular.ttf") format("truetype"); font-display: swap;}</style>');
                 
                 // Aggiungi CSS specifico per l'orientamento
                 if (orientationType === 'landscape') {
