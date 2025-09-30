@@ -135,6 +135,35 @@ class TotemPWAClass {
                     display: none;
                 }
                 
+                #install-button {
+                    display: none;
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 15px 25px;
+                    background: #2196F3;
+                    color: white;
+                    border: none;
+                    border-radius: 50px;
+                    font-size: 16px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    box-shadow: 0 4px 15px rgba(33,150,243,0.4);
+                    z-index: 10001;
+                    animation: pulse 2s infinite;
+                }
+                
+                #install-button:hover {
+                    background: #1976D2;
+                    transform: scale(1.05);
+                }
+                
+                @keyframes pulse {
+                    0% { box-shadow: 0 4px 15px rgba(33,150,243,0.4); }
+                    50% { box-shadow: 0 4px 25px rgba(33,150,243,0.8); }
+                    100% { box-shadow: 0 4px 15px rgba(33,150,243,0.4); }
+                }
+                
                 #offline-message {
                     display: none;
                     position: fixed;
@@ -200,6 +229,8 @@ class TotemPWAClass {
             
             <div class="loading">Caricamento...</div>
             
+            <button id="install-button" onclick="installPWA()">📱 Installa App</button>
+            
             <iframe id="content-frame"></iframe>
             
             <script>
@@ -208,28 +239,63 @@ class TotemPWAClass {
                 const STORAGE_KEY = 'totem_monitor_url';
                 const STORAGE_LOCK = 'totem_monitor_locked';
                 
-                // Prevent context menu and text selection
-                document.addEventListener('contextmenu', e => e.preventDefault());
-                document.addEventListener('selectstart', e => e.preventDefault());
+                let deferredPrompt;
+                let isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                                   window.navigator.standalone || 
+                                   document.referrer.includes('android-app://');
                 
-                // Prevent zoom
-                document.addEventListener('touchstart', function(e) {
-                    if (e.touches.length > 1) {
-                        e.preventDefault();
-                    }
-                }, {passive: false});
-                
-                // Block navigation keys
-                document.addEventListener('keydown', function(e) {
-                    // Block F5, Ctrl+R, Alt+Tab, etc.
-                    if (e.key === 'F5' || 
-                        (e.ctrlKey && e.key === 'r') ||
-                        (e.altKey && e.key === 'Tab') ||
-                        e.key === 'Escape') {
-                        e.preventDefault();
-                        return false;
+                // Capture install prompt
+                window.addEventListener('beforeinstallprompt', function(e) {
+                    e.preventDefault();
+                    deferredPrompt = e;
+                    if (!isStandalone) {
+                        document.getElementById('install-button').style.display = 'block';
                     }
                 });
+                
+                // Install PWA
+                async function installPWA() {
+                    if (deferredPrompt) {
+                        deferredPrompt.prompt();
+                        const { outcome } = await deferredPrompt.userChoice;
+                        if (outcome === 'accepted') {
+                            document.getElementById('install-button').style.display = 'none';
+                        }
+                        deferredPrompt = null;
+                    }
+                }
+                
+                // Check if app was installed
+                window.addEventListener('appinstalled', function() {
+                    document.getElementById('install-button').style.display = 'none';
+                    isStandalone = true;
+                });
+                
+                // Kiosk mode features - only if installed as app
+                if (isStandalone) {
+                    // Prevent context menu and text selection
+                    document.addEventListener('contextmenu', e => e.preventDefault());
+                    document.addEventListener('selectstart', e => e.preventDefault());
+                    
+                    // Prevent zoom
+                    document.addEventListener('touchstart', function(e) {
+                        if (e.touches.length > 1) {
+                            e.preventDefault();
+                        }
+                    }, {passive: false});
+                    
+                    // Block navigation keys
+                    document.addEventListener('keydown', function(e) {
+                        // Block F5, Ctrl+R, Alt+Tab, etc.
+                        if (e.key === 'F5' || 
+                            (e.ctrlKey && e.key === 'r') ||
+                            (e.altKey && e.key === 'Tab') ||
+                            e.key === 'Escape') {
+                            e.preventDefault();
+                            return false;
+                        }
+                    });
+                }
                 
                 // Check online status
                 function checkConnection() {
@@ -361,20 +427,23 @@ class TotemPWAClass {
                 // Initialize on load
                 document.addEventListener('DOMContentLoaded', initPWA);
                 
-                // Prevent back navigation
-                history.pushState(null, null, location.href);
-                window.onpopstate = function() {
-                    history.go(1);
-                };
-                
-                // Enter fullscreen when possible
-                document.addEventListener('click', function() {
-                    if (document.documentElement.requestFullscreen) {
-                        document.documentElement.requestFullscreen().catch(e => {});
-                    } else if (document.documentElement.webkitRequestFullscreen) {
-                        document.documentElement.webkitRequestFullscreen();
-                    }
-                });
+                // Kiosk behaviors - only if installed as app
+                if (isStandalone) {
+                    // Prevent back navigation
+                    history.pushState(null, null, location.href);
+                    window.onpopstate = function() {
+                        history.go(1);
+                    };
+                    
+                    // Enter fullscreen when possible
+                    document.addEventListener('click', function() {
+                        if (document.documentElement.requestFullscreen) {
+                            document.documentElement.requestFullscreen().catch(e => {});
+                        } else if (document.documentElement.webkitRequestFullscreen) {
+                            document.documentElement.webkitRequestFullscreen();
+                        }
+                    });
+                }
             </script>
         </body>
         </html>
