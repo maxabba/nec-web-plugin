@@ -234,8 +234,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
                     $manifesto_id = wp_insert_post($post);
                     if ($manifesto_id) {
-                        //set acf fields annuncio_di_morte_relativo with the post_id
-                        update_field('annuncio_di_morte_relativo', $post_id, $product_id);
+                        //set acf fields annuncio_di_morte_relativo with the post_id - salvato su manifesto come gli altri campi
+                        update_field('annuncio_di_morte_relativo', $post_id, $manifesto_id);
                         //vendor_id
                         update_field('vendor_id', get_post_field('post_author', $product_id), $manifesto_id);
                         //testo_manifesto
