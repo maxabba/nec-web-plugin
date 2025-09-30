@@ -244,8 +244,13 @@ class TotemPWAClass {
                                    window.navigator.standalone || 
                                    document.referrer.includes('android-app://');
                 
+                // Debug info
+                console.log('Is Standalone:', isStandalone);
+                console.log('Display mode:', window.matchMedia('(display-mode: standalone)').matches);
+                
                 // Capture install prompt
                 window.addEventListener('beforeinstallprompt', function(e) {
+                    console.log('beforeinstallprompt event fired');
                     e.preventDefault();
                     deferredPrompt = e;
                     if (!isStandalone) {
@@ -262,6 +267,10 @@ class TotemPWAClass {
                             document.getElementById('install-button').style.display = 'none';
                         }
                         deferredPrompt = null;
+                    } else {
+                        // Fallback for browsers that don't support beforeinstallprompt
+                        // Show instructions for manual installation
+                        alert('Per installare l\'app:\n\n1. Apri il menu del browser (3 puntini)\n2. Seleziona "Aggiungi a schermata home"\n3. Conferma l\'installazione');
                     }
                 }
                 
@@ -323,6 +332,20 @@ class TotemPWAClass {
                 
                 // Initialize PWA
                 function initPWA() {
+                    // Show install button if not in standalone mode
+                    if (!isStandalone) {
+                        // Check if browser supports PWA installation
+                        if ('beforeinstallprompt' in window || 'standalone' in navigator) {
+                            // Show button immediately if not standalone
+                            setTimeout(() => {
+                                if (!isStandalone && !deferredPrompt) {
+                                    // Show install hint even without prompt
+                                    document.getElementById('install-button').style.display = 'block';
+                                }
+                            }, 1000);
+                        }
+                    }
+                    
                     if (!checkConnection()) {
                         return;
                     }
@@ -395,6 +418,13 @@ class TotemPWAClass {
                     
                     document.getElementById('setup-container').style.display = 'none';
                     document.querySelector('.loading').style.display = 'block';
+                    
+                    // Show install button even after configuration if not installed
+                    if (!isStandalone) {
+                        setTimeout(() => {
+                            document.getElementById('install-button').style.display = 'block';
+                        }, 500);
+                    }
                     
                     const iframe = document.getElementById('content-frame');
                     iframe.onload = function() {
