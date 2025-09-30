@@ -72,3 +72,9 @@ if (is_admin() && !class_exists(__NAMESPACE__ . '\Admin\PurchaseDeadlineSettings
     new \Dokan_Mods\Admin\PurchaseDeadlineSettings();
 }
 
+// Initialize Totem PWA
+if (!class_exists(__NAMESPACE__ . '\TotemPWAClass')) {
+    require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'pwa-totem/TotemPWAClass.php';
+    new TotemPWAClass();
+}
+
