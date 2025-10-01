@@ -238,15 +238,30 @@ class TotemPWAClass {
                 const ALLOWED_PREFIX = '<?php echo esc_js($this->allowed_url_prefix); ?>';
                 const STORAGE_KEY = 'totem_monitor_url';
                 const STORAGE_LOCK = 'totem_monitor_locked';
-                
+                const STORAGE_INSTALLED = 'totem_pwa_installed';
+
                 let deferredPrompt;
-                let isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
-                                   window.navigator.standalone || 
-                                   document.referrer.includes('android-app://');
-                
+                let isStandalone = false;
+
+                // Safe detection with fallback for older devices
+                try {
+                    isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                                   window.navigator.standalone === true ||
+                                   document.referrer.includes('android-app://') ||
+                                   localStorage.getItem(STORAGE_INSTALLED) === 'true';
+                } catch (e) {
+                    console.warn('Standalone detection failed:', e);
+                    isStandalone = localStorage.getItem(STORAGE_INSTALLED) === 'true' ||
+                                   (window.navigator && window.navigator.standalone === true);
+                }
+
                 // Debug info
                 console.log('Is Standalone:', isStandalone);
-                console.log('Display mode:', window.matchMedia('(display-mode: standalone)').matches);
+                try {
+                    console.log('Display mode:', window.matchMedia('(display-mode: standalone)').matches);
+                } catch (e) {
+                    console.log('Display mode check not supported');
+                }
                 
                 // Capture install prompt
                 window.addEventListener('beforeinstallprompt', function(e) {
@@ -276,6 +291,7 @@ class TotemPWAClass {
                 
                 // Check if app was installed
                 window.addEventListener('appinstalled', function() {
+                    localStorage.setItem(STORAGE_INSTALLED, 'true');
                     document.getElementById('install-button').style.display = 'none';
                     isStandalone = true;
                 });
@@ -332,27 +348,29 @@ class TotemPWAClass {
                 
                 // Initialize PWA
                 function initPWA() {
-                    // Show install button if not in standalone mode
-                    if (!isStandalone) {
-                        // Check if browser supports PWA installation
-                        if ('beforeinstallprompt' in window || 'standalone' in navigator) {
-                            // Show button immediately if not standalone
-                            setTimeout(() => {
-                                if (!isStandalone && !deferredPrompt) {
-                                    // Show install hint even without prompt
-                                    document.getElementById('install-button').style.display = 'block';
-                                }
-                            }, 1000);
+                    // Re-check standalone status from storage
+                    try {
+                        const storedInstalled = localStorage.getItem(STORAGE_INSTALLED) === 'true';
+                        if (storedInstalled) {
+                            isStandalone = true;
                         }
+                    } catch (e) {
+                        console.warn('Cannot access localStorage:', e);
                     }
-                    
+
+                    // Only show install button if truly not installed
+                    if (!isStandalone) {
+                        // Don't show button immediately, wait for beforeinstallprompt
+                        // This prevents showing button on already installed apps
+                    }
+
                     if (!checkConnection()) {
                         return;
                     }
-                    
+
                     const isLocked = localStorage.getItem(STORAGE_LOCK) === 'true';
                     const savedUrl = localStorage.getItem(STORAGE_KEY);
-                    
+
                     if (isLocked && savedUrl) {
                         loadMonitorContent();
                     } else {
@@ -418,29 +436,56 @@ class TotemPWAClass {
                     
                     document.getElementById('setup-container').style.display = 'none';
                     document.querySelector('.loading').style.display = 'block';
-                    
-                    // Show install button even after configuration if not installed
-                    if (!isStandalone) {
-                        setTimeout(() => {
-                            document.getElementById('install-button').style.display = 'block';
-                        }, 500);
-                    }
-                    
+
                     const iframe = document.getElementById('content-frame');
+                    let iframeLoadTimeout;
+                    let retryCount = 0;
+                    const MAX_RETRIES = 3;
+
+                    function attemptLoad() {
+                        // Clear any existing timeout
+                        if (iframeLoadTimeout) {
+                            clearTimeout(iframeLoadTimeout);
+                        }
+
+                        // Set timeout for iframe loading (30 seconds)
+                        iframeLoadTimeout = setTimeout(function() {
+                            if (retryCount < MAX_RETRIES) {
+                                retryCount++;
+                                console.log('Iframe load timeout, retry ' + retryCount);
+                                document.querySelector('.loading').innerHTML = 'Caricamento... Tentativo ' + retryCount + '/' + MAX_RETRIES;
+                                attemptLoad();
+                            } else {
+                                document.querySelector('.loading').innerHTML = 'Errore caricamento. Controllare connessione e URL.';
+                            }
+                        }, 30000);
+
+                        // Add timestamp to prevent caching
+                        const separator = savedUrl.includes('?') ? '&' : '?';
+                        iframe.src = savedUrl + separator + 't=' + Date.now();
+                    }
+
                     iframe.onload = function() {
+                        clearTimeout(iframeLoadTimeout);
                         document.querySelector('.loading').style.display = 'none';
                         iframe.style.display = 'block';
+                        retryCount = 0;
                     };
-                    
+
                     iframe.onerror = function() {
+                        clearTimeout(iframeLoadTimeout);
                         if (checkConnection()) {
-                            document.querySelector('.loading').innerHTML = 'Errore caricamento contenuto';
+                            if (retryCount < MAX_RETRIES) {
+                                retryCount++;
+                                console.log('Iframe error, retry ' + retryCount);
+                                setTimeout(attemptLoad, 2000);
+                            } else {
+                                document.querySelector('.loading').innerHTML = 'Errore caricamento contenuto';
+                            }
                         }
                     };
-                    
-                    // Add timestamp to prevent caching
-                    const separator = savedUrl.includes('?') ? '&' : '?';
-                    iframe.src = savedUrl + separator + 't=' + Date.now();
+
+                    attemptLoad();
                 }
                 
                 // Service Worker registration
