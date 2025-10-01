@@ -159,6 +159,12 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     max-width: 100% !important;
     max-height: 100% !important;
     box-sizing: border-box;
+    
+    /* Container query support for modern browsers */
+    container-type: size;
+    
+    /* Force proper containment */
+    contain: layout style;
 }
 
 .manifesto-wrapper {
@@ -415,7 +421,7 @@ html, body, .monitor-container, .monitor-header, .monitor-body, .monitor-footer 
     
     .defunto-foto, .defunto-foto-placeholder {
         width: auto;
-        height: 250px;
+        height: 350px;
         max-width: 250px;
     }
     
