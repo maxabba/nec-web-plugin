@@ -154,11 +154,43 @@
 /* Grid system moderno - CSS Grid responsivo che funziona già di default */
 .flex-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); /* usa 1fr per espansione fluida */
     gap: max(20px, 2vw); /* gap minimo con max() */
     width: 90%;
     margin: auto;
-    max-width: calc(5 * 350px + 4 * max(20px, 2vw)); /* Limita a massimo 5 colonne */
+    max-width: calc(5 * 450px + 4 * max(20px, 2vw)); /* Limita a massimo 5 colonne */
+    justify-content: start; /* Allinea a sinistra */
+}
+
+/* Sistema parametrico: simula elementi fake per mantenere sempre 5 colonne totali */
+
+/* 1 elemento reale → crea 4 fake (span 4) */
+.flex-container:has(.flex-item:first-child:nth-last-child(1))::after {
+    content: '';
+    grid-column: span 4;
+}
+
+/* 2 elementi reali → crea 3 fake (span 3) */
+.flex-container:has(.flex-item:first-child:nth-last-child(2))::after {
+    content: '';
+    grid-column: span 3;
+}
+
+/* 3 elementi reali → crea 2 fake (span 2) */
+.flex-container:has(.flex-item:first-child:nth-last-child(3))::after {
+    content: '';
+    grid-column: span 2;
+}
+
+/* 4 elementi reali → crea 1 fake (span 1) */
+.flex-container:has(.flex-item:first-child:nth-last-child(4))::after {
+    content: '';
+    grid-column: span 1;
+}
+
+/* 5+ elementi reali → non crea niente */
+.flex-container:has(.flex-item:first-child:nth-last-child(n+5))::after {
+    content: none; /* Disabilita il pseudo-elemento */
 }
 
 .flex-item {
@@ -169,8 +201,12 @@
     overflow: hidden;
 }
 
-/* Single column layout - prevent overflow */
+/* Single column layout - center alignment and prevent overflow */
 @media screen and (max-width: 768px) {
+    .flex-container {
+        justify-content: center; /* Centra in visualizzazione mobile */
+    }
+
     .flex-item .text-editor-background {
         max-height: 60vh; /* Reduce height in mobile */
         width: 100%;
@@ -184,9 +220,6 @@
     margin: 0 auto;
 }
 
-.manifesto-container{
-    justify-content: left;
-    /* justify-content sarà modificato dinamicamente con JavaScript in base al numero di manifesti */
-}
+/* Container manifesti - la dimensione e allineamento sono gestiti da .flex-container */
 
 

@@ -903,7 +903,7 @@ $immagine_annuncio = get_field('immagine_annuncio_di_morte', $associated_post_id
     
     .defunto-foto, .defunto-foto-placeholder {
         width: auto;
-        height: 350px;
+        height: 15vh;
         max-width: 250px;
     }
     

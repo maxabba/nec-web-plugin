@@ -371,21 +371,43 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
         private function get_necrologi_by_comune($comune) {
 
 
-            //get all annunctio-di-morte with metakey citta and value $comune publicated and limit 20
+            //get all annunctio-di-morte with metakey citta and value $comune publicated
+
+            // Data di 2 giorni fa nei due formati
+            $due_giorni_fa = date('Y-m-d', strtotime('-2 days'));
+            $due_giorni_fa_numeric = date('Ymd', strtotime('-2 days'));
 
             $args = array(
                 'post_type' => 'annuncio-di-morte',
                 'post_status' => 'publish',
                 'posts_per_page' => 20,
                 'meta_query' => array(
+                    'relation' => 'AND',
                     array(
                         'key' => 'citta',
                         'value' => $comune,
                         'compare' => '='
+                    ),
+                    array(
+                        'relation' => 'OR',
+                        array(
+                            'key' => 'data_di_morte',
+                            'value' => $due_giorni_fa,
+                            'compare' => '>=',
+                            'type' => 'DATE'
+                        ),
+                        array(
+                            'key' => 'data_di_morte',
+                            'value' => $due_giorni_fa_numeric,
+                            'compare' => '>=',
+                            'type' => 'NUMERIC'
+                        )
                     )
-                )
+                ),
+                'meta_key' => 'data_di_morte',
+                'orderby' => 'meta_value_num',
+                'order' => 'DESC'
             );
-
 
             $necrologi = get_posts($args);
 
@@ -454,24 +476,76 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
         {
 
 
-            //get all annunctio-di-morte with metakey citta and value $comune publicated and limit 20
+            //get all ricorrenze with metakey citta and value $comune publicated and limit 20
+
+            // Date nei due formati
+            $oggi = date('Y-m-d');
+            $oggi_numeric = date('Ymd');
+            $un_mese_da_oggi = date('Y-m-d', strtotime('+1 month'));
+            $un_mese_da_oggi_numeric = date('Ymd', strtotime('+1 month'));
 
             $args = array(
-                'post_type' => array('anniversario','trigesimo'),
+                'post_type' => array('anniversario', 'trigesimo'),
                 'post_status' => 'publish',
                 'posts_per_page' => 20,
-                'orderby' => 'date',
                 'meta_query' => array(
+                    'relation' => 'AND',
                     array(
                         'key' => 'citta',
                         'value' => $comune,
                         'compare' => '='
+                    ),
+                    array(
+                        'relation' => 'OR',
+                        // Condizioni per anniversario (DATE o NUMERIC)
+                        array(
+                            'relation' => 'OR',
+                            array(
+                                'key' => 'anniversario_data',
+                                'value' => $oggi,
+                                'compare' => '>=',
+                                'type' => 'DATE'
+                            ),
+                            array(
+                                'key' => 'anniversario_data',
+                                'value' => $oggi_numeric,
+                                'compare' => '>=',
+                                'type' => 'NUMERIC'
+                            )
+                        ),
+                        // Condizioni per trigesimo (DATE o NUMERIC)
+                        array(
+                            'relation' => 'OR',
+                            array(
+                                'key' => 'trigesimo_data',
+                                'value' => $oggi,
+                                'compare' => '>=',
+                                'type' => 'DATE'
+                            ),
+                            array(
+                                'key' => 'trigesimo_data',
+                                'value' => $oggi_numeric,
+                                'compare' => '>=',
+                                'type' => 'NUMERIC'
+                            )
+                        )
                     )
                 )
             );
 
-
             $ricorrenze = get_posts($args);
+
+            // Ordina manualmente per data (necessario perché abbiamo due campi meta diversi)
+/*            usort($ricorrenze, function($a, $b) {
+                $data_a = ($a->post_type == 'anniversario')
+                    ? get_field('anniversario_data', $a->ID)
+                    : get_field('trigesimo_data', $a->ID);
+                $data_b = ($b->post_type == 'anniversario')
+                    ? get_field('anniversario_data', $b->ID)
+                    : get_field('trigesimo_data', $b->ID);
+
+                return $this->normalize_date_for_comparison($data_a) <=> $this->normalize_date_for_comparison($data_b);
+            });*/
 
             $ricorrenze_data = [];
 
@@ -543,13 +617,23 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
         {
 
 
-            //get all annunctio-di-morte with metakey citta and value $comune publicated and limit 20
+            //get all ringraziamenti with metakey citta and value $comune publicated
+
+            // Data di 2 giorni fa
+            $due_giorni_fa_date = date('Y-m-d', strtotime('-2 days'));
 
             $args = array(
                 'post_type' => 'ringraziamento',
                 'post_status' => 'publish',
-                'posts_per_page' => 20,
+                'posts_per_page' => 30,
                 'orderby' => 'date',
+                'order' => 'DESC',
+                'date_query' => array(
+                    array(
+                        'after' => $due_giorni_fa_date,
+                        'inclusive' => true,
+                    ),
+                ),
                 'meta_query' => array(
                     array(
                         'key' => 'citta',
@@ -559,8 +643,10 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                 )
             );
 
-
             $ringraziamenti = get_posts($args);
+
+            // Limita a 20 risultati
+            $ringraziamenti = array_slice($ringraziamenti, 0, 20);
 
             $ricorrenze_data = [];
 
@@ -605,6 +691,56 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
             }
 
             return $ricorrenze_data;
+        }
+
+
+        /**
+         * Normalizza una data per il confronto, gestendo automaticamente vari formati
+         *
+         * @param string $date_string La data in qualsiasi formato comune
+         * @return int Timestamp Unix per il confronto
+         */
+        private function normalize_date_for_comparison($date_string)
+        {
+            if (empty($date_string)) {
+                return 0;
+            }
+
+            // Rimuovi spazi extra
+            $date_string = trim($date_string);
+
+            // Lista di formati da provare con DateTime::createFromFormat
+            $formats = [
+                'Ymd',              // 20251009
+                'Y-m-d',            // 2025-10-09
+                'Y-m-d H:i:s',      // 2025-10-09 15:30:00
+                'Y-m-d H:i',        // 2025-10-09 15:30
+                'd/m/Y',            // 09/10/2025
+                'd/m/Y H:i:s',      // 09/10/2025 15:30:00
+                'd/m/Y H:i',        // 09/10/2025 15:30
+                'd-m-Y',            // 09-10-2025
+                'd-m-Y H:i:s',      // 09-10-2025 15:30:00
+                'm/d/Y',            // 10/09/2025 (formato americano)
+                'm/d/Y H:i:s',      // 10/09/2025 15:30:00
+                'Y/m/d',            // 2025/10/09
+                'Y/m/d H:i:s',      // 2025/10/09 15:30:00
+            ];
+
+            // Prova ogni formato
+            foreach ($formats as $format) {
+                $date = \DateTime::createFromFormat($format, $date_string);
+                if ($date !== false && $date->format($format) === $date_string) {
+                    return $date->getTimestamp();
+                }
+            }
+
+            // Fallback: prova con strtotime (gestisce molti formati automaticamente)
+            $timestamp = strtotime($date_string);
+            if ($timestamp !== false && $timestamp > 0) {
+                return $timestamp;
+            }
+
+            return 0;
         }
 
 

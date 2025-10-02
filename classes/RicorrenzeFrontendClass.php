@@ -62,6 +62,10 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
 
             $query->set('meta_query', $meta_query);
 
+            //rimuovi la query var orderby se esiste e orinamento
+            $query->set('orderby', 'none');
+            $query->set('order', 'ASC');
+
             // Mantieni la post-elaborazione per l'ordinamento e il filtro avanzato
             add_filter('the_posts', [$this, 'sort_and_alternate_posts'], 10, 2);
         }

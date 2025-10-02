@@ -632,7 +632,12 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 update_field('testo_manifesto', $testo_manifesto, $post_id);
                 update_field('annuncio_di_morte_relativo', $post_id_annuncio, $post_id);
                 update_field('vendor_id', $user_id, $post_id);
-                update_field('tipo_manifesto', 'online', $post_id);
+
+                // Only set tipo_manifesto if not already set
+                $existing_tipo = get_field('tipo_manifesto', $post_id);
+                if (empty($existing_tipo)) {
+                    update_field('tipo_manifesto', 'online', $post_id);
+                }
                 
                 // Copy city and province from annuncio
                 $annuncio_city = get_field('citta', $post_id_annuncio);
