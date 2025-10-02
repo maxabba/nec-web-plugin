@@ -33,24 +33,16 @@ if (!class_exists(__NAMESPACE__ . '\AnniversarioFrontendClass')) {
                 // Ordina sempre per data ACF ma senza filtri di data
                     $query->set('meta_key', $acf_date_field);
                     $query->set('orderby', 'meta_value');
-                    $query->set('order', 'DESC');
-                    $query->set('meta_type', 'DATETIME');
-                    
-                    // Aggiungi meta_query per assicurare che i post abbiano il campo data
-                    $existing_meta_query = $query->get('meta_query') ?: array();
-                    if (!empty($existing_meta_query)) {
-                        $existing_meta_query['relation'] = 'AND';
-                    }
-                    
-                    $existing_meta_query[] = array(
-                        'key' => $acf_date_field,
-                        'compare' => 'EXISTS'
+                    $query->set('order', 'ASC');
+                    $query->set('meta_type', 'DATE');
+                    $query->set('meta_query',
+                        array(
+                            'key' => $acf_date_field,
+                            'value' => date('Ymd'),
+                            'compare' => '>=',
+                            'type' => 'NUMERIC',
+                        ),
                     );
-                    
-                    $query->set('meta_query', $existing_meta_query);
-                    
-
-
             }
 
             (new FiltersClass())->custom_filter_query($query);

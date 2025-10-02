@@ -244,7 +244,7 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
                 $query->set('meta_key', 'data_di_morte');
                 $query->set('orderby', 'meta_value');
                 $query->set('order', 'DESC');
-                $query->set('meta_type', 'DATETIME');
+                $query->set('meta_type', 'DATE');
 
                 // Aggiungi meta_query per assicurare che i post abbiano il campo data_di_morte
                 $existing_meta_query = $query->get('meta_query') ?: array();

@@ -23,40 +23,21 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
             $query->set('post_type', ['anniversario', 'trigesimo']);
 
             // Data attuale in formato corretto per DATETIME
-            $today = date('Y-m-d');
             $today_no_dash = date('Ymd');
 
             $meta_query = [
                 'relation' => 'OR',
                 [
-                    'relation' => 'OR',
-                    [
-                        'key' => 'anniversario_data',
-                        'value' => $today,
-                        'compare' => '>=',
-                        'type' => 'DATE',
-                    ],
-                    [
-                        'key' => 'anniversario_data',
-                        'value' => $today_no_dash,
-                        'compare' => '>=',
-                        'type' => 'NUMERIC',
-                    ]
+                    'key' => 'anniversario_data',
+                    'value' => $today_no_dash,
+                    'compare' => '>=',
+                    'type' => 'NUMERIC',
                 ],
                 [
-                    'relation' => 'OR',
-                    [
-                        'key' => 'trigesimo_data',
-                        'value' => $today,
-                        'compare' => '>=',
-                        'type' => 'DATE',
-                    ],
-                    [
-                        'key' => 'trigesimo_data',
-                        'value' => $today_no_dash,
-                        'compare' => '>=',
-                        'type' => 'NUMERIC',
-                    ]
+                    'key' => 'trigesimo_data',
+                    'value' => $today_no_dash,
+                    'compare' => '>=',
+                    'type' => 'NUMERIC',
                 ]
             ];
 
@@ -80,10 +61,10 @@ if (!class_exists(__NAMESPACE__ . '\RicorrenzeFrontendClass')) {
         public function sort_and_alternate_posts($posts, $query)
         {
             // Get current date for comparison
-            $current_date = current_time('Y-m-d');
+            $current_date = current_time('Ymd');
 
             // Calculate date 7 days from now
-            $end_date = date('Y-m-d', strtotime($current_date . ' +7 days'));
+            $end_date = date('Ymd', strtotime($current_date . ' +7 days'));
 
             // Combined array for all eligible posts
             $eligible_posts = [];
