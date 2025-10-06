@@ -79,15 +79,17 @@ $vendor_data = $monitor_data['vendor_data'];
     </main>
 
     <!-- Footer with vendor info -->
+    <!--
     <footer class="solo-annuncio-footer">
         <div class="vendor-info">
             <?php if (!empty($vendor_data['banner'])): ?>
-                <img src="<?php echo esc_url($vendor_data['banner']); ?>" 
-                     alt="<?php echo esc_attr($vendor_data['shop_name']); ?>" 
+                <img src="<?php echo esc_url($vendor_data['banner']); ?>"
+                     alt="<?php echo esc_attr($vendor_data['shop_name']); ?>"
                      class="vendor-logo-solo">
             <?php endif; ?>
         </div>
     </footer>
+    -->
 </div>
 
 <style>
@@ -219,10 +221,10 @@ $vendor_data = $monitor_data['vendor_data'];
     border-radius: 8px;
 }
 
-/* Orientamento Portrait - 15vh per adattarsi all'header */
+/* Orientamento Portrait - 20vh per adattarsi all'header */
 @media (orientation: portrait) {
     .defunto-foto-solo {
-        height: 15vh;
+        height: 20vh;
         width: auto;
         max-width: 85%;
     }
@@ -465,17 +467,17 @@ $vendor_data = $monitor_data['vendor_data'];
 /* Orientamento Portrait (Totem Mode) */
 @media (orientation: portrait) {
     .solo-annuncio-header {
-        height: 15vh; /* 15vh per header */
+        height: 20vh; /* 20vh per header (+5vh) */
         align-items: flex-start;
         padding-top: 10px;
     }
 
     .solo-annuncio-main {
-        height: 75vh; /* 75vh per main */
+        height: 80vh; /* 80vh per main (+5vh) - totale: 20 + 80 = 100vh */
     }
 
     .solo-annuncio-footer {
-        height: 10vh; /* 10vh per footer - totale: 15 + 75 + 10 = 100vh */
+        height: 0vh; /* Footer commentato */
     }
 
     .defunto-header-info {
