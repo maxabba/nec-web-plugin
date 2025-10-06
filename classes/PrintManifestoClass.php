@@ -56,7 +56,7 @@ if (!class_exists(__NAMESPACE__ . '\PrintManifestoClass')) {
                     ),
                     array(
                         'key' => 'tipo_manifesto',
-                        'value' => array('top', 'silver'),
+                        'value' => array('top', 'silver', 'online'),
                         'compare' => 'IN',
                     ),
                 ),
@@ -89,7 +89,7 @@ if (!class_exists(__NAMESPACE__ . '\PrintManifestoClass')) {
                     ),
                     array(
                         'key' => 'tipo_manifesto',
-                        'value' => array('top', 'silver'),
+                        'value' => array('top', 'silver','online'),
                         'compare' => 'IN',
                     ),
                 ),

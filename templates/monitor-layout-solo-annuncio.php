@@ -17,7 +17,7 @@ $vendor_data = $monitor_data['vendor_data'];
 
 <div class="monitor-solo-annuncio">
     <!-- Header with defunto basic info -->
-    <!-- <header class="solo-annuncio-header">
+    <header class="solo-annuncio-header">
         <div class="defunto-header-info">
             <?php if (!empty($defunto_data['fotografia'])): ?>
                 <?php 
@@ -33,7 +33,7 @@ $vendor_data = $monitor_data['vendor_data'];
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
-            
+            <!--
             <div class="defunto-nome-principale">
                 <h1><?php echo esc_html(($defunto_data['nome'] ?? '') . ' ' . ($defunto_data['cognome'] ?? '')); ?></h1>
                 <?php if (!empty($defunto_data['eta'])): ?>
@@ -44,9 +44,9 @@ $vendor_data = $monitor_data['vendor_data'];
                         <?php echo date('d/m/Y', strtotime($defunto_data['data_di_morte'])); ?>
                     </div>
                 <?php endif; ?>
-            </div>
+            </div> -->
         </div>
-    </header>-->
+    </header>
 
     <!-- Main content area -->
     <main class="solo-annuncio-main">
@@ -136,17 +136,66 @@ $vendor_data = $monitor_data['vendor_data'];
     overflow: hidden;
 }
 
-/* Header Styles */
+/* Header Styles - Base (Portrait) */
 .solo-annuncio-header {
     height: var(--monitor-header-height);
     display: flex;
-    align-items: flex-start; /* Allineamento dall'alto invece che centrato */
+    align-items: flex-start;
     justify-content: center;
     padding: var(--monitor-padding-small);
-    padding-top: 10px; /* Piccolo padding superiore per non toccare il bordo */
+    padding-top: 10px;
     background: var(--monitor-bg-primary) !important;
     position: relative;
-    overflow: visible; /* Permette alla foto di non essere tagliata */
+    overflow: visible;
+}
+
+/* Layout Orizzontale - Due colonne: Header a sinistra, Main a destra */
+@media (orientation: landscape) {
+    .monitor-solo-annuncio {
+        flex-direction: row;
+    }
+
+    /* Header diventa una colonna laterale a sinistra */
+    .solo-annuncio-header {
+        width: 30%;
+        height: 90vh;
+        flex-direction: column;
+        justify-content: center;
+        padding: var(--monitor-padding-medium);
+        flex-shrink: 0;
+    }
+
+    .defunto-header-info {
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        gap: var(--monitor-gap-large);
+        text-align: center;
+        max-height: 85vh;
+    }
+
+    /* Main occupa lo spazio rimanente a destra */
+    .solo-annuncio-main {
+        width: 70%;
+        height: 100vh !important;
+        flex: 1;
+    }
+
+    /* Footer va in basso dell'header */
+    .solo-annuncio-footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 30%;
+        height: 10vh;
+        padding: var(--monitor-padding-small) var(--monitor-padding-medium);
+        background: var(--monitor-bg-primary) !important;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 }
 
 .defunto-header-info {
@@ -170,21 +219,28 @@ $vendor_data = $monitor_data['vendor_data'];
     border-radius: 8px;
 }
 
-/* Orientamento Portrait - 20vh come prima */
+/* Orientamento Portrait - 15vh per adattarsi all'header */
 @media (orientation: portrait) {
     .defunto-foto-solo {
-        height: 20vh; /* Dimensione originale ripristinata */
+        height: 15vh;
         width: auto;
         max-width: 85%;
     }
 }
 
-/* Orientamento Landscape - mantenuta 30% larghezza */
+/* Orientamento Landscape - usa vh per adattamento automatico */
 @media (orientation: landscape) {
     .defunto-foto-solo {
-        width: 25vw;
-        height: auto;
-        max-height: 300px;
+        max-height: 70vh; /* 70vh per lasciare spazio al footer */
+        width: auto;
+        max-width: 90%; /* Massima larghezza 90% del sidebar */
+    }
+
+    .defunto-foto-container {
+        max-height: 70vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 }
 
@@ -327,7 +383,7 @@ $vendor_data = $monitor_data['vendor_data'];
 }
 
 .vendor-logo-solo {
-    height: 200px;
+    height: 10vh; /* Altezza uguale al footer */
     width: auto;
     border-radius: 8px;
     transition: var(--monitor-transition-fast);
@@ -409,32 +465,23 @@ $vendor_data = $monitor_data['vendor_data'];
 /* Orientamento Portrait (Totem Mode) */
 @media (orientation: portrait) {
     .solo-annuncio-header {
-        height: var(--monitor-header-height);
-        align-items: flex-start; /* Allineamento dall'alto */
+        height: 15vh; /* 15vh per header */
+        align-items: flex-start;
         padding-top: 10px;
     }
-    
+
     .solo-annuncio-main {
-        height: 85vh;
+        height: 75vh; /* 75vh per main */
     }
-    
+
     .solo-annuncio-footer {
-        height: 5vh;
+        height: 10vh; /* 10vh per footer - totale: 15 + 75 + 10 = 100vh */
     }
-    
+
     .defunto-header-info {
         flex-direction: column;
         gap: var(--monitor-gap-small);
-        align-items: center; /* Centra orizzontalmente ma non verticalmente */
-    }
-}
-
-/* Orientamento Landscape */
-@media (orientation: landscape) {
-    .defunto-header-info {
-        flex-direction: row;
         align-items: center;
-        gap: var(--monitor-gap-large);
     }
 }
 
