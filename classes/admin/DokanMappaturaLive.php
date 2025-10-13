@@ -472,12 +472,12 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
         private function get_ricorrenze_by_comune($comune)
         {
             $oggi_numeric = date('Ymd');
-
+            $venti_giorni_in_avanti = date('Ymd', strtotime('+20 days'));
             // Query separata per anniversari (10 risultati)
             $args_anniversari = array(
                 'post_type' => 'anniversario',
                 'post_status' => 'publish',
-                'posts_per_page' => 10,
+                'posts_per_page' => 100,
                 'meta_query' => array(
                     'relation' => 'AND',
                     array(
@@ -487,8 +487,8 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                     ),
                     array(
                         'key' => 'anniversario_data',
-                        'value' => $oggi_numeric,
-                        'compare' => '>=',
+                        'value' => [$oggi_numeric, $venti_giorni_in_avanti],
+                        'compare' => 'BETWEEN',
                         'type' => 'NUMERIC'
                     ),
                     array(
@@ -506,7 +506,7 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
             $args_trigesimi = array(
                 'post_type' => 'trigesimo',
                 'post_status' => 'publish',
-                'posts_per_page' => 10,
+                'posts_per_page' => 100,
                 'meta_query' => array(
                     'relation' => 'AND',
                     array(
@@ -516,8 +516,8 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                     ),
                     array(
                         'key' => 'trigesimo_data',
-                        'value' => $oggi_numeric,
-                        'compare' => '>=',
+                        'value' => [$oggi_numeric, $venti_giorni_in_avanti],
+                        'compare' => 'BETWEEN',
                         'type' => 'NUMERIC'
                     ),
                     array(

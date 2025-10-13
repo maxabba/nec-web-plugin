@@ -139,6 +139,67 @@ if (!class_exists(__NAMESPACE__ . '\ManifestiLoader')) {
         }
 
         /**
+         * Load manifesti for monitor display - ONLY OWN manifesti (filtered by original author)
+         */
+        public function load_manifesti_for_monitor_own_only()
+        {
+            $response = [];
+
+            // Load TOP manifesti (only from original author)
+            $query = new WP_Query([
+                'post_type' => 'manifesto',
+                'posts_per_page' => -1,
+                'orderby' => 'date',
+                'order' => 'DESC',
+                'post_status' => 'publish',
+                'author' => $this->original_author_id,
+                'meta_query' => [
+                    'relation' => 'AND',
+                    [
+                        'key' => 'annuncio_di_morte_relativo',
+                        'value' => $this->post_id,
+                        'compare' => '='
+                    ],
+                    [
+                        'key' => 'tipo_manifesto',
+                        'value' => ['top'],
+                        'compare' => 'IN'
+                    ]
+                ]
+            ]);
+
+            $response = array_merge($response, $this->process_monitor_results($query));
+
+            // Load silver/online manifesti (only from original author)
+            $query = new WP_Query([
+                'post_type' => 'manifesto',
+                'posts_per_page' => -1,
+                'orderby' => 'date',
+                'order' => 'DESC',
+                'post_status' => 'publish',
+                'author' => $this->original_author_id,
+                'meta_query' => [
+                    'relation' => 'AND',
+                    [
+                        'key' => 'annuncio_di_morte_relativo',
+                        'value' => $this->post_id,
+                        'compare' => '='
+                    ],
+                    [
+                        'key' => 'tipo_manifesto',
+                        'value' => ['silver', 'online'],
+                        'compare' => 'IN'
+                    ]
+                ]
+            ]);
+
+            // No need for grouping or sorting - all manifesti belong to original author
+            $response = array_merge($response, $this->process_monitor_results($query));
+
+            return $response;
+        }
+
+        /**
          * Process query results for monitor display
          */
         private function process_monitor_results($query)

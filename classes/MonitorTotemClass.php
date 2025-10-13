@@ -890,6 +890,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
         {
             $vendor_id = intval($_POST['vendor_id']);
             $post_id = intval($_POST['post_id']);
+            $monitor_id = isset($_POST['monitor_id']) ? intval($_POST['monitor_id']) : 0;
 
             if (!$vendor_id || !$post_id) {
                 wp_send_json_error('Parametri mancanti');
@@ -908,14 +909,51 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
                 require_once DOKAN_SELECT_PRODUCTS_PLUGIN_PATH . 'classes/ManifestiLoader.php';
             }
 
-            // Load manifesti using ManifestiLoader
+            // Get monitor configuration to determine which method to use
+            $show_only_own_manifesti = false;
+
+            // If monitor_id not provided, try to find it from vendor and post association
+            if ($monitor_id == 0) {
+                global $wpdb;
+                $table_name = $this->db_manager->get_table_name();
+                $monitor_id = $wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$table_name}
+                     WHERE vendor_id = %d
+                     AND associated_post_id = %d
+                     AND layout_type = 'manifesti'
+                     AND is_enabled = 1
+                     LIMIT 1",
+                    $vendor_id,
+                    $post_id
+                ));
+                $monitor_id = $monitor_id ? intval($monitor_id) : 0;
+            }
+
+            if ($monitor_id > 0) {
+                $monitor = $this->db_manager->get_monitor($monitor_id);
+                if ($monitor && $monitor['vendor_id'] == $vendor_id) {
+                    $layout_config = $this->safe_decode_layout_config($monitor['layout_config']);
+                    $show_only_own_manifesti = isset($layout_config['show_only_own_manifesti']) ?
+                        (bool) $layout_config['show_only_own_manifesti'] : false;
+                }
+            }
+
+            // Load manifesti using ManifestiLoader - choose method based on configuration
             $loader = new \Dokan_Mods\ManifestiLoader($associated_post_id, 0, 'top,silver,online');
-            $manifesti = $loader->load_manifesti_for_monitor();
+
+            if ($show_only_own_manifesti) {
+                // Load only manifesti from the original author
+                $manifesti = $loader->load_manifesti_for_monitor_own_only();
+            } else {
+                // Load all manifesti (default behavior)
+                $manifesti = $loader->load_manifesti_for_monitor();
+            }
 
             wp_send_json_success(array(
                 'manifesti' => $manifesti,
                 'count' => count($manifesti),
-                'last_update' => current_time('H:i:s')
+                'last_update' => current_time('H:i:s'),
+                'show_only_own_manifesti' => $show_only_own_manifesti
             ));
         }
 
@@ -965,6 +1003,8 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
                     // Grid configuration for manifesti layout
                     $sanitized['grid_rows'] = isset($config['grid_rows']) ? max(1, intval($config['grid_rows'])) : 1;
                     $sanitized['grid_columns'] = isset($config['grid_columns']) ? max(1, intval($config['grid_columns'])) : 1;
+                    // Configuration to show only own manifesti or all manifesti
+                    $sanitized['show_only_own_manifesti'] = isset($config['show_only_own_manifesti']) ? (bool) $config['show_only_own_manifesti'] : false;
                     break;
                 case 'solo_annuncio':
                 default:

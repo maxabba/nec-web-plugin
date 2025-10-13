@@ -119,7 +119,8 @@ if ($_POST && isset($_POST['action'])) {
             } elseif ($layout_type === 'manifesti') {
                 $layout_config = [
                     'grid_rows' => intval($_POST['grid_rows'] ?? 1),
-                    'grid_columns' => intval($_POST['grid_columns'] ?? 1)
+                    'grid_columns' => intval($_POST['grid_columns'] ?? 1),
+                    'show_only_own_manifesti' => (bool)($_POST['show_only_own_manifesti'] ?? false)
                 ];
             }
             
@@ -269,7 +270,9 @@ $active_menu = 'monitor-digitale';
                                 $associated_post_title = $monitor['associated_post_id'] ? get_the_title($monitor['associated_post_id']) : null;
                                 $monitor_url = home_url('/monitor/display/' . $user_id . '/' . $monitor['id'] . '/' . $monitor['monitor_slug']);
                             ?>
-                                <div class="monitor-card" data-monitor-id="<?php echo $monitor['id']; ?>">
+                                <div class="monitor-card"
+                                     data-monitor-id="<?php echo $monitor['id']; ?>"
+                                     data-layout-config="<?php echo esc_attr(wp_json_encode($layout_config)); ?>">
                                     <!-- Card Header -->
                                     <div class="monitor-card-header">
                                         <div class="monitor-name-section">
@@ -343,6 +346,11 @@ $active_menu = 'monitor-digitale';
                                                                 $grid_rows = intval($layout_config['grid_rows'] ?? 1);
                                                                 $grid_columns = intval($layout_config['grid_columns'] ?? 1);
                                                                 echo '<small class="grid-config-info">' . sprintf(__('Griglia: %dx%d', 'dokan-mod'), $grid_rows, $grid_columns) . '</small>';
+
+                                                                // Show manifesti filter configuration
+                                                                $show_only_own = !empty($layout_config['show_only_own_manifesti']);
+                                                                $manifesti_filter_text = $show_only_own ? __('Solo i tuoi manifesti', 'dokan-mod') : __('Tutti i manifesti', 'dokan-mod');
+                                                                echo '<small class="grid-config-info">' . esc_html($manifesti_filter_text) . '</small>';
                                                             }
                                                             
                                                             // Get post date for additional info
@@ -1655,45 +1663,38 @@ function toggleCittaMultiConfig(monitorId) {
 // Open configuration modal for any layout type
 function openLayoutConfig(monitorId, layoutType) {
     console.log('Opening layout config for monitor:', monitorId, 'layout:', layoutType);
-    
-    // Find monitor data from the table
-    const monitorRow = document.querySelector(`[data-monitor-id="${monitorId}"]`);
-    if (!monitorRow) {
-        console.error('Monitor row not found:', monitorId);
-        showErrorMessage('Errore: Monitor non trovato nella tabella');
+
+    // Find monitor card
+    const monitorCard = document.querySelector(`[data-monitor-id="${monitorId}"]`);
+    if (!monitorCard) {
+        console.error('Monitor card not found:', monitorId);
+        showErrorMessage('Errore: Monitor non trovato');
         return;
     }
-    
-    // Get monitor name using the correct selector
+
+    // Get monitor name
     let monitorName = 'Monitor';
-    const nameCell = monitorRow.querySelector('.monitor-name-cell strong');
-    if (nameCell) {
-        monitorName = nameCell.textContent.trim();
-    } else {
-        console.warn('Monitor name cell not found, using fallback');
-        // Try alternative selectors as fallback
-        const altNameElement = monitorRow.querySelector('td:first-child strong');
-        if (altNameElement) {
-            monitorName = altNameElement.textContent.trim();
+    const nameElement = monitorCard.querySelector('.monitor-name');
+    if (nameElement) {
+        monitorName = nameElement.textContent.trim();
+    }
+
+    console.log('Found monitor name:', monitorName);
+
+    // Get current configuration from data attribute
+    let currentConfig = {};
+    const layoutConfigData = monitorCard.getAttribute('data-layout-config');
+
+    if (layoutConfigData) {
+        try {
+            currentConfig = JSON.parse(layoutConfigData);
+            console.log('Loaded config from data attribute:', currentConfig);
+        } catch (error) {
+            console.error('Error parsing layout config:', error);
+            currentConfig = {};
         }
     }
-    
-    console.log('Found monitor name:', monitorName);
-    
-    // Get current configuration based on layout type
-    let currentConfig = {};
-    
-    if (layoutType === 'citta_multi') {
-        const daysRangeSelect = monitorRow.querySelector('[name="days_range"]');
-        const showAllCheckbox = monitorRow.querySelector('[name="show_all_agencies"]');
-        
-        currentConfig = {
-            days_range: daysRangeSelect ? daysRangeSelect.value : '7',
-            show_all_agencies: showAllCheckbox ? showAllCheckbox.checked : false
-        };
-        console.log('Current città multi config:', currentConfig);
-    }
-    
+
     openConfigModal(monitorId, monitorName, layoutType, currentConfig);
 }
 
@@ -1955,6 +1956,25 @@ function generateManifestiConfig(config) {
                 </p>
             </div>
             
+            <div class="config-row">
+                <label for="config-show-only-own-manifesti">
+                    <strong><i class="dashicons dashicons-visibility"></i> Visualizzazione Manifesti:</strong>
+                </label>
+                <div>
+                    <label>
+                        <input type="checkbox"
+                               name="show_only_own_manifesti"
+                               id="config-show-only-own-manifesti"
+                               value="1"
+                               ${config.show_only_own_manifesti ? 'checked' : ''}>
+                        Mostra solo i tuoi manifesti
+                    </label>
+                    <p class="description">
+                        Se abilitato, verranno visualizzati solo i tuoi manifesti. Altrimenti verranno mostrati tutti i manifesti relativi al defunto.
+                    </p>
+                </div>
+            </div>
+
             <div class="grid-shortcuts" style="margin: 20px 0;">
                 <small style="color: #666; margin-right: 8px;"><strong>Layout rapidi:</strong></small>
                 <button type="button" class="button-small grid-shortcut-btn" onclick="setGridValues(1, 1)">1x1</button>
