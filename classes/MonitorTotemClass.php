@@ -52,6 +52,10 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             // New AJAX endpoints for modal functionality
             add_action('wp_ajax_monitor_get_defunti_for_association', array($this, 'ajax_get_defunti_for_association'));
             add_action('wp_ajax_monitor_toggle_defunto_association', array($this, 'ajax_toggle_defunto_association'));
+
+            // Monitor state change detection (no login required)
+            add_action('wp_ajax_monitor_check_changes', array($this, 'ajax_check_monitor_changes'));
+            add_action('wp_ajax_nopriv_monitor_check_changes', array($this, 'ajax_check_monitor_changes'));
             
             // Query vars and template loading
             add_filter('query_vars', array($this, 'add_query_vars'));
@@ -1897,7 +1901,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             if (ob_get_level()) {
                 ob_clean();
             }
-            
+
             if (!wp_verify_nonce($_POST['nonce'], 'monitor_association_nonce')) {
                 wp_send_json_error('Invalid nonce');
             }
@@ -1910,7 +1914,7 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
             // Verify monitor ownership
             $db_manager = \Dokan_Mods\MonitorDatabaseManager::get_instance();
             $monitor = $db_manager->get_monitor($monitor_id);
-            
+
             if (!$monitor || $monitor['vendor_id'] != $user_id) {
                 wp_send_json_error('Monitor not found or access denied');
             }
@@ -1954,6 +1958,95 @@ if (!class_exists(__NAMESPACE__ . '\MonitorTotemClass')) {
                 }
             } catch (Exception $e) {
                 wp_send_json_error('Errore: ' . $e->getMessage());
+            }
+        }
+
+        /**
+         * AJAX: Check if monitor configuration has changed
+         * Used for automatic page reload when layout_type or associated_post_id changes
+         */
+        public function ajax_check_monitor_changes()
+        {
+            $monitor_id = isset($_POST['monitor_id']) ? intval($_POST['monitor_id']) : 0;
+            $vendor_id = isset($_POST['vendor_id']) ? intval($_POST['vendor_id']) : 0;
+            $current_layout_type = isset($_POST['current_layout_type']) ? sanitize_text_field($_POST['current_layout_type']) : '';
+            $current_post_id = isset($_POST['current_post_id']) ? intval($_POST['current_post_id']) : 0;
+
+            if (!$monitor_id || !$vendor_id) {
+                wp_send_json_error('Parametri mancanti');
+            }
+
+            // Get current monitor configuration
+            $monitor = $this->db_manager->get_monitor($monitor_id);
+
+            if (!$monitor) {
+                wp_send_json_success([
+                    'changed' => true,
+                    'reason' => 'monitor_deleted',
+                    'message' => 'Monitor non trovato',
+                    'reload' => true
+                ]);
+            }
+
+            // Verify monitor belongs to vendor
+            if ($monitor['vendor_id'] != $vendor_id) {
+                wp_send_json_success([
+                    'changed' => true,
+                    'reason' => 'vendor_mismatch',
+                    'message' => 'Monitor non appartiene al vendor',
+                    'reload' => true
+                ]);
+            }
+
+            // Check if monitor is disabled
+            if (!$monitor['is_enabled']) {
+                wp_send_json_success([
+                    'changed' => true,
+                    'reason' => 'monitor_disabled',
+                    'message' => 'Monitor disabilitato',
+                    'reload' => true
+                ]);
+            }
+
+            $changes_detected = false;
+            $change_reasons = [];
+
+            // Check if layout_type has changed
+            if ($monitor['layout_type'] !== $current_layout_type) {
+                $changes_detected = true;
+                $change_reasons[] = 'layout_type_changed';
+            }
+
+            // Check if associated_post_id has changed
+            $new_post_id = $monitor['associated_post_id'] ? intval($monitor['associated_post_id']) : 0;
+            if ($new_post_id !== $current_post_id) {
+                $changes_detected = true;
+                $change_reasons[] = 'associated_post_changed';
+            }
+
+            // For layouts requiring association, check if post still exists
+            if (in_array($monitor['layout_type'], ['manifesti', 'solo_annuncio']) && $new_post_id > 0) {
+                $post = get_post($new_post_id);
+                if (!$post || $post->post_type !== 'annuncio-di-morte') {
+                    $changes_detected = true;
+                    $change_reasons[] = 'associated_post_deleted';
+                }
+            }
+
+            if ($changes_detected) {
+                wp_send_json_success([
+                    'changed' => true,
+                    'reasons' => $change_reasons,
+                    'new_layout_type' => $monitor['layout_type'],
+                    'new_post_id' => $new_post_id,
+                    'reload' => true,
+                    'message' => 'Configurazione monitor modificata'
+                ]);
+            } else {
+                wp_send_json_success([
+                    'changed' => false,
+                    'last_check' => current_time('H:i:s')
+                ]);
             }
         }
     }
