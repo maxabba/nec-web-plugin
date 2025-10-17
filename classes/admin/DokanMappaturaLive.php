@@ -397,8 +397,10 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                     )
                 ),
                 'meta_key' => 'data_di_morte',
-                'orderby' => 'meta_value',
-                'order' => 'DESC',
+                'orderby' => array(
+                    'meta_value' => 'DESC',  // Primario: data di morte
+                    'date' => 'DESC'          // Secondario: data/ora pubblicazione
+                ),
                 'meta_type' => 'NUMERIC'
             );
 

@@ -25,5 +25,18 @@
             });
 
         }
+
+        // Validazione submit form - verifica selezione variante
+        $('.variant-container form').on('submit', function (e) {
+            var selectedVariant = $('input[name="product_variation_id"]:checked').length;
+
+            if (selectedVariant === 0) {
+                e.preventDefault();
+                alert('Per favore, seleziona una variante prima di continuare con l\'ordine.');
+                return false;
+            }
+
+            return true;
+        });
     });
 })(jQuery);

@@ -119,8 +119,8 @@ if (!class_exists(__NAMESPACE__ . '\FioraiClass')) {
             $product_variation_id = filter_var($_POST['product_variation_id'], FILTER_SANITIZE_NUMBER_INT);
             $post_id = filter_var($_POST['post_id'], FILTER_SANITIZE_NUMBER_INT);
 
-            //check if product_variation_id is set
-            if (!isset($product_variation_id)) {
+            //check if product_variation_id is set and not empty
+            if (empty($product_variation_id)) {
                 wp_redirect(get_permalink($post_id));
                 exit;
             }

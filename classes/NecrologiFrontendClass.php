@@ -242,8 +242,10 @@ if (!class_exists(__NAMESPACE__ . '\NecrologiFrontendClass')) {
             if ($post_type === 'annuncio-di-morte' || (is_array($post_type) && in_array('annuncio-di-morte', $post_type))) {
                 // Solo se non è già specificato un ordinamento personalizzato
                 $query->set('meta_key', 'data_di_morte');
-                $query->set('orderby', 'meta_value');
-                $query->set('order', 'DESC');
+                $query->set('orderby', array(
+                    'meta_value' => 'DESC',  // Primario: data di morte
+                    'date' => 'DESC'          // Secondario: data/ora pubblicazione
+                ));
                 $query->set('meta_type', 'DATE');
 
                 // Aggiungi meta_query per assicurare che i post abbiano il campo data_di_morte
