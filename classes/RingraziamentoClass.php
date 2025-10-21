@@ -64,12 +64,34 @@ if (!class_exists(__NAMESPACE__ . 'RingraziamentoClass')) {
             // Re-add the hook
             add_action('acf/save_post', array($this, 'ringraziamento_save_post'), 20);
 
-            // Update city and province meta
+            // Update city and province from annuncio di morte
             $provincia = get_field('provincia', $post_id_annuncio);
             $citta = get_field('citta', $post_id_annuncio);
 
-            update_field('provincia', $provincia, $post_id);
-            update_field('citta', $citta, $post_id);
+            // Fallback al vendor se annuncio ha valori vuoti o "Tutte"
+            if (empty($provincia) || strtolower($provincia) === 'tutte' || empty($citta) || strtolower($citta) === 'tutte') {
+                $user_id = get_current_user_id();
+                $store_info = dokan_get_store_info($user_id);
+
+                if (empty($citta) || strtolower($citta) === 'tutte') {
+                    $citta = $store_info['address']['city'] ?? '';
+                }
+
+                if (empty($provincia) || strtolower($provincia) === 'tutte') {
+                    global $dbClassInstance;
+                    $user_city = $store_info['address']['city'] ?? '';
+                    $provincia = $dbClassInstance->get_provincia_by_comune($user_city);
+                }
+            }
+
+            // Salva solo se validi e non "Tutte"
+            if (!empty($provincia) && strtolower($provincia) !== 'tutte') {
+                update_field('provincia', $provincia, $post_id);
+            }
+
+            if (!empty($citta) && strtolower($citta) !== 'tutte') {
+                update_field('citta', $citta, $post_id);
+            }
         }
 
         public function validate_ringraziamento_post()

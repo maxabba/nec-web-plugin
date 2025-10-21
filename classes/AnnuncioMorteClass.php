@@ -150,14 +150,14 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
                 return;
             }
 
-            remove_action('acf/save_post', 'annuncio_save_post', 20);
+            remove_action('acf/save_post', array($this, 'annuncio_save_post'), 20);
 
             // Controlla se il post è del tipo 'annuncio-di-morte'
             if (get_post_type($post_id) == 'annuncio-di-morte') {
                 $user_id = get_current_user_id();
                 //check if the user is a vendor
                 if (!dokan_is_user_seller($user_id)) {
-                    add_action('acf/save_post', 'annuncio_save_post', 20);
+                    add_action('acf/save_post', array($this, 'annuncio_save_post'), 20);
                     return;
                 }
                 
@@ -218,16 +218,23 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
 
                 wp_update_post($post_data);
 
+                // Forza valori del vendor per città e provincia
                 $store_info = dokan_get_store_info($user_id);
                 $user_city = $store_info['address']['city'] ?? '';
 
                 global $dbClassInstance;
                 $user_provincia = $dbClassInstance->get_provincia_by_comune($user_city);
 
-                update_field('citta', $user_city, $post_id);
-                update_field('provincia', $user_provincia, $post_id);
+                // Valida e salva solo se non "Tutte" (case-insensitive)
+                if (!empty($user_city) && strtolower($user_city) !== 'tutte') {
+                    update_field('citta', $user_city, $post_id);
+                }
+
+                if (!empty($user_provincia) && strtolower($user_provincia) !== 'tutte') {
+                    update_field('provincia', $user_provincia, $post_id);
+                }
             }
-            add_action('acf/save_post', 'annuncio_save_post', 20);
+            add_action('acf/save_post', array($this, 'annuncio_save_post'), 20);
         }
 
 
