@@ -59,7 +59,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 wp_localize_script('my-manifesto-script', 'my_ajax_object', array(
                     'ajax_url' => admin_url('admin-ajax.php')
                 ));
-                wp_enqueue_style('manifesto-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/manifesto.css');
+                wp_enqueue_style('manifesto-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/manifesto.css', array(), '1.0.1');
 
             }
 

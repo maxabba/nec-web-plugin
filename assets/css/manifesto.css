@@ -211,6 +211,12 @@
         max-height: 60vh; /* Reduce height in mobile */
         width: 100%;
     }
+
+    .flex-container::after {
+        content: none !important;
+        display: none !important;
+    }
+
 }
 
 /* Divider che deve occupare tutta la larghezza del container */

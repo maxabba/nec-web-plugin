@@ -75,7 +75,7 @@ wp_localize_script('text-editor-manifesto-script', 'acf_ajax_object', array(
     'redirect_to' => $redirect_to,
     'existing_content' => $existing_content
 ));
-wp_enqueue_style('manifesto-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/manifesto.css');
+wp_enqueue_style('manifesto-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/manifesto.css', array(), '1.0.1');
 wp_enqueue_style('manifesto-text-editor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/manifesto-text-editor.css');
 ?>
 
