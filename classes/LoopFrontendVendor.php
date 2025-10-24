@@ -41,7 +41,7 @@ if (!class_exists(__NAMESPACE__ . '\LoopFrontendVendor')) {
                 'vendor-search-style',
                 DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/vendor-search.css',
                 array(),
-                '1.0.0'
+                '1.0.1'
             );
 
             wp_enqueue_script(

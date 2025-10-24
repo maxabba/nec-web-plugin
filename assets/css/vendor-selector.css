@@ -28,7 +28,7 @@
 }
 
 .vendor-flex input[type="radio"]:checked + label .card {
-    border: 2px solid #DCBE52;
+    border: 6px solid #DCBE52;
 }
 
 .card {
@@ -36,6 +36,13 @@
     border-radius: 5px;
     overflow: hidden;
     text-align: center;
+    transition: none;
+}
+
+.card:hover,
+.vendor-flex label:hover .card {
+    transform: none !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .card img {

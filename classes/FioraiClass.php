@@ -40,7 +40,7 @@ if (!class_exists(__NAMESPACE__ . '\FioraiClass')) {
                 wp_localize_script('variant_script', 'my_ajax_object', array(
                     'ajax_url' => admin_url('admin-ajax.php')
                 ));
-                wp_enqueue_style('vendor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/vendor-selector.css');
+                wp_enqueue_style('vendor-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/vendor-selector.css', array(), '1.0.2');
                 wp_enqueue_style('variant-style', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . 'assets/css/variant-style.css');
             }
         }
