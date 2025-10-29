@@ -7,28 +7,13 @@ $settings = $this->get_settings_for_display();
 $post_id = get_the_ID(); // Get the current post ID
 
 // Initialize variables with proper validation
-$button_disable_time = isset($settings['button_disable_time']) ? sanitize_text_field($settings['button_disable_time']) : null;
 $product_id = isset($settings['product_id']) && is_numeric($settings['product_id']) ? intval($settings['product_id']) : 0;
 $button_link = isset($settings['button_link']) ? sanitize_text_field($settings['button_link']) : '';
 $url = !empty($button_link) ? home_url($button_link . '?post_id=' . intval($post_id) . '&product_id=' . intval($product_id)) : '';
 
 // Initialize disabled state
 $disabled = '';
-$hide= false;
-//get the wp current time with the utc offset
-$current_time = current_time('timestamp');
-
-// Check button disable time based on post publish date
-if (!empty($button_disable_time) && $button_disable_time !== 'null' && is_numeric($button_disable_time)) {
-    $post_publish_date = get_the_date('Y-m-d H:i:s', $post_id);
-    if ($post_publish_date) {
-        $disable_timestamp = strtotime($post_publish_date . ' + ' . intval($button_disable_time) . ' days');
-        if ($disable_timestamp !== false && $current_time > $disable_timestamp) {
-            $disabled = 'disabled';
-            $url = '';
-        }
-    }
-}
+$hide = false;
 
 // Check purchase availability using the new manager
 $availability = PurchaseDeadlineManager::check_purchase_availability($post_id, $button_link);

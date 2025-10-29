@@ -289,9 +289,10 @@ class PurchaseDeadlineSettings {
      */
     public function ajax_delete_deadline() {
         check_ajax_referer('dokan_deadline_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
-            wp_die('Unauthorized');
+            wp_send_json_error('Unauthorized');
+            return;
         }
         
         $city_slug = sanitize_key($_POST['city'] ?? '');
@@ -314,9 +315,10 @@ class PurchaseDeadlineSettings {
      */
     public function ajax_save_defaults() {
         check_ajax_referer('dokan_deadline_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
-            wp_die('Unauthorized');
+            wp_send_json_error('Unauthorized');
+            return;
         }
         
         $fiori_hours = floatval($_POST['fiori'] ?? 4);
@@ -341,9 +343,10 @@ class PurchaseDeadlineSettings {
      */
     public function ajax_search_cities() {
         check_ajax_referer('dokan_deadline_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
-            wp_die('Unauthorized');
+            wp_send_json_error('Unauthorized');
+            return;
         }
         
         $search = sanitize_text_field($_POST['search'] ?? '');

@@ -70,20 +70,54 @@ class PurchaseDeadlineManager {
         }
         
         // Handle different datetime formats
+        $timestamp_funerale = false;
+
         if (is_string($funerale_datetime)) {
-            $timestamp_funerale = strtotime($funerale_datetime);
+            // Remove day of week prefix (e.g., "martedì ", "lunedì ", etc.)
+            $cleaned_datetime = preg_replace('/^[a-zàèéìòù]+\s+/iu', '', $funerale_datetime);
+
+            // Try Italian format first: DD/MM/YYYY HH:MM
+            $datetime_obj = \DateTime::createFromFormat('d/m/Y H:i', $cleaned_datetime);
+            if ($datetime_obj !== false) {
+                $timestamp_funerale = $datetime_obj->getTimestamp();
+            } else {
+                // Try other common formats
+                $timestamp_funerale = strtotime($cleaned_datetime);
+            }
         } elseif (is_object($funerale_datetime) && method_exists($funerale_datetime, 'getTimestamp')) {
             // DateTime object
             $timestamp_funerale = $funerale_datetime->getTimestamp();
         } elseif (is_array($funerale_datetime) && isset($funerale_datetime['date'])) {
             // ACF datetime array format
-            $timestamp_funerale = strtotime($funerale_datetime['date']);
+            $datetime_str = $funerale_datetime['date'];
+            // Remove day of week prefix
+            $cleaned_datetime = preg_replace('/^[a-zàèéìòù]+\s+/iu', '', $datetime_str);
+
+            // Try Italian format first
+            $datetime_obj = \DateTime::createFromFormat('d/m/Y H:i', $cleaned_datetime);
+            if ($datetime_obj !== false) {
+                $timestamp_funerale = $datetime_obj->getTimestamp();
+            } else {
+                $timestamp_funerale = strtotime($cleaned_datetime);
+            }
         } else {
             // Fallback - try to convert to string and parse
-            $timestamp_funerale = strtotime((string)$funerale_datetime);
+            $datetime_str = (string)$funerale_datetime;
+            // Remove day of week prefix
+            $cleaned_datetime = preg_replace('/^[a-zàèéìòù]+\s+/iu', '', $datetime_str);
+
+            $datetime_obj = \DateTime::createFromFormat('d/m/Y H:i', $cleaned_datetime);
+            if ($datetime_obj !== false) {
+                $timestamp_funerale = $datetime_obj->getTimestamp();
+            } else {
+                $timestamp_funerale = strtotime($cleaned_datetime);
+            }
         }
-        
-        if ($timestamp_funerale === false) {
+
+        // Debug log
+        error_log("PurchaseDeadlineManager - Post ID: $post_id, Product Category: $product_category, Timestamp Funerale: $timestamp_funerale, Funerale DateTime: " . print_r($funerale_datetime, true));
+
+        if ($timestamp_funerale === false || $timestamp_funerale === null) {
             return $result; // Allow purchase if timestamp invalid
         }
         
@@ -263,12 +297,23 @@ class PurchaseDeadlineManager {
             'fiori' => max(0, intval($defaults['fiori'] ?? self::DEFAULT_FIORI_DEADLINE)),
             'manifesti' => max(0, intval($defaults['manifesti'] ?? self::DEFAULT_MANIFESTI_DEADLINE))
         ];
-        
+
+        // Check if option already exists
+        $existing_value = get_option(self::DEFAULTS_OPTION, 'NOT_FOUND');
+
         $result = update_option(self::DEFAULTS_OPTION, $clean_defaults);
-        
+
+        // If update_option failed, check why
+        if (!$result) {
+            // Check if the values are identical (update_option returns false if no change)
+            if ($existing_value !== 'NOT_FOUND' && $existing_value === $clean_defaults) {
+                $result = true;
+            }
+        }
+
         // Flush all cache
         self::flush_all_cache();
-        
+
         return $result;
     }
     
