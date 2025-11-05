@@ -27,6 +27,9 @@ if (!class_exists(__NAMESPACE__ . '\PensieriniClass')) {
             add_action('wp_ajax_load_more_comments', array($this, 'load_more_comments'));
             add_action('wp_ajax_nopriv_load_more_comments', array($this, 'load_more_comments'));
 
+            // Register REST API endpoint for comments
+            add_action('rest_api_init', array($this, 'register_comments_rest_route'));
+
             add_action('init', array($this, 'register_shortcodes'));
 
         }
@@ -139,6 +142,9 @@ if (!class_exists(__NAMESPACE__ . '\PensieriniClass')) {
                 // Get the comment object
                 $comment = get_comment($comment_id);
 
+                // Invalidate comments cache for this post
+                $this->invalidate_comments_cache($comment->comment_post_ID);
+
                 // Get the order ID from the comment meta
                 $order_id = get_comment_meta($comment_id, 'order_id', true);
 
@@ -158,6 +164,14 @@ if (!class_exists(__NAMESPACE__ . '\PensieriniClass')) {
 
         public function handle_comment_deletion($comment_id)
         {
+            // Get the comment object before deletion
+            $comment = get_comment($comment_id);
+
+            // Invalidate comments cache for this post
+            if ($comment) {
+                $this->invalidate_comments_cache($comment->comment_post_ID);
+            }
+
             // Get the order ID from the comment meta
             $order_id = get_comment_meta($comment_id, 'order_id', true);
 
@@ -172,6 +186,26 @@ if (!class_exists(__NAMESPACE__ . '\PensieriniClass')) {
                     $order->update_status('cancelled');
                 }
             }
+        }
+
+        // Helper function to invalidate all comments cache for a post
+        private function invalidate_comments_cache($post_id)
+        {
+            global $wpdb;
+
+            // Delete all transient keys matching pattern comments_{post_id}_*
+            $pattern = 'comments_' . intval($post_id) . '_%';
+
+            // Delete transient and timeout keys
+            $wpdb->query(
+                $wpdb->prepare(
+                    "DELETE FROM {$wpdb->options}
+                    WHERE option_name LIKE %s
+                    OR option_name LIKE %s",
+                    '_transient_' . $pattern,
+                    '_transient_timeout_' . $pattern
+                )
+            );
         }
 
         public function handle_payment_complete($order_id)
@@ -278,6 +312,94 @@ if (!class_exists(__NAMESPACE__ . '\PensieriniClass')) {
         }
 
 
+        // Register REST API route for comments
+        public function register_comments_rest_route()
+        {
+            register_rest_route('dokan-mod/v1', '/comments/(?P<post_id>\d+)', [
+                'methods' => 'GET',
+                'callback' => array($this, 'get_comments_rest'),
+                'permission_callback' => '__return_true', // Public data
+                'args' => [
+                    'post_id' => [
+                        'required' => true,
+                        'validate_callback' => function ($param) {
+                            return is_numeric($param);
+                        }
+                    ],
+                    'offset' => [
+                        'default' => 0,
+                        'validate_callback' => function ($param) {
+                            return is_numeric($param);
+                        }
+                    ]
+                ]
+            ]);
+        }
+
+        // REST endpoint handler for comments
+        public function get_comments_rest($request)
+        {
+            $post_id = intval($request['post_id']);
+            $offset = intval($request['offset']);
+            $limit = 4; // Numero di commenti da caricare per volta
+
+            // Genera chiave transient univoca basata su post_id e offset
+            $transient_key = sprintf('comments_%d_%d', $post_id, $offset);
+
+            // Controlla se esiste il transient
+            $cached_html = get_transient($transient_key);
+
+            if ($cached_html !== false) {
+                // Restituisce HTML dalla cache con header per browser/CDN
+                header('Cache-Control: public, max-age=120, stale-while-revalidate=30');
+                header('X-Cache-Status: HIT');
+                return new \WP_REST_Response(['html' => $cached_html, 'has_more' => true], 200);
+            }
+
+            // Se non c'è cache, genera HTML
+            $comments = get_comments(array(
+                'post_id' => $post_id,
+                'status' => 'approve',
+                'number' => $limit,
+                'offset' => $offset,
+            ));
+
+            if ($comments) {
+                ob_start();
+                foreach ($comments as $comment) {
+                    ?>
+                    <div class="col-12 col-lg-3" >
+                        <div class="p-3" style="display: inline-block;">
+                            <div class="nrc-user d-flex justify-content-between">
+                                <p><?php echo (empty($comment->comment_author) || $comment->comment_author == '') ? 'Anonimo' : esc_html($comment->comment_author); ?></p>
+                                <span>ha scritto il <?php echo get_comment_date('j F', $comment->comment_ID); ?>:</span>
+                            </div>
+                            <div class="card border-0 speech-bubble-card mt-3">
+                                <div class="card-body">
+                                    <p><?php echo esc_html($comment->comment_content); ?></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php
+                }
+                $html_output = ob_get_clean();
+
+                // Salva nel transient con TTL di 2 minuti (120 secondi)
+                set_transient($transient_key, $html_output, 2 * MINUTE_IN_SECONDS);
+
+                // Header per browser cache e CDN
+                header('Cache-Control: public, max-age=120, stale-while-revalidate=30');
+                header('X-Cache-Status: MISS');
+
+                return new \WP_REST_Response(['html' => $html_output, 'has_more' => true], 200);
+            } else {
+                // Nessun commento trovato
+                return new \WP_REST_Response(['html' => '0', 'has_more' => false], 200);
+            }
+        }
+
+        // Keep AJAX endpoint for backward compatibility
         function load_more_comments()
         {
             $post_id = intval($_POST['post_id']);
@@ -380,29 +502,55 @@ if (!class_exists(__NAMESPACE__ . '\PensieriniClass')) {
                         loading = true;
                         $loader.show();
 
+                        // Use REST API GET endpoint (cacheable)
+                        var restUrl = '/wp-json/dokan-mod/v1/comments/' + post_id + '?offset=' + offset;
+
                         $.ajax({
-                            url: '<?php echo admin_url('admin-ajax.php'); ?>',
-                            type: 'post',
-                            data: {
-                                action: 'load_more_comments',
-                                post_id: post_id,
-                                offset: offset
-                            },
+                            url: restUrl,
+                            type: 'GET',
+                            cache: true, // Enable browser cache
                             success: function (response) {
-                                if (response === '0') {
-                                    $(window).off('scroll');
+                                // REST API returns object with html property
+                                var html = response.html || response;
+
+                                if (html === '0' || !response.has_more) {
+                                    $(window).off('scroll.pensierini');
                                     $loader.hide();
                                     return;
                                 }
                                 $('#divisore_pensierini').show();
-                                $('#comments-container').append(response);
+                                $('#comments-container').append(html);
                                 offset += 4; // Incrementa l'offset per il prossimo caricamento
                                 loading = false;
                                 $loader.hide();
                             },
                             error: function () {
-                                loading = false;
-                                $loader.hide();
+                                // Fallback to POST AJAX if REST fails
+                                $.ajax({
+                                    url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                                    type: 'post',
+                                    data: {
+                                        action: 'load_more_comments',
+                                        post_id: post_id,
+                                        offset: offset
+                                    },
+                                    success: function (response) {
+                                        if (response === '0') {
+                                            $(window).off('scroll.pensierini');
+                                            $loader.hide();
+                                            return;
+                                        }
+                                        $('#divisore_pensierini').show();
+                                        $('#comments-container').append(response);
+                                        offset += 4;
+                                        loading = false;
+                                        $loader.hide();
+                                    },
+                                    error: function () {
+                                        loading = false;
+                                        $loader.hide();
+                                    }
+                                });
                             }
                         });
                     }

@@ -16,11 +16,15 @@ if (!class_exists(__NAMESPACE__ . 'RingraziamentoClass')) {
 
         public function ringraziamento_save_post($post_id)
         {
-
-            if (current_user_can('administrator')) {
+            if (get_post_type($post_id) !== 'ringraziamento') {
                 return;
             }
-            if (get_post_type($post_id) !== 'ringraziamento') {
+
+            //se è admin, pulisci i transient e ritorna
+            if (current_user_can('administrator')) {
+                // Pulisci il transient specifico per questo post
+                $transient_key = 'city_data_' . $post_id;
+                delete_transient($transient_key);
                 return;
             }
 

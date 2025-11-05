@@ -47,6 +47,9 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             add_action('wp_ajax_get_comuni_by_provincia', array($this, 'get_comuni_by_provincia_callback'));
             add_action('wp_ajax_nopriv_get_comuni_by_provincia', array($this, 'get_comuni_by_provincia_callback'));
 
+            // Register REST API endpoint for city data
+            add_action('rest_api_init', array($this, 'register_city_rest_route'));
+
             add_action('wp_ajax_update_acf_field', array($this, 'handle_acf_update_request'));
             add_action('wp_ajax_nopriv_update_acf_field', array($this, 'handle_acf_update_request'));
 
@@ -158,13 +161,14 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
 
         function enqueue_ajax_script()
         {
-            wp_register_script('ajax-script-dokan-mod', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . '/assets/js/ajax-script.js', array('jquery'), '1.0', true);
+            wp_register_script('ajax-script-dokan-mod', DOKAN_SELECT_PRODUCTS_PLUGIN_URL . '/assets/js/ajax-script.js', array('jquery'), '1.1.1', true);
 
             // Then enqueue the script
             wp_enqueue_script('ajax-script-dokan-mod');
             wp_localize_script('ajax-script-dokan-mod', 'ajax_object', array(
                 'ajax_url' => admin_url('admin-ajax.php'),
                 'post_id' => get_the_ID(),
+                'is_admin' => current_user_can('administrator') ? '1' : '0',
             ));
         }
 
@@ -442,17 +446,74 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
             wp_die(); // termina correttamente la richiesta AJAX
         }
 
-        public function get_current_citta_value_if_is_set()
+        // Register REST API route for city data
+        public function register_city_rest_route()
+        {
+            register_rest_route('dokan-mod/v1', '/city/(?P<post_id>\d+)', [
+                'methods' => 'GET',
+                'callback' => array($this, 'get_city_data_rest'),
+                'permission_callback' => '__return_true', // Public data
+                'args' => [
+                    'post_id' => [
+                        'required' => true,
+                        'validate_callback' => function ($param) {
+                            return is_numeric($param);
+                        }
+                    ]
+                ]
+            ]);
+        }
+
+        // REST endpoint handler - uses same logic as AJAX
+        public function get_city_data_rest($request)
         {
             global $dbClassInstance;
-            $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : null;
+            $post_id = intval($request['post_id']);
+
             if (empty($post_id)) {
-                echo json_encode([]);
-                wp_die();
+                return new \WP_Error('invalid_post_id', 'Post ID is required', ['status' => 400]);
             }
+
+            // Se admin, usa sempre dati freschi e no-cache header
+            $is_admin = current_user_can('administrator');
+
+            if ($is_admin) {
+                // Admin: dati freschi senza cache
+                $city_filter = get_field('citta', $post_id);
+                $province = $dbClassInstance->get_provincia_by_comune($city_filter);
+
+                $response = [
+                    'city' => $city_filter,
+                    'province' => $province
+                ];
+
+                // Header no-cache per admin
+                header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                header('X-Cache-Status: ADMIN-NOCACHE');
+
+                return new \WP_REST_Response($response, 200);
+            }
+
+            // Non-admin: usa cache normale
+            // Genera chiave transient univoca per questo post_id
+            $transient_key = 'city_data_' . $post_id;
+
+            // Controlla se esiste il transient
+            $cached_data = get_transient($transient_key);
+
+            if ($cached_data !== false) {
+                // Restituisce i dati dalla cache con header per browser/CDN
+                header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
+                header('X-Cache-Status: HIT');
+                return new \WP_REST_Response($cached_data, 200);
+            }
+
+            // Se non c'è cache, esegui la logica normale
             $city_filter = get_field('citta', $post_id);
 
-            //if null check if user logged is a vendor
+            // Se null/vuoto, usa i dati del vendor
             if (empty($city_filter)) {
                 $current_user = wp_get_current_user();
                 if ($current_user instanceof WP_User) {
@@ -474,6 +535,90 @@ if (!class_exists(__NAMESPACE__ . 'Miscellaneous')) {
                 'city' => $city_filter,
                 'province' => $province
             ];
+
+            // Salva il risultato nel transient con TTL di 5 minuti (300 secondi)
+            set_transient($transient_key, $response, 5 * MINUTE_IN_SECONDS);
+
+            // Header per browser cache e CDN
+            header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
+            header('X-Cache-Status: MISS');
+
+            return new \WP_REST_Response($response, 200);
+        }
+
+        // Keep AJAX endpoint for backward compatibility
+        public function get_current_citta_value_if_is_set()
+        {
+            global $dbClassInstance;
+            $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : null;
+            if (empty($post_id)) {
+                echo json_encode([]);
+                wp_die();
+            }
+
+            // Se admin, usa sempre dati freschi e no-cache header
+            $is_admin = current_user_can('administrator');
+
+            if ($is_admin) {
+                // Admin: dati freschi senza cache
+                $city_filter = get_field('citta', $post_id);
+                $province = $dbClassInstance->get_provincia_by_comune($city_filter);
+
+                $response = [
+                    'city' => $city_filter,
+                    'province' => $province
+                ];
+
+                // Header no-cache per admin
+                header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+
+                echo json_encode($response);
+                wp_die();
+            }
+
+            // Non-admin: usa cache normale
+            // Genera chiave transient univoca per questo post_id
+            $transient_key = 'city_data_' . $post_id;
+
+            // Controlla se esiste il transient
+            $cached_data = get_transient($transient_key);
+
+            if ($cached_data !== false) {
+                // Restituisce i dati dalla cache
+                echo json_encode($cached_data);
+                wp_die();
+            }
+
+            // Se non c'è cache, esegui la logica normale
+            $city_filter = get_field('citta', $post_id);
+
+            // Se null/vuoto, usa i dati del vendor
+            if (empty($city_filter)) {
+                $current_user = wp_get_current_user();
+                if ($current_user instanceof WP_User) {
+
+                    $store_info = dokan_get_store_info($current_user->ID);
+
+                    if ($store_info) {
+                        $user_city = $store_info['address']['city'] ?? '';
+                        if (!empty($user_city)) {
+                            $city_filter = $user_city;
+                        }
+                    }
+                }
+            }
+
+            $province = $dbClassInstance->get_provincia_by_comune($city_filter);
+
+            $response = [
+                'city' => $city_filter,
+                'province' => $province
+            ];
+
+            // Salva il risultato nel transient con TTL di 5 minuti (300 secondi)
+            set_transient($transient_key, $response, 5 * MINUTE_IN_SECONDS);
 
             echo json_encode($response);
             wp_die();

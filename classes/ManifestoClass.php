@@ -39,7 +39,8 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             add_action('wp_ajax_load_more_manifesti', array($this, 'load_more_manifesti'));
             add_action('wp_ajax_nopriv_load_more_manifesti', array($this, 'load_more_manifesti'));
 
-
+            // Register REST API endpoint for manifesti
+            add_action('rest_api_init', array($this, 'register_manifesti_rest_route'));
 
             // Add ACF save post hook for dashboard manifesto creation
             add_action('acf/save_post', array($this, 'manifesto_save_post'), 20);
@@ -302,6 +303,24 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
             $product_id = intval($_POST['product_id']);
             $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : null;
+
+            // Genera chiave transient univoca basata su product_id e post_id
+            $transient_key = sprintf(
+                'vendor_data_%d_%s',
+                $product_id,
+                $post_id ?? 'null'
+            );
+
+            // Controlla se esiste il transient
+            $cached_data = get_transient($transient_key);
+
+            if ($cached_data !== false) {
+                // Restituisce i dati dalla cache
+                wp_send_json_success($cached_data);
+                wp_die();
+            }
+
+            // Se non c'è cache, esegui la logica normale
             $user_id = get_post_field('post_author', $product_id);
 
             if (!$user_id) {
@@ -309,7 +328,7 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
             }
 
             $manifesto_array_data = (new UtilsAMClass())->get_vendor_data_by_id($user_id);
-            
+
             // Aggiungi la descrizione del prodotto alla risposta
             $product = wc_get_product($product_id);
             if ($product) {
@@ -319,6 +338,9 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 $manifesto_array_data['product_short_description'] = $product->get_short_description();
                 $manifesto_array_data['product_name'] = $product->get_name();
             }
+
+            // Salva il risultato nel transient con TTL di 5 minuti (300 secondi)
+            set_transient($transient_key, $manifesto_array_data, 5 * MINUTE_IN_SECONDS);
 
             wp_send_json_success($manifesto_array_data);
             wp_die();
@@ -346,43 +368,137 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
 
             $author_id = get_post_field('post_author', $post_id);
 
-            // Get all vendors with the city equal to $citta
-            $args_vendors = array(
-                'role' => 'seller',
-                'meta_query' => array(
-                    array(
-                        'key' => 'dokan_profile_settings',
-                        'value' => sprintf(':"%s";', $citta),
-                        'compare' => 'LIKE',
+            // Logica speciale per manifesto-online: includere sempre l'agenzia creatrice
+            if ($categoria_finale === 'manifesto-online') {
+                // 1. Cerca il prodotto manifesto-online dell'autore dell'annuncio (indipendentemente dalla città)
+                $author_product_args = array(
+                    'post_type' => 'product',
+                    'posts_per_page' => 1,
+                    'author' => $author_id,
+                    'tax_query' => array(
+                        array(
+                            'taxonomy' => 'product_cat',
+                            'field' => 'slug',
+                            'terms' => 'manifesto-online',
+                        ),
                     ),
-                ),
-            );
-            $vendors = get_users($args_vendors);
+                );
+                $author_product_query = new \WP_Query($author_product_args);
 
-            // Get the IDs of the vendors
-            $vendor_ids = array();
-            foreach ($vendors as $vendor) {
-                $vendor_ids[] = $vendor->ID;
+                // 2. Verifica se l'autore è nella stessa città del defunto
+                $author_store_info = dokan_get_store_info($author_id);
+                $author_city = $author_store_info['address']['city'] ?? '';
+                $author_city_normalized = strtolower(trim($author_city));
+                $citta_normalized = strtolower(trim($citta));
+
+                // 3. Cerca gli altri prodotti manifesto-online nella città del defunto (SOLO se NON vuota)
+                $all_products = array();
+                $product_ids_added = array();
+
+                // Aggiungi il prodotto dell'autore per primo
+                if ($author_product_query->have_posts()) {
+                    foreach ($author_product_query->posts as $product) {
+                        $all_products[] = $product;
+                        $product_ids_added[] = $product->ID;
+                    }
+                }
+
+                // Se la città del defunto è specificata, cerca altre agenzie in quella città
+                if (!empty($citta) && strtolower($citta) !== 'tutte') {
+                    $args_vendors = array(
+                        'role' => 'seller',
+                        'meta_query' => array(
+                            array(
+                                'key' => 'dokan_profile_settings',
+                                'value' => sprintf(':"%s";', $citta),
+                                'compare' => 'LIKE',
+                            ),
+                        ),
+                    );
+                    $vendors = get_users($args_vendors);
+
+                    $vendor_ids = array();
+                    foreach ($vendors as $vendor) {
+                        // Escludi l'autore dell'annuncio dalla lista se è già stato aggiunto
+                        if ($vendor->ID != $author_id) {
+                            $vendor_ids[] = $vendor->ID;
+                        }
+                    }
+
+                    // Solo se ci sono altri vendor nella città, cerca i loro prodotti
+                    if (!empty($vendor_ids)) {
+                        $city_products_args = array(
+                            'post_type' => 'product',
+                            'posts_per_page' => -1,
+                            'author__in' => $vendor_ids,
+                            'tax_query' => array(
+                                array(
+                                    'taxonomy' => 'product_cat',
+                                    'field' => 'slug',
+                                    'terms' => 'manifesto-online',
+                                ),
+                            ),
+                        );
+                        $city_products_query = new \WP_Query($city_products_args);
+
+                        // Aggiungi i prodotti della città (già escludendo l'autore)
+                        if ($city_products_query->have_posts()) {
+                            foreach ($city_products_query->posts as $product) {
+                                if (!in_array($product->ID, $product_ids_added)) {
+                                    $all_products[] = $product;
+                                    $product_ids_added[] = $product->ID;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Crea un oggetto simile a WP_Query per compatibilità
+                $products = new \stdClass();
+                $products->posts = $all_products;
+                $products_count = count($all_products);
+
+            } else {
+                // Comportamento standard per le altre categorie
+                // Get all vendors with the city equal to $citta
+                $args_vendors = array(
+                    'role' => 'seller',
+                    'meta_query' => array(
+                        array(
+                            'key' => 'dokan_profile_settings',
+                            'value' => sprintf(':"%s";', $citta),
+                            'compare' => 'LIKE',
+                        ),
+                    ),
+                );
+                $vendors = get_users($args_vendors);
+
+                // Get the IDs of the vendors
+                $vendor_ids = array();
+                foreach ($vendors as $vendor) {
+                    $vendor_ids[] = $vendor->ID;
+                }
+
+                // Get all products from these vendors in the specified category
+                $args = array(
+                    'post_type' => 'product',
+                    'posts_per_page' => -1,
+                    'author__in' => $vendor_ids, // Only products from these vendors
+                    'tax_query' => array(
+                        array(
+                            'taxonomy' => 'product_cat',
+                            'field' => 'slug',
+                            'terms' => $categoria_finale,
+                        ),
+                    ),
+                );
+                $products = new \WP_Query($args);
+                $products_count = $products->found_posts;
             }
 
-            // Get all products from these vendors in the specified category
-            $args = array(
-                'post_type' => 'product',
-                'posts_per_page' => -1,
-                'author__in' => $vendor_ids, // Only products from these vendors
-                'tax_query' => array(
-                    array(
-                        'taxonomy' => 'product_cat',
-                        'field' => 'slug',
-                        'terms' => $categoria_finale,
-                    ),
-                ),
-            );
-            $products = new \WP_Query($args);
-            $products_count = $products->found_posts;
             ob_start();
 
-            if ($products->have_posts()) {
+            if (!empty($products->posts)) {
                 // Convert WP_Query results to an array
                 $products_array = $products->posts;
 
@@ -485,6 +601,99 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
         }
 
 
+        // Register REST API route for manifesti
+        public function register_manifesti_rest_route()
+        {
+            register_rest_route('dokan-mod/v1', '/manifesti/(?P<post_id>\d+)', [
+                'methods' => 'GET',
+                'callback' => array($this, 'get_manifesti_rest'),
+                'permission_callback' => '__return_true', // Public data
+                'args' => [
+                    'post_id' => [
+                        'required' => true,
+                        'validate_callback' => function ($param) {
+                            return is_numeric($param);
+                        }
+                    ],
+                    'offset' => [
+                        'default' => 0,
+                        'validate_callback' => function ($param) {
+                            return is_numeric($param);
+                        }
+                    ],
+                    'tipo_manifesto' => [
+                        'default' => null
+                    ],
+                    'current_author_id' => [
+                        'default' => null,
+                        'validate_callback' => function ($param) {
+                            return $param === null || is_numeric($param);
+                        }
+                    ],
+                    'author_offset' => [
+                        'default' => 0,
+                        'validate_callback' => function ($param) {
+                            return is_numeric($param);
+                        }
+                    ]
+                ]
+            ]);
+        }
+
+        // REST endpoint handler for manifesti
+        public function get_manifesti_rest($request)
+        {
+            $post_id = intval($request['post_id']);
+            $offset = intval($request['offset']);
+            $tipo_manifesto = $request['tipo_manifesto'];
+            $current_author_id = $request['current_author_id'] ? intval($request['current_author_id']) : null;
+            $author_offset = intval($request['author_offset']);
+
+            if (!$post_id) {
+                return new \WP_Error('invalid_post_id', 'Invalid post ID', ['status' => 400]);
+            }
+
+            // Genera chiave transient univoca basata su tutti i parametri
+            $transient_key = sprintf(
+                'manifesti_%d_%d_%s_%s_%d',
+                $post_id,
+                $offset,
+                $tipo_manifesto ?? 'null',
+                $current_author_id ?? 'null',
+                $author_offset
+            );
+
+            // Controlla se esiste il transient
+            $cached_response = get_transient($transient_key);
+
+            if ($cached_response !== false) {
+                // Restituisce i dati dalla cache con header per browser/CDN
+                header('Cache-Control: public, max-age=60, stale-while-revalidate=30');
+                header('X-Cache-Status: HIT');
+                return new \WP_REST_Response($cached_response, 200);
+            }
+
+            // Se non c'è cache, esegui la logica normale
+            $loader = new ManifestiLoader($post_id, $offset, $tipo_manifesto);
+
+            // Set author-specific pagination if provided
+            if ($current_author_id !== null) {
+                $loader->set_author_pagination($current_author_id, $author_offset);
+            }
+
+            $response = $loader->load_manifesti();
+
+            // Salva il risultato nel transient con TTL di 1 minuto (60 secondi)
+            set_transient($transient_key, $response, MINUTE_IN_SECONDS);
+
+            // Header per browser cache e CDN
+            header('Cache-Control: public, max-age=60, stale-while-revalidate=30');
+            header('X-Cache-Status: MISS');
+
+            return new \WP_REST_Response($response, 200);
+        }
+
+        // Keep AJAX endpoint for backward compatibility
         public function load_more_manifesti()
         {
             $post_id = intval($_POST['post_id']) !== null ? intval($_POST['post_id']) : null;
@@ -498,14 +707,37 @@ if (!class_exists(__NAMESPACE__ . '\ManifestoClass')) {
                 wp_die();
             }
 
+            // Genera chiave transient univoca basata su tutti i parametri
+            $transient_key = sprintf(
+                'manifesti_%d_%d_%s_%s_%d',
+                $post_id,
+                $offset,
+                $tipo_manifesto ?? 'null',
+                $current_author_id ?? 'null',
+                $author_offset
+            );
+
+            // Controlla se esiste il transient
+            $cached_response = get_transient($transient_key);
+
+            if ($cached_response !== false) {
+                // Restituisce i dati dalla cache
+                wp_send_json_success($cached_response);
+                wp_die();
+            }
+
+            // Se non c'è cache, esegui la logica normale
             $loader = new ManifestiLoader($post_id, $offset, $tipo_manifesto);
-            
+
             // Set author-specific pagination if provided
             if ($current_author_id !== null) {
                 $loader->set_author_pagination($current_author_id, $author_offset);
             }
-            
+
             $response = $loader->load_manifesti();
+
+            // Salva il risultato nel transient con TTL di 1 minuto (60 secondi)
+            set_transient($transient_key, $response, MINUTE_IN_SECONDS);
 
             wp_send_json_success($response);
             wp_die();

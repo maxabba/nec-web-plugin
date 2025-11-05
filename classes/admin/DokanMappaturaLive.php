@@ -236,6 +236,22 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                 return new WP_Error('missing_portalid', 'Il parametro portalid è richiesto', ['status' => 400]);
             }
 
+            // Genera chiave transient univoca per questo portal_id
+            $transient_key = 'necrologi_xml_' . $portal_id;
+
+            // Controlla se esiste il transient
+            $cached_xml = get_transient($transient_key);
+
+            if ($cached_xml !== false) {
+                // Restituisce XML dalla cache
+                header('Content-Type: application/xml; charset=utf-8');
+                header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
+                header('X-Cache-Status: HIT');
+                echo $cached_xml;
+                exit;
+            }
+
+            // Se non c'è cache, esegui la logica normale
             // Ottieni la mappatura del comune per il portal_id
             $mappings = get_option($this->option_name, []);
             $comune = null;
@@ -268,9 +284,17 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                 $necrologiDto->addChild('TotaleManifesti', htmlspecialchars($necrologio['totale_manifesti']));
             }
 
+            // Genera l'XML come stringa
+            $xml_output = $xml->asXML();
+
+            // Salva il risultato nel transient con TTL di 5 minuti (300 secondi)
+            set_transient($transient_key, $xml_output, 5 * MINUTE_IN_SECONDS);
+
             // Imposta l'header XML e restituisci il contenuto XML
             header('Content-Type: application/xml; charset=utf-8');
-            echo $xml->asXML();
+            header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
+            header('X-Cache-Status: MISS');
+            echo $xml_output;
             exit; // Termina l'esecuzione per evitare output extra di WordPress
         }
 
@@ -283,6 +307,22 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                 return new WP_Error('missing_portalid', 'Il parametro portalid è richiesto', ['status' => 400]);
             }
 
+            // Genera chiave transient univoca per questo portal_id
+            $transient_key = 'ricorrenze_xml_' . $portal_id;
+
+            // Controlla se esiste il transient
+            $cached_xml = get_transient($transient_key);
+
+            if ($cached_xml !== false) {
+                // Restituisce XML dalla cache
+                header('Content-Type: application/xml; charset=utf-8');
+                header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
+                header('X-Cache-Status: HIT');
+                echo $cached_xml;
+                exit;
+            }
+
+            // Se non c'è cache, esegui la logica normale
             // Ottieni la mappatura del comune per il portal_id
             $mappings = get_option($this->option_name, []);
             $comune = null;
@@ -315,10 +355,17 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                 $necrologiDto->addChild('TipoRicorrenze', htmlspecialchars($ricorrenza['tipo_ricorrenze']));
             }
 
+            // Genera l'XML come stringa
+            $xml_output = $xml->asXML();
+
+            // Salva il risultato nel transient con TTL di 5 minuti (300 secondi)
+            set_transient($transient_key, $xml_output, 5 * MINUTE_IN_SECONDS);
 
             // Imposta l'header XML e restituisci il contenuto XML
             header('Content-Type: application/xml; charset=utf-8');
-            echo $xml->asXML();
+            header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
+            header('X-Cache-Status: MISS');
+            echo $xml_output;
             exit; // Termina l'esecuzione per evitare output extra di WordPress
         }
 
@@ -331,6 +378,22 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                 return new WP_Error('missing_portalid', 'Il parametro portalid è richiesto', ['status' => 400]);
             }
 
+            // Genera chiave transient univoca per questo portal_id
+            $transient_key = 'ringraziamenti_xml_' . $portal_id;
+
+            // Controlla se esiste il transient
+            $cached_xml = get_transient($transient_key);
+
+            if ($cached_xml !== false) {
+                // Restituisce XML dalla cache
+                header('Content-Type: application/xml; charset=utf-8');
+                header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
+                header('X-Cache-Status: HIT');
+                echo $cached_xml;
+                exit;
+            }
+
+            // Se non c'è cache, esegui la logica normale
             // Ottieni la mappatura del comune per il portal_id
             $mappings = get_option($this->option_name, []);
             $comune = null;
@@ -361,9 +424,17 @@ if (!class_exists(__NAMESPACE__ . '\DokanMappaturaLive')) {
                 $necrologiDto->addChild('NomeDefunto', htmlspecialchars($ricorrenza['nome_defunto']));
             }
 
+            // Genera l'XML come stringa
+            $xml_output = $xml->asXML();
+
+            // Salva il risultato nel transient con TTL di 5 minuti (300 secondi)
+            set_transient($transient_key, $xml_output, 5 * MINUTE_IN_SECONDS);
+
             // Imposta l'header XML e restituisci il contenuto XML
             header('Content-Type: application/xml; charset=utf-8');
-            echo $xml->asXML();
+            header('Cache-Control: public, max-age=300, stale-while-revalidate=60');
+            header('X-Cache-Status: MISS');
+            echo $xml_output;
             exit; // Termina l'esecuzione per evitare output extra di WordPress
         }
 

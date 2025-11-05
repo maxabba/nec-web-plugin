@@ -55,11 +55,15 @@ if (!class_exists(__NAMESPACE__ . '\TrigesimiClass')) {
 
         public function trigesimi_save_post($post_id)
         {
-            if (current_user_can('administrator')) {
+            if (get_post_type($post_id) !== 'trigesimo') {
                 return;
             }
 
-            if (get_post_type($post_id) !== 'trigesimo') {
+            //se è admin, pulisci i transient e ritorna
+            if (current_user_can('administrator')) {
+                // Pulisci il transient specifico per questo post
+                $transient_key = 'city_data_' . $post_id;
+                delete_transient($transient_key);
                 return;
             }
 

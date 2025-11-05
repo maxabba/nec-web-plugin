@@ -330,27 +330,43 @@
                 if ($loader) $loader.show();
 
                 try {
-                    const response = await $.ajax({
-                        url: my_ajax_object.ajax_url,
-                        type: 'POST',
-                        data: {
-                            action: 'load_more_manifesti',
-                            post_id: postId,
-                            tipo_manifesto: tipoManifesto,
-                            offset: offset
-                        }
-                    });
+                    // Use REST API GET endpoint (cacheable)
+                    const restUrl = `/wp-json/dokan-mod/v1/manifesti/${postId}?offset=${offset}&tipo_manifesto=${encodeURIComponent(tipoManifesto || '')}`;
+
+                    let response;
+                    try {
+                        response = await $.ajax({
+                            url: restUrl,
+                            type: 'GET',
+                            cache: true // Enable browser cache
+                        });
+                    } catch (restError) {
+                        // Fallback to POST AJAX if REST fails
+                        response = await $.ajax({
+                            url: my_ajax_object.ajax_url,
+                            type: 'POST',
+                            data: {
+                                action: 'load_more_manifesti',
+                                post_id: postId,
+                                tipo_manifesto: tipoManifesto,
+                                offset: offset
+                            }
+                        });
+                    }
+
+                    // Handle both REST and AJAX response formats
+                    const responseData = response.success ? response.data : response;
 
                     // Check risposta non valida
-                    if (!response.success) {
+                    if (response.success === false || !responseData) {
                         allDataLoaded = true;
                         if ($loader) $loader.hide();
                         if (containerTimer) clearInterval(containerTimer);
                         return;
                     }
 
-                    const manifesti = response.data.manifesti;
-                    const pagination = response.data.pagination;
+                    const manifesti = responseData.manifesti;
+                    const pagination = responseData.pagination;
 
                     // FINE VERA: solo quando offset è -1 (TUTTI gli autori finiti)
                     if (pagination?.offset === -1) {

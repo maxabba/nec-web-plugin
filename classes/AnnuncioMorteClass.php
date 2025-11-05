@@ -142,11 +142,15 @@ if (!class_exists(__NAMESPACE__ . '\AnnuncioMorteClass')) {
 
         function annuncio_save_post($post_id)
         {
-            //se è admin ritorna
-            if (current_user_can('administrator')) {
+            if (get_post_type($post_id) !== 'annuncio-di-morte') {
                 return;
             }
-            if (get_post_type($post_id) !== 'annuncio-di-morte') {
+
+            //se è admin, pulisci i transient e ritorna
+            if (current_user_can('administrator')) {
+                // Pulisci il transient specifico per questo post
+                $transient_key = 'city_data_' . $post_id;
+                delete_transient($transient_key);
                 return;
             }
 

@@ -33,6 +33,7 @@ if (!class_exists(__NAMESPACE__ . '\AutoPrelievoClass')) {
             // Verifica iniziale dello stato del cron
             add_action('init', [$this, 'check_cron_status']);
             add_action('admin_init', [$this, 'handle_clear_logs']);
+            add_action('admin_init', [$this, 'handle_run_now']);
 
         }
 
@@ -462,9 +463,18 @@ if (!class_exists(__NAMESPACE__ . '\AutoPrelievoClass')) {
                 } else {
                     echo '<p>' . __('Nessun prelievo automatico programmato.', 'dokan-mod') . '</p>';
                 }
-
-
                 ?>
+
+                <form method="post" action="" style="margin-top: 15px;">
+                    <?php wp_nonce_field('dokan_auto_prelievo_run_now', 'dokan_auto_prelievo_run_nonce'); ?>
+                    <input type="submit" name="run_now" class="button button-primary"
+                           value="<?php _e('Esegui Ora', 'dokan-mod'); ?>"
+                           onclick="return confirm('<?php _e('Sei sicuro di voler eseguire il processo di prelievo automatico adesso? Verranno create richieste di prelievo per tutti i vendor con saldo sufficiente.', 'dokan-mod'); ?>');">
+                    <p class="description">
+                        <?php _e('Esegui manualmente il processo di calcolo e creazione dei prelievi automatici per tutti i venditori.', 'dokan-mod'); ?>
+                    </p>
+                </form>
+
                 <hr>
                 <h2><?php _e('Log Prelievi Automatici', 'dokan-mod'); ?></h2>
                 <form method="post" action="">
@@ -508,6 +518,37 @@ if (!class_exists(__NAMESPACE__ . '\AutoPrelievoClass')) {
                 });
             </script>
             <?php
+        }
+
+        /**
+         * Gestisce l'esecuzione manuale del processo di prelievo
+         */
+        public function handle_run_now()
+        {
+            if (
+                isset($_POST['run_now']) &&
+                isset($_POST['dokan_auto_prelievo_run_nonce']) &&
+                wp_verify_nonce($_POST['dokan_auto_prelievo_run_nonce'], 'dokan_auto_prelievo_run_now')
+            ) {
+                if (!current_user_can('manage_options')) {
+                    add_action('admin_notices', function () {
+                        echo '<div class="notice notice-error is-dismissible">';
+                        echo '<p>' . __('Non hai i permessi per eseguire questa azione.', 'dokan-mod') . '</p>';
+                        echo '</div>';
+                    });
+                    return;
+                }
+
+                // Esegui il processo di prelievo automatico
+                $this->add_log('Esecuzione manuale del processo di prelievo automatico richiesta da admin', 'info');
+                $this->process_automatic_withdrawals();
+
+                add_action('admin_notices', function () {
+                    echo '<div class="notice notice-success is-dismissible">';
+                    echo '<p>' . __('Processo di prelievo automatico eseguito con successo. Controlla i log per i dettagli.', 'dokan-mod') . '</p>';
+                    echo '</div>';
+                });
+            }
         }
 
         public function handle_clear_logs()

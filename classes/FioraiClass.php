@@ -73,6 +73,19 @@ if (!class_exists(__NAMESPACE__ . '\FioraiClass')) {
             //sanitize
             $product_id = filter_var($product_id, FILTER_SANITIZE_NUMBER_INT);
 
+            // Genera chiave transient univoca per questo product_id
+            $transient_key = 'variant_product_' . $product_id;
+
+            // Controlla se esiste il transient
+            $cached_html = get_transient($transient_key);
+
+            if ($cached_html !== false) {
+                // Restituisce i dati dalla cache
+                wp_send_json_success($cached_html);
+                wp_die();
+            }
+
+            // Se non c'è cache, esegui la logica normale
             $product = wc_get_product($product_id);
             $product_variations = $product->get_available_variations();
             //description, image and price
@@ -106,7 +119,12 @@ if (!class_exists(__NAMESPACE__ . '\FioraiClass')) {
                 </div>
                 <?php endforeach; ?>
             <?php
-            wp_send_json_success( ob_get_clean());
+            $html_output = ob_get_clean();
+
+            // Salva il risultato nel transient con TTL di 5 minuti (300 secondi)
+            set_transient($transient_key, $html_output, 5 * MINUTE_IN_SECONDS);
+
+            wp_send_json_success($html_output);
             wp_die();
 
         }

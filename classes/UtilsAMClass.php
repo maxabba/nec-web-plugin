@@ -193,11 +193,13 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
 
             // Initialize arrays for all prices
             $all_prices = array();
-            
+
             // Get city from annuncio di morte if post_id is provided
             $annuncio_city = null;
+            $annuncio_author_id = null;
             if ($post_id) {
                 $annuncio_city = get_field('citta', $post_id);
+                $annuncio_author_id = get_post_field('post_author', $post_id);
             }
 
             // Query for products with SKU starting with our pattern
@@ -220,21 +222,32 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
                 // Se abbiamo un post_id, verifica la città del vendor
                 if ($post_id && $annuncio_city) {
                     $vendor_id = get_post_field('post_author', $product->ID);
-                    $store_info = dokan_get_store_info($vendor_id);
-                    $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
-                    
-                    // Se il vendor non ha una città impostata, salta questo prodotto
-                    if (empty($vendor_city)) {
-                        continue;
-                    }
-                    
-                    // Normalizza le stringhe per il confronto
-                    $vendor_city_normalized = strtolower(trim($vendor_city));
-                    $annuncio_city_normalized = strtolower(trim($annuncio_city));
 
-                    // Se la città del vendor non corrisponde, salta questo prodotto
-                    if ($vendor_city_normalized !== $annuncio_city_normalized) {
-                        continue;
+                    // Controlla se il prodotto è un manifesto-online
+                    $product_categories = wp_get_post_terms($product->ID, 'product_cat', array('fields' => 'slugs'));
+                    $is_manifesto_online = in_array('manifesto-online', $product_categories);
+
+                    // Se è manifesto-online E il vendor è l'autore dell'annuncio, includilo sempre
+                    if ($is_manifesto_online && $vendor_id == $annuncio_author_id) {
+                        // Non fare nulla, includi il prodotto
+                    } else {
+                        // Altrimenti applica la logica standard di controllo città
+                        $store_info = dokan_get_store_info($vendor_id);
+                        $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
+
+                        // Se il vendor non ha una città impostata, salta questo prodotto
+                        if (empty($vendor_city)) {
+                            continue;
+                        }
+
+                        // Normalizza le stringhe per il confronto
+                        $vendor_city_normalized = strtolower(trim($vendor_city));
+                        $annuncio_city_normalized = strtolower(trim($annuncio_city));
+
+                        // Se la città del vendor non corrisponde, salta questo prodotto
+                        if ($vendor_city_normalized !== $annuncio_city_normalized) {
+                            continue;
+                        }
                     }
                 }
                 
@@ -268,20 +281,31 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
                 $include_original = true;
                 if ($post_id && $annuncio_city) {
                     $vendor_id = get_post_field('post_author', $product_id);
-                    $store_info = dokan_get_store_info($vendor_id);
-                    $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
-                    
-                    // Se il vendor non ha una città impostata, non includere
-                    if (empty($vendor_city)) {
-                        $include_original = false;
+
+                    // Controlla se il prodotto originale è un manifesto-online
+                    $product_categories = wp_get_post_terms($product_id, 'product_cat', array('fields' => 'slugs'));
+                    $is_manifesto_online = in_array('manifesto-online', $product_categories);
+
+                    // Se è manifesto-online E il vendor è l'autore dell'annuncio, includilo sempre
+                    if ($is_manifesto_online && $vendor_id == $annuncio_author_id) {
+                        $include_original = true;
                     } else {
-                        // Normalizza le stringhe per il confronto
-                        $vendor_city_normalized = strtolower(trim($vendor_city));
-                        $annuncio_city_normalized = strtolower(trim($annuncio_city));
-                        
-                        // Se la città del vendor non corrisponde, non includere il prodotto originale
-                        if ($vendor_city_normalized !== $annuncio_city_normalized) {
+                        // Altrimenti applica la logica standard di controllo città
+                        $store_info = dokan_get_store_info($vendor_id);
+                        $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
+
+                        // Se il vendor non ha una città impostata, non includere
+                        if (empty($vendor_city)) {
                             $include_original = false;
+                        } else {
+                            // Normalizza le stringhe per il confronto
+                            $vendor_city_normalized = strtolower(trim($vendor_city));
+                            $annuncio_city_normalized = strtolower(trim($annuncio_city));
+
+                            // Se la città del vendor non corrisponde, non includere il prodotto originale
+                            if ($vendor_city_normalized !== $annuncio_city_normalized) {
+                                $include_original = false;
+                            }
                         }
                     }
                 }
@@ -464,11 +488,13 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
 
             // Initialize array for all descriptions
             $all_descriptions = array();
-            
+
             // Get city from annuncio di morte if post_id is provided
             $annuncio_city = null;
+            $annuncio_author_id = null;
             if ($post_id) {
                 $annuncio_city = get_field('citta', $post_id);
+                $annuncio_author_id = get_post_field('post_author', $post_id);
             }
 
             // Query for products with SKU starting with our pattern
@@ -491,21 +517,32 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
                 // Se abbiamo un post_id, verifica la città del vendor
                 if ($post_id && $annuncio_city) {
                     $vendor_id = get_post_field('post_author', $product->ID);
-                    $store_info = dokan_get_store_info($vendor_id);
-                    $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
-                    
-                    // Se il vendor non ha una città impostata, salta questo prodotto
-                    if (empty($vendor_city)) {
-                        continue;
-                    }
-                    
-                    // Normalizza le stringhe per il confronto
-                    $vendor_city_normalized = strtolower(trim($vendor_city));
-                    $annuncio_city_normalized = strtolower(trim($annuncio_city));
 
-                    // Se la città del vendor non corrisponde, salta questo prodotto
-                    if ($vendor_city_normalized !== $annuncio_city_normalized) {
-                        continue;
+                    // Controlla se il prodotto è un manifesto-online
+                    $product_categories = wp_get_post_terms($product->ID, 'product_cat', array('fields' => 'slugs'));
+                    $is_manifesto_online = in_array('manifesto-online', $product_categories);
+
+                    // Se è manifesto-online E il vendor è l'autore dell'annuncio, includilo sempre
+                    if ($is_manifesto_online && $vendor_id == $annuncio_author_id) {
+                        // Non fare nulla, includi il prodotto
+                    } else {
+                        // Altrimenti applica la logica standard di controllo città
+                        $store_info = dokan_get_store_info($vendor_id);
+                        $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
+
+                        // Se il vendor non ha una città impostata, salta questo prodotto
+                        if (empty($vendor_city)) {
+                            continue;
+                        }
+
+                        // Normalizza le stringhe per il confronto
+                        $vendor_city_normalized = strtolower(trim($vendor_city));
+                        $annuncio_city_normalized = strtolower(trim($annuncio_city));
+
+                        // Se la città del vendor non corrisponde, salta questo prodotto
+                        if ($vendor_city_normalized !== $annuncio_city_normalized) {
+                            continue;
+                        }
                     }
                 }
                 
@@ -525,20 +562,31 @@ if (!class_exists(__NAMESPACE__ . '\UtilsAMClass')) {
                 $include_original = true;
                 if ($post_id && $annuncio_city) {
                     $vendor_id = get_post_field('post_author', $product_id);
-                    $store_info = dokan_get_store_info($vendor_id);
-                    $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
-                    
-                    // Se il vendor non ha una città impostata, non includere
-                    if (empty($vendor_city)) {
-                        $include_original = false;
+
+                    // Controlla se il prodotto originale è un manifesto-online
+                    $product_categories = wp_get_post_terms($product_id, 'product_cat', array('fields' => 'slugs'));
+                    $is_manifesto_online = in_array('manifesto-online', $product_categories);
+
+                    // Se è manifesto-online E il vendor è l'autore dell'annuncio, includilo sempre
+                    if ($is_manifesto_online && $vendor_id == $annuncio_author_id) {
+                        $include_original = true;
                     } else {
-                        // Normalizza le stringhe per il confronto
-                        $vendor_city_normalized = strtolower(trim($vendor_city));
-                        $annuncio_city_normalized = strtolower(trim($annuncio_city));
-                        
-                        // Se la città del vendor non corrisponde, non includere il prodotto originale
-                        if ($vendor_city_normalized !== $annuncio_city_normalized) {
+                        // Altrimenti applica la logica standard di controllo città
+                        $store_info = dokan_get_store_info($vendor_id);
+                        $vendor_city = isset($store_info['address']['city']) ? $store_info['address']['city'] : '';
+
+                        // Se il vendor non ha una città impostata, non includere
+                        if (empty($vendor_city)) {
                             $include_original = false;
+                        } else {
+                            // Normalizza le stringhe per il confronto
+                            $vendor_city_normalized = strtolower(trim($vendor_city));
+                            $annuncio_city_normalized = strtolower(trim($annuncio_city));
+
+                            // Se la città del vendor non corrisponde, non includere il prodotto originale
+                            if ($vendor_city_normalized !== $annuncio_city_normalized) {
+                                $include_original = false;
+                            }
                         }
                     }
                 }

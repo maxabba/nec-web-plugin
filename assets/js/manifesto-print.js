@@ -505,7 +505,7 @@
                     }
                     
                     textEditor.style.fontSize = fontSize;
-                    textEditor.style.lineHeight = '1.2';
+                    textEditor.style.lineHeight = '1.10';
 
                     resolve();
                 }, 10); // Reduced timeout since no image loading
