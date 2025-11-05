@@ -35,6 +35,9 @@ if (!class_exists(__NAMESPACE__ . '\AutoPrelievoClass')) {
             add_action('admin_init', [$this, 'handle_clear_logs']);
             add_action('admin_init', [$this, 'handle_run_now']);
 
+            // Bypass del check del metodo di pagamento durante l'approvazione
+            add_filter('dokan_get_seller_active_withdraw_methods', [$this, 'bypass_withdraw_method_check'], 10, 2);
+
         }
 
         /**
@@ -292,13 +295,21 @@ if (!class_exists(__NAMESPACE__ . '\AutoPrelievoClass')) {
                             ->set_note(__('Prelievo automatico programmato', 'dokan-mod'));
 
                         $this->add_log("Salvataggio richiesta di prelievo", 'info');
+                        error_log('DEBUG AUTO PRELIEVO: Pre-save - withdraw status: ' . $withdraw->get_status() . ' per user_id: ' . $user_id);
+
                         $result = $withdraw->save();
 
                         if (is_wp_error($result)) {
                             $this->add_log("Errore nel prelievo per {$store_name}: " . $result->get_error_message(), 'error');
+                            error_log('DEBUG AUTO PRELIEVO: Errore save - ' . $result->get_error_message());
                             $failed++;
                         } else {
-                            $this->add_log("Prelievo creato con successo per {$store_name} - Importo: €{$balance}", 'success');
+                            $withdraw_id = $result->get_id();
+                            $withdraw_status = $result->get_status();
+                            $this->add_log("Prelievo creato con successo per {$store_name} - ID: {$withdraw_id}, Status: {$withdraw_status}, Importo: €{$balance}", 'success');
+                            error_log('DEBUG AUTO PRELIEVO: Prelievo creato - ID: ' . $withdraw_id . ', Status: ' . $withdraw_status . ', Importo: ' . $balance);
+
+                            error_log('DEBUG AUTO PRELIEVO: Triggering dokan_after_withdraw_request hook');
                             do_action('dokan_after_withdraw_request', $user_id, $balance, $method);
 
                             try {
@@ -565,6 +576,106 @@ if (!class_exists(__NAMESPACE__ . '\AutoPrelievoClass')) {
                     echo '</div>';
                 });
             }
+        }
+
+        /**
+         * Bypassa il check del metodo di pagamento per le richieste di prelievo esistenti
+         *
+         * Questo filtro aggiunge automaticamente il metodo della richiesta di prelievo
+         * all'array dei metodi attivi del venditore quando viene controllato durante
+         * l'approvazione da parte dell'admin.
+         *
+         * @param array $active_methods Array dei metodi di pagamento attivi del venditore
+         * @param int $vendor_id ID del venditore
+         * @return array Array modificato dei metodi attivi
+         */
+        public function bypass_withdraw_method_check($active_methods, $vendor_id)
+        {
+            // Verifica se siamo in un contesto di approvazione di una richiesta esistente
+            if ($this->is_approval_context()) {
+                // Ottieni il metodo della richiesta di prelievo corrente
+                $withdraw_method = $this->get_current_withdraw_method();
+
+                if ($withdraw_method && !in_array($withdraw_method, $active_methods, true)) {
+                    $active_methods[] = $withdraw_method;
+                }
+            }
+
+            return $active_methods;
+        }
+
+        /**
+         * Verifica se siamo in un contesto di approvazione di una richiesta
+         *
+         * @return bool
+         */
+        private function is_approval_context()
+        {
+            // Verifica se è una chiamata REST API per l'approvazione
+            if (defined('REST_REQUEST') && REST_REQUEST) {
+                $route = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+                if (strpos($route, '/dokan/v1/withdraw/') !== false) {
+                    return true;
+                }
+            }
+
+            // Verifica se è una chiamata AJAX per l'approvazione
+            if (defined('DOING_AJAX') && DOING_AJAX) {
+                $action = isset($_POST['action']) ? $_POST['action'] : '';
+                if ($action === 'dokan_withdraw_handle_request') {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /**
+         * Ottiene il metodo della richiesta di prelievo corrente
+         *
+         * @return string|null Il metodo di pagamento o null se non trovato
+         */
+        private function get_current_withdraw_method()
+        {
+            // Per REST API
+            if (defined('REST_REQUEST') && REST_REQUEST) {
+                // Ottieni l'ID della richiesta dall'URL
+                $route = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+                if (preg_match('/\/dokan\/v1\/withdraw\/(\d+)/', $route, $matches)) {
+                    $withdraw_id = intval($matches[1]);
+                    return $this->get_withdraw_method_by_id($withdraw_id);
+                }
+            }
+
+            // Per AJAX
+            if (defined('DOING_AJAX') && DOING_AJAX) {
+                $withdraw_id = isset($_POST['withdraw_id']) ? intval($_POST['withdraw_id']) : 0;
+                if ($withdraw_id > 0) {
+                    return $this->get_withdraw_method_by_id($withdraw_id);
+                }
+            }
+
+            return null;
+        }
+
+        /**
+         * Ottiene il metodo di pagamento di una richiesta di prelievo dal database
+         *
+         * @param int $withdraw_id ID della richiesta di prelievo
+         * @return string|null Il metodo di pagamento o null se non trovato
+         */
+        private function get_withdraw_method_by_id($withdraw_id)
+        {
+            global $wpdb;
+
+            $method = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT method FROM {$wpdb->prefix}dokan_withdraw WHERE id = %d",
+                    $withdraw_id
+                )
+            );
+
+            return $method;
         }
 
     }
